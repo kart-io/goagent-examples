@@ -1,0 +1,8 @@
+# 本地联调 goagent 的工作区，见 README
+go.work
+go.work.sum
+
+*.test
+*.out
+coverage.*
+.env
