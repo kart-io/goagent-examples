@@ -21,7 +21,11 @@ import (
 )
 
 // demoModel 先读 README，再执行 ls，最后用读到的内容作答。
-func demoModel() llm.ToolStreamClient {
+func demoModel() llm.ToolStreamClient { return scriptedModel(false, nil) }
+
+// scriptedModel 的 badFirst 为真时先以不合法参数调用一次，用于验证参数错误交还模型；
+// onRequest 非空时收到每次请求中的 tool 消息。
+func scriptedModel(badFirst bool, onRequest func(toolMessages []string)) llm.ToolStreamClient {
 	var calls atomic.Int64
 	return &demomodel.Model{Calls: &calls, Respond: func(r *llm.CompletionRequest) llm.StreamChunk {
 		var results []string
@@ -30,7 +34,20 @@ func demoModel() llm.ToolStreamClient {
 				results = append(results, m.Content)
 			}
 		}
-		switch len(results) {
+		if onRequest != nil {
+			onRequest(results)
+		}
+		step := len(results)
+		if badFirst {
+			if step == 0 {
+				c := demomodel.Call("c0", "run_command")
+				c.Function.Arguments = `{"argv":"ls"}`
+				return llm.StreamChunk{ToolCalls: []llm.ToolCall{c}}
+			}
+			step--
+			results = results[1:]
+		}
+		switch step {
 		case 0:
 			c := demomodel.Call("c1", "read_file")
 			c.Function.Arguments = `{"path":"README.md"}`
@@ -59,12 +76,15 @@ func readFile(fs env.FileSystem) interfaces.Tool {
 }
 
 func runCommand(exec env.Executor) interfaces.Tool {
-	return tools.NewBaseTool("run_command", "在工作区内执行命令（不经 shell）", `{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"}}},"required":["argv"]}`,
+	return tools.NewBaseTool("run_command", "在工作区内执行命令（不经 shell）", `{"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"},"minItems":1}},"required":["argv"]}`,
 		func(ctx context.Context, in *interfaces.ToolInput) (*interfaces.ToolOutput, error) {
 			raw, _ := in.Args["argv"].([]any)
 			argv := make([]string, 0, len(raw))
 			for _, a := range raw {
 				argv = append(argv, fmt.Sprint(a))
+			}
+			if len(argv) == 0 {
+				return tools.Rejected("argv 不能为空", nil), nil
 			}
 			res, err := exec.Run(ctx, env.Command{Argv: argv})
 			if err != nil {
@@ -98,7 +118,7 @@ func newServer(model llm.ToolStreamClient) *acp.Server {
 				return nil, err
 			}
 		}
-		d, err := tools.NewDispatcher(reg, tools.DispatchConfig{Pipeline: p})
+		d, err := tools.NewDispatcher(reg, tools.DispatchConfig{Pipeline: p, ReturnArgumentErrors: true})
 		if err != nil {
 			return nil, err
 		}

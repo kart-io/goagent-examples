@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
+	"github.com/kart-io/goagent/llm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,6 +55,28 @@ func (e *editor) WaitForTerminalExit(context.Context, acpsdk.WaitForTerminalExit
 }
 
 func TestACPAgentReadsFileAndRunsCommandWithApproval(t *testing.T) {
+	runScenario(t, demoModel(), 1, 2)
+}
+
+func TestACPAgentBadArgumentsReturnToModel(t *testing.T) {
+	var mu sync.Mutex
+	var seen [][]string
+	model := scriptedModel(true, func(msgs []string) {
+		mu.Lock()
+		defer mu.Unlock()
+		seen = append(seen, append([]string(nil), msgs...))
+	})
+	runScenario(t, model, 1, 2)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.GreaterOrEqual(t, len(seen), 2)
+	require.Len(t, seen[1], 1, "第二次请求应带有参数错误的 tool 消息")
+	require.Contains(t, seen[1][0], "argv")
+}
+
+func runScenario(t *testing.T, model llm.ToolStreamClient, wantPermissions, wantFinished int) {
+	t.Helper()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# 演示项目"), 0o644))
 
@@ -61,7 +84,7 @@ func TestACPAgentReadsFileAndRunsCommandWithApproval(t *testing.T) {
 	editorIn, agentOut := io.Pipe()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
-	go func() { done <- newServer(demoModel()).Serve(ctx, agentIn, agentOut) }()
+	go func() { done <- newServer(model).Serve(ctx, agentIn, agentOut) }()
 	t.Cleanup(func() { _ = editorOut.Close(); _ = agentOut.Close(); cancel(); <-done })
 
 	ed := &editor{}
@@ -76,7 +99,7 @@ func TestACPAgentReadsFileAndRunsCommandWithApproval(t *testing.T) {
 
 	ed.mu.Lock()
 	defer ed.mu.Unlock()
-	require.Equal(t, 1, ed.permissions, "执行命令前请求审批，读文件不需要")
+	require.Equal(t, wantPermissions, ed.permissions, "执行命令前请求审批，读文件不需要")
 
 	var answer string
 	var finished int
@@ -88,6 +111,6 @@ func TestACPAgentReadsFileAndRunsCommandWithApproval(t *testing.T) {
 			finished++
 		}
 	}
-	require.Equal(t, 2, finished)
+	require.Equal(t, wantFinished, finished)
 	require.Contains(t, answer, "演示项目")
 }
