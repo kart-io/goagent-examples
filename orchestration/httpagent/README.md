@@ -2,18 +2,26 @@
 
 运行一个带 Web 页面的真实 GoAgent 服务。默认只有模型回答是离线脚本；Builder、Plugin、Dispatcher、工具、HTTP/SSE、WebSocket 和取消均走正式实现。它不是完整聊天平台，不会将每个运行自动变成持久业务会话。
 
-本例使用独立 Go 模块，避免尚未发布的新扩展影响 examples 其余案例。开发阶段需同时检出 contrib 的 `feat/httpagent-webhooks-20261031` 分支，使用外部 Go workspace 指向新模块；go.mod 不包含本机 replace 路径。
+本例使用独立 Go 模块，固定已经推送的 contrib/httpagent 提交。正常运行不需要检出 contrib 或配置本地 workspace；go.mod 不包含本机 replace 路径。
 
 新增 [分场景运行指南](SCENARIOS.md)：JSON调用、SSE工具流、WebSocket执行/取消、双向Webhook及Hook观察。`cmd/client` 可运行全部5条调用路径，`cmd/webhook-receiver` 可观察真实出站通知。
 
+## 直接运行
+
+在本目录执行：
+
+```sh
+GOWORK=off go run .
+```
+
 ## 本地开发运行
 
-在本目录执行，按实际路径调整 contrib 位置：
+仅在修改 contrib 并联调时，按实际路径建立本地 workspace：
 
 ```sh
 # 仅首次创建；也可以用 GOWORK 指定项目外的临时 workspace。
 go work init . /path/to/goagent-contrib/httpagent
-# 新模块提交尚未推送时，精确替换 go.mod 中的该版本；不要提交机器路径。
+# 对尚未推送的本地修改，精确替换固定版本；不要提交机器路径。
 go work edit -replace=github.com/kart-io/goagent-contrib/httpagent@v0.0.0-20261031151618-cfb3e85df18a=/path/to/goagent-contrib/httpagent
 go run .
 ```
@@ -29,7 +37,7 @@ SSE 的停止按钮中断 HTTP 请求，页面如实显示服务端退出状态�
 - `GOAGENT_WS_HOST=1`：由示例宿主自行升级 `/api/ws`，通过公开 `WebSocketConn`/`ServeWebSocket` 接入同一执行逻辑；实现与运行步骤见场景指南。
 - `GOAGENT_LIVE=1`：使用实际 OpenAI 兼容模型服务；同时设置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。可以使用已运行的本地 Ollama；示例不下载模型。模型需支持原生工具流。
 
-GoAgent 核心使用已发布 v0.32.2（含显式零温修复）。新 httpagent 模块发布/推送后，将 go.mod 固定到可获取的正式版本或提交，再执行 GOWORK=off 测试；本地验证不会冒充已发布依赖可用性。
+GoAgent 核心使用已发布 v0.32.2（含显式零温修复），httpagent 固定远端可获取的 `v0.0.0-20261031151618-cfb3e85df18a`；已补齐 go.sum，并通过 GOWORK=off 的测试、vet 与构建。
 
 ## HTTP 与双向 Webhook
 

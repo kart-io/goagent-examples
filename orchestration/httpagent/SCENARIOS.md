@@ -1,6 +1,6 @@
 # HTTP、流式工具、WebSocket、双向 Webhook 与 Hooks 案例
 
-所有命令在 `orchestration/httpagent` 目录执行。先按 [README](README.md#本地开发运行) 配好外部 Go workspace；新 httpagent 模块尚未发布，不能省略此步骤。三个终端须使用同一 workspace（若使用 `GOWORK`，每个终端都要设置）。默认离线模型，实际使用 Builder、Plugin、Dispatcher、工具和网络传输。
+所有命令在 `orchestration/httpagent` 目录执行。固定扩展提交已推送，可直接下载依赖，无需本地 workspace；如上级目录存在开发 workspace，可在每个终端设置 `GOWORK=off` 使用远端依赖。修改 contrib 并联调时才按 [README](README.md#本地开发运行) 设置 workspace。默认离线模型，实际使用 Builder、Plugin、Dispatcher、工具和网络传输。
 
 ## 1. 启动出站通知接收器
 

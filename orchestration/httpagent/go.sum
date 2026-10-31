@@ -51,6 +51,8 @@ github.com/kart-io/goagent v0.32.1 h1:wTMdPW1JYwXluLr2lbhzUSRTeStslpBZNxhn60N3+y
 github.com/kart-io/goagent v0.32.1/go.mod h1:+tp4/uNhdMeTlYv5qMP+nwYAdTofnnSuOixyqR1Qxa8=
 github.com/kart-io/goagent v0.32.2 h1:fGbXAqi4gQx84nyZ7DzNEGsM/0RvkX6OqpeweM/olg8=
 github.com/kart-io/goagent v0.32.2/go.mod h1:+tp4/uNhdMeTlYv5qMP+nwYAdTofnnSuOixyqR1Qxa8=
+github.com/kart-io/goagent-contrib/httpagent v0.0.0-20261031151618-cfb3e85df18a h1:ICCYArj2WakhBMiwQO7nfvMjF5bFIaSmoQsnjzN0hQk=
+github.com/kart-io/goagent-contrib/httpagent v0.0.0-20261031151618-cfb3e85df18a/go.mod h1:T/9mNslGdeAdAFKE7+wgM5yiXyWYX0y5pitXfvKiS7s=
 github.com/kart-io/logger v0.2.2 h1:YLTNkqR4nL5z1nvPbmSfhY3WvodVIYwFoml+JWgvNl8=
 github.com/kart-io/logger v0.2.2/go.mod h1:FslDvmiuObMHG/DRSpqT+gYJrviu4ieEW7ytRyj0Ack=
 github.com/klauspost/cpuid/v2 v2.2.9 h1:66ze0taIn2H33fBvCkXuv9BmCwDfafmiIVpKV9kKGuY=
