@@ -142,10 +142,15 @@ func main() {
 		}
 		client, seen = live, func() bool { return false }
 	}
+	isLive := os.Getenv("GOAGENT_LIVE") == "1"
 	out, err := run(ctx, client)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("重试 %d 次，续跑 %d 次，审计 %d 次，模型见过完整手机号：%v\n回答：%s\n", out.Retries, out.Continued, out.Audited, seen(), out.Answer)
+	fmt.Printf("重试 %d 次，续跑 %d 次，审计 %d 次", out.Retries, out.Continued, out.Audited)
+	if !isLive {
+		fmt.Printf("，模型见过完整手机号：%v", seen())
+	}
+	fmt.Printf("\n回答：%s\n", out.Answer)
 }

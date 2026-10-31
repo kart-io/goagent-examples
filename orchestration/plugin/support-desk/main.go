@@ -21,8 +21,8 @@ import (
 const crashCode = 3
 
 type options struct {
-	Dir, RedactVersion string
-	CrashBeforeAnswer  bool
+	Dir, RedactVersion  string
+	CrashAfterFirstStep bool
 }
 
 type result struct {
@@ -52,7 +52,7 @@ func run(ctx context.Context, opts options) (result, error) {
 	ctx = durable.WithJournal(durable.WithExecutionKey(ctx, "ticket/1001"), store)
 
 	var lookups atomic.Int32
-	host, err := plugin.NewHost(shop.Orders(&lookups), shop.RefundPolicy(), shop.Redact(opts.RedactVersion), crashProbe(opts.CrashBeforeAnswer))
+	host, err := plugin.NewHost(shop.Orders(&lookups), shop.RefundPolicy(), shop.Redact(opts.RedactVersion), crashProbe(opts.CrashAfterFirstStep))
 	if err != nil {
 		return result{}, err
 	}

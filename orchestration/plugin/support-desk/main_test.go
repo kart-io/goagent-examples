@@ -13,7 +13,7 @@ import (
 // 子进程在第二次模型请求前退出，模拟工具结果已记入日志后崩溃。
 func TestSupportDeskCrashAndResume(t *testing.T) {
 	if dir := os.Getenv("GOAGENT_PLUGIN_CRASH_DIR"); dir != "" {
-		_, err := run(context.Background(), options{Dir: dir, RedactVersion: "1.0.0", CrashBeforeAnswer: true})
+		_, err := run(context.Background(), options{Dir: dir, RedactVersion: "1.0.0", CrashAfterFirstStep: true})
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
