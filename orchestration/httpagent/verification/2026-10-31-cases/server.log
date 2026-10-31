@@ -1,0 +1,22 @@
+2026/10/31 23:01:51 使用离线脚本模型；Plugin、工具、HTTP/SSE/WS 均真实执行
+2026/10/31 23:01:51 打开 http://127.0.0.1:19097
+2026/10/31 23:01:51 Webhook receiver: http://127.0.0.1:19000/events (stdout only; no persistence or deduplication)
+2026/10/31 23:01:52 事件 run.started run_id=3df45103-579c-4f37-b28e-11e6a111cb42
+2026/10/31 23:01:52 原生 Hook demo-input：模型请求前执行
+2026/10/31 23:01:52 原生 Hook demo-input：模型请求前执行
+2026/10/31 23:01:52 事件 run.completed run_id=3df45103-579c-4f37-b28e-11e6a111cb42
+2026/10/31 23:01:52 事件 run.started run_id=d0522704-2d70-47b7-be2a-415b0ef66c80
+2026/10/31 23:01:52 原生 Hook demo-input：模型请求前执行
+2026/10/31 23:01:52 原生 Hook demo-input：模型请求前执行
+2026/10/31 23:01:52 事件 run.completed run_id=d0522704-2d70-47b7-be2a-415b0ef66c80
+2026/10/31 23:01:52 事件 run.started run_id=13560a38-04df-4a3b-b45b-d72cb98d3789
+2026/10/31 23:01:52 原生 Hook demo-input：模型请求前执行
+2026/10/31 23:01:52 原生 Hook demo-input：模型请求前执行
+2026/10/31 23:01:52 事件 run.completed run_id=13560a38-04df-4a3b-b45b-d72cb98d3789
+2026/10/31 23:01:52 事件 run.started run_id=91b07071-0b66-40d0-b393-a29f348afcfd
+2026/10/31 23:01:52 原生 Hook demo-input：模型请求前执行
+2026/10/31 23:01:52 原生 Hook demo-input：模型请求前执行
+2026/10/31 23:01:52 事件 run.completed run_id=91b07071-0b66-40d0-b393-a29f348afcfd
+2026/10/31 23:01:52 事件 run.started run_id=63b4f9e2-f648-4548-9bfb-44fa0ae587a6
+2026/10/31 23:01:52 原生 Hook demo-input：模型请求前执行
+2026/10/31 23:01:52 事件 run.cancelled run_id=63b4f9e2-f648-4548-9bfb-44fa0ae587a6

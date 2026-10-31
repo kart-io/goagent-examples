@@ -4,6 +4,8 @@
 
 本例使用独立 Go 模块，避免尚未发布的新扩展影响 examples 其余案例。开发阶段需同时检出 contrib 的 `feat/httpagent-webhooks-20261031` 分支，使用外部 Go workspace 指向新模块；go.mod 不包含本机 replace 路径。
 
+新增 [分场景运行指南](SCENARIOS.md)：JSON调用、SSE工具流、WebSocket执行/取消、双向Webhook及Hook观察。`cmd/client` 可运行全部5条调用路径，`cmd/webhook-receiver` 可观察真实出站通知。
+
 ## 本地开发运行
 
 在本目录执行，按实际路径调整 contrib 位置：

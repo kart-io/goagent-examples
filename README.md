@@ -14,13 +14,16 @@
 | [orchestration/ops](orchestration/ops/README.md) | 运维 AI 案例：告警根因、容量复评、费用归因、受限子调查、SQL 变更审核 |
 | [orchestration/plugin](orchestration/plugin/basic/README.md) | Agent 能力包：组合与冲突、循环钩子、资源与依赖、持久运行的客服端到端 |
 | [orchestration/acp](orchestration/acp/README.md) | 以 ACP Agent 身份在 Zed 等编辑器中运行：工具通知、执行命令前审批、文件与终端经编辑器 |
+| [orchestration/httpagent](orchestration/httpagent/SCENARIOS.md) | 独立模块：Web页面、JSON/SSE/WS客户端、取消、双向Webhook与Hooks；新扩展发布前需本地workspace |
 | `orchestration/` 其余目录 | 子 Agent 工具化、组合订单、上下文恢复、字段适配、并行诊断、Runnable 工具、流式管道 |
 | `internal/livemodel` | 真实模型客户端的构造与用量记录，供各案例共用 |
 | `scripts/` | 真实模型评测脚本 |
 
 ## 依赖 goagent
 
-`go.mod` 固定一个 goagent 版本，单独克隆即可编译和测试。与本地 goagent 联调时，把两个仓库放在同级目录并建立工作区：
+根模块的 `go.mod` 固定一个 goagent 版本，单独克隆即可编译和测试。HTTP Agent 案例使用独立嵌套模块，其新 contrib 依赖的发布前运行要求见该目录 README；以下根模块命令不会递归测试嵌套模块。
+
+与本地 goagent 联调时，把两个仓库放在同级目录并建立工作区：
 
 ```bash
 make work        # 生成 go.work，指向 ../goagent（已被 .gitignore 忽略）

@@ -34,6 +34,7 @@ type application struct {
 	Core    *httpagent.Handler
 	Host    *plugin.Host
 	Calls   *atomic.Int32
+	Hooks   *atomic.Int32
 }
 
 func (a *application) Close(ctx context.Context) error {
@@ -43,7 +44,7 @@ func (a *application) Close(ctx context.Context) error {
 	return a.Host.Stop(ctx)
 }
 
-type demoPlugin struct{ calls *atomic.Int32 }
+type demoPlugin struct{ calls, hooks *atomic.Int32 }
 
 func (*demoPlugin) Name() string    { return "http-demo" }
 func (*demoPlugin) Version() string { return "1.0.0" }
@@ -64,12 +65,15 @@ func (p *demoPlugin) Contribute(context.Context, *plugin.Env) (plugin.Contributi
 		}
 	})
 	return plugin.Contribution{Tools: []interfaces.Tool{echo, wait}, PreSteps: []plugin.PreStep{{Identity: "demo-input", Hook: func(context.Context, *builder.Step) (builder.PreStepResult, error) {
+		p.hooks.Add(1)
+		log.Print("原生 Hook demo-input：模型请求前执行")
 		return builder.PreStepResult{}, nil
 	}}}}, nil
 }
 func newApp(model llm.ToolStreamClient) (*application, error) {
 	calls := &atomic.Int32{}
-	host, err := plugin.NewHost(&demoPlugin{calls: calls})
+	hooks := &atomic.Int32{}
+	host, err := plugin.NewHost(&demoPlugin{calls: calls, hooks: hooks})
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +135,7 @@ func newApp(model llm.ToolStreamClient) (*application, error) {
 	mux := http.NewServeMux()
 	mux.Handle("/api/", http.StripPrefix("/api", h))
 	mux.Handle("/", http.FileServer(http.FS(web)))
-	return &application{Handler: mux, Core: h, Host: host, Calls: calls}, nil
+	return &application{Handler: mux, Core: h, Host: host, Calls: calls, Hooks: hooks}, nil
 }
 func main() {
 	var model llm.ToolStreamClient = &demoModel{}
