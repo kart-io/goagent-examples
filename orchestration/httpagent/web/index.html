@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>GoAgent Playground</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">GOAGENT · HTTP ADAPTER</p>
+        <h1>GoAgent Playground</h1>
+        <p>同一套 Agent 与 Plugin，通过 SSE 或 WebSocket 执行。</p>
+      </header>
+      <section class="workspace">
+        <form id="form">
+          <div class="toolbar">
+            <label for="transport">连接方式</label
+            ><select id="transport">
+              <option value="sse">HTTP / SSE</option>
+              <option value="ws">WebSocket</option></select
+            ><span id="status" role="status">就绪</span>
+          </div>
+          <label for="input">输入任务</label
+          ><textarea
+            id="input"
+            rows="4"
+            placeholder="输入任务，或输入“慢任务”体验取消"
+          >
+查询订单 A1</textarea
+          >
+          <div class="actions">
+            <button id="send" type="submit">发送任务</button
+            ><button id="stop" type="button" disabled>停止执行</button>
+          </div>
+        </form>
+        <div class="result">
+          <p class="eyebrow">执行结果</p>
+          <pre id="answer" aria-live="polite">
+发送任务后，这里将显示实时输出与最终结果。</pre
+          >
+        </div>
+      </section>
+      <section class="events">
+        <h2>运行事件</h2>
+        <p id="run-id">尚无运行</p>
+        <ol id="events"></ol>
+      </section>
+      <footer>
+        默认示例使用离线脚本模型。Plugin、工具调用、网络传输与取消均真实执行。<br />Webhook
+        演示入口：POST /api/webhooks/demo，JSON：{"message":"查询订单"}。
+      </footer>
+    </main>
+    <script type="module" src="/app.mjs"></script>
+  </body>
+</html>
