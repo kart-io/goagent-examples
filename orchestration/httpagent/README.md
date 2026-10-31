@@ -14,7 +14,7 @@
 # 仅首次创建；也可以用 GOWORK 指定项目外的临时 workspace。
 go work init . /path/to/goagent-contrib/httpagent
 # 新模块提交尚未推送时，精确替换 go.mod 中的该版本；不要提交机器路径。
-go work edit -replace=github.com/kart-io/goagent-contrib/httpagent@v0.0.0-20261031145228-d35f054145fd=/path/to/goagent-contrib/httpagent
+go work edit -replace=github.com/kart-io/goagent-contrib/httpagent@v0.0.0-20261031151618-cfb3e85df18a=/path/to/goagent-contrib/httpagent
 go run .
 ```
 
@@ -26,6 +26,7 @@ SSE 的停止按钮中断 HTTP 请求，页面如实显示服务端退出状态�
 
 - `GOAGENT_HTTP_ADDR`：默认 127.0.0.1:8097。
 - `WEBHOOK_URL`：配置后，将终态通过真实 HTTP POST 发送到该目标，best-effort 有界投递。
+- `GOAGENT_WS_HOST=1`：由示例宿主自行升级 `/api/ws`，通过公开 `WebSocketConn`/`ServeWebSocket` 接入同一执行逻辑；实现与运行步骤见场景指南。
 - `GOAGENT_LIVE=1`：使用实际 OpenAI 兼容模型服务；同时设置 `OPENAI_API_KEY`、`OPENAI_BASE_URL`、`OPENAI_MODEL`。可以使用已运行的本地 Ollama；示例不下载模型。模型需支持原生工具流。
 
 GoAgent 核心使用已发布 v0.32.2（含显式零温修复）。新 httpagent 模块发布/推送后，将 go.mod 固定到可获取的正式版本或提交，再执行 GOWORK=off 测试；本地验证不会冒充已发布依赖可用性。

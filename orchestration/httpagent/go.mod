@@ -3,7 +3,7 @@ module github.com/kart-io/goagent-examples/orchestration/httpagent
 go 1.25.0
 
 require (
-	github.com/kart-io/goagent-contrib/httpagent v0.0.0-20261031145228-d35f054145fd
+	github.com/kart-io/goagent-contrib/httpagent v0.0.0-20261031151618-cfb3e85df18a
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/kart-io/goagent v0.32.2

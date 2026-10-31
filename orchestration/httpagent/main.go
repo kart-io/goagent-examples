@@ -16,6 +16,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/kart-io/goagent-examples/orchestration/httpagent/internal/hostws"
+
 	"github.com/kart-io/goagent-contrib/httpagent"
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/interfaces"
@@ -134,6 +136,9 @@ func newApp(model llm.ToolStreamClient) (*application, error) {
 	}
 	mux := http.NewServeMux()
 	mux.Handle("/api/", http.StripPrefix("/api", h))
+	if os.Getenv("GOAGENT_WS_HOST") == "1" {
+		mux.Handle("/api/ws", hostws.NewHandler(h))
+	}
 	mux.Handle("/", http.FileServer(http.FS(web)))
 	return &application{Handler: mux, Core: h, Host: host, Calls: calls, Hooks: hooks}, nil
 }

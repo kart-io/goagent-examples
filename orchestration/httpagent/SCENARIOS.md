@@ -80,6 +80,25 @@ node --test web/*.test.mjs
 
 `TestExecutableCasesUseToolsHooksAndOutboundWebhook` 通过真实HTTP/WS跑完5条路径，核对工具、PreStep Hook、结果与唯一终态回调。错误流、ready缺少终态、HTTP失败及回调接收器非法/超大输入均有回归。
 
+## 宿主框架自行升级 WebSocket
+
+如需由现有框架接管握手，可直接运行本仓的宿主适配案例：
+
+```sh
+GOAGENT_WS_HOST=1 go run .
+# 另一个终端
+go run ./cmd/client -case ws -input '宿主框架接入订单 E300'
+go run ./cmd/client -case ws-cancel
+```
+
+此模式仅替换 `/api/ws`，页面、JSON/SSE和Webhook继续使用同一应用。完整适配代码在 [internal/hostws/handler.go](internal/hostws/handler.go)：宿主完成GET/Origin/goagent.v1握手检查，将连接包装为 `httpagent.WebSocketConn`，然后阻塞调用 `h.ServeWebSocket(ctx, conn)`。Handler管理升级后的容量、读写、心跳、取消和停服，宿主管理升级前的握手与认证；不要在框架中再启动第二个reader/writer。
+
+该案例的宿主选择Gorilla作为帧库，独立实现接口包装，仅依赖httpagent公开API。其他框架可替换该包装；它不是已适配所有框架的声明。使用net/http且希望保留Handler握手管理时，可改用 `Config.WebSocketUpgrader`/`WebSocketUpgraderFunc` 注入升级器，传入的 `WebSocketUpgradeOptions` 包含子协议和握手期限。
+
+接口适配必须真正实现消息上限、读写期限、Pong回调及解除阻塞的Close，不可用空方法占位。框架升级前须验证Origin、认证及子协议，并使用持续到连接结束的context。已经升级后遭遇容量或停服拒绝，会关闭连接，不再返回HTTP接纳状态。更多契约见contrib/httpagent README的“接入其他Web框架或WebSocket库”。
+
+`TestHostOwnedUpgradeExecutesPluginAndCancels` 使用真实HTTP/WS及正式Plugin工具验证执行/取消；`TestHostOwnedUpgradeKeepsHandshakePolicy` 验证错误Origin和子协议在工具执行前拒绝。
+
 ## 其他业务编排案例
 
 HTTP 是入口适配层，可在 Factory 内装配已有业务 Agent；本例不额外复制业务编排逻辑。
