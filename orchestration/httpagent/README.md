@@ -6,6 +6,13 @@
 
 新增 [分场景运行指南](SCENARIOS.md)：JSON调用、SSE工具流、WebSocket执行/取消、双向Webhook及Hook观察。`cmd/client` 可运行全部5条调用路径，`cmd/webhook-receiver` 可观察真实出站通知。
 
+## 使用与设计文档
+
+- [扩展使用指南](https://github.com/kart-io/goagent-contrib/blob/feat/httpagent-webhooks-20261031/httpagent/docs/USER_GUIDE.md)：安装、可复制的完整服务、queued接纳/worker、模型和框架接入。
+- [设计文档](https://github.com/kart-io/goagent-contrib/blob/feat/httpagent-webhooks-20261031/httpagent/docs/DESIGN.md)：执行绑定、所有者、时序图、取消/停服、Webhook与通知责任。
+- [API与协议参考](https://github.com/kart-io/goagent-contrib/blob/feat/httpagent-webhooks-20261031/httpagent/docs/API_REFERENCE.md)：配置默认值、公开签名、报文与错误码。
+- [本地场景指南](SCENARIOS.md)：本仓运行命令、预期输出和宿主WebSocket包装。
+
 ## 直接运行
 
 在本目录执行：

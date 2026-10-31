@@ -2,6 +2,8 @@
 
 所有命令在 `orchestration/httpagent` 目录执行。固定扩展提交已推送，可直接下载依赖，无需本地 workspace；如上级目录存在开发 workspace，可在每个终端设置 `GOWORK=off` 使用远端依赖。修改 contrib 并联调时才按 [README](README.md#本地开发运行) 设置 workspace。默认离线模型，实际使用 Builder、Plugin、Dispatcher、工具和网络传输。
 
+本页展示可运行案例；正式的 [使用指南](https://github.com/kart-io/goagent-contrib/blob/feat/httpagent-webhooks-20261031/httpagent/docs/USER_GUIDE.md)、[设计](https://github.com/kart-io/goagent-contrib/blob/feat/httpagent-webhooks-20261031/httpagent/docs/DESIGN.md) 和 [API参考](https://github.com/kart-io/goagent-contrib/blob/feat/httpagent-webhooks-20261031/httpagent/docs/API_REFERENCE.md) 在扩展模块维护。
+
 ## 1. 启动出站通知接收器
 
 终端一：
