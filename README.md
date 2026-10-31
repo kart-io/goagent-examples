@@ -13,6 +13,7 @@
 | [orchestration/live](orchestration/live/README.md) | 可组合编排的真实模型案例：审批、多级委派、本地化、长日志排障、审校循环、流式预算、工单分诊、会话日志与重放 |
 | [orchestration/ops](orchestration/ops/README.md) | 运维 AI 案例：告警根因、容量复评、费用归因、受限子调查、SQL 变更审核 |
 | [orchestration/plugin](orchestration/plugin/basic/README.md) | Agent 能力包：组合与冲突、循环钩子、资源与依赖、持久运行的客服端到端 |
+| [orchestration/acp](orchestration/acp/README.md) | 以 ACP Agent 身份在 Zed 等编辑器中运行：工具通知、执行命令前审批、文件与终端经编辑器 |
 | `orchestration/` 其余目录 | 子 Agent 工具化、组合订单、上下文恢复、字段适配、并行诊断、Runnable 工具、流式管道 |
 | `internal/livemodel` | 真实模型客户端的构造与用量记录，供各案例共用 |
 | `scripts/` | 真实模型评测脚本 |
