@@ -1,6 +1,6 @@
 # 可组合编排：真实模型案例
 
-八个案例用真实模型（DeepSeek、MiniMax、Gemini）验证 R2 新增能力：根级共享预算、Runnable 工具化与子 Agent 会话、多级嵌套、上下文卸载与持久引用、自定义上下文策略、持久图的循环与审批、观测事件与离线报告、增量流原型。业务数据全部是合成的，不连接真实订单、支付或运维系统。
+九个案例用真实模型（DeepSeek、MiniMax、Gemini）验证 R2 新增能力：根级共享预算、Runnable 工具化与子 Agent 会话、多级嵌套、上下文卸载与持久引用、自定义上下文策略、持久图的循环与审批、观测事件与离线报告、增量流原型；另有一个案例验证 v0.24 起的会话日志与回归重放。业务数据全部是合成的，不连接真实订单、支付或运维系统。
 
 | 案例 | 验证的能力 | 关键断言 |
 | --- | --- | --- |
@@ -12,6 +12,7 @@
 | [多级委派](delegation/README.md) | 三层嵌套（Agent → 子 Agent → 图工具）、`MaxDepth`、Dispatcher 重入保护 | 答案精确到分；三层请求都计入根预算；深度超限和重入在执行前快速失败 |
 | [人工审批暂停](approval/README.md) | `ApprovalNodes` 暂停与恢复、条件路由、外部效果幂等 | 大额暂停、错误审批键被拒；打款后崩溃，恢复时不重复付款也不再请求模型 |
 | [本地化](localize/README.md) | 自定义 `contextpolicy.Policy`、配置哈希进入意图、同节点多 Agent 作用域 | 同名工具、相同调用 ID 也不串日志；改术语表后在请求前拒绝复用旧日志 |
+| [会话日志与重放](session-replay/README.md) | `WithSessionLog` 与 `session.DurableStore` 同一份日志、中断轮次续写、`testing/replay` 回放 / 工具实跑 / 切开重答、轨迹导出 | 续写时只请求剩余的模型回合；第二轮历史来自日志；工具改动在工具边界报告分歧；重放不写原日志 |
 
 ## 运行
 
@@ -36,7 +37,7 @@ GOAGENT_LIVE=1 GOAGENT_LIVE_PROVIDER=minimax  go test -race -v ./orchestration/l
 GOAGENT_LIVE=1 GOAGENT_LIVE_PROVIDER=gemini   go test -race -v ./orchestration/live/...
 ```
 
-一轮全部 Live 测试约 40 次模型请求（随模型翻页次数和审校轮次浮动）。评测结果见 [2026-10-28 真实模型编排案例](https://github.com/kart-io/goagent/blob/d429c47/docs/evaluation/2026-10-28-orchestration-live/REPORT.md)。
+一轮全部 Live 测试约 46 次模型请求（随模型翻页次数和审校轮次浮动）。评测结果见 [2026-10-28 真实模型编排案例](https://github.com/kart-io/goagent/blob/d429c47/docs/evaluation/2026-10-28-orchestration-live/REPORT.md)。
 
 ## 模型接入
 
