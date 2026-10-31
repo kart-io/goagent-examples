@@ -132,7 +132,7 @@ func newServer(model llm.ToolStreamClient) *acp.Server {
 			return nil, err
 		}
 		return agent, nil
-	}, acp.WithAgentInfo("goagent-acp-example", "0.1.0"), acp.WithToolKind(func(tool string) acpsdk.ToolKind {
+	}, acp.WithTerminalCapabilities(env.Capabilities{Network: true}), acp.WithAgentInfo("goagent-acp-example", "0.1.0"), acp.WithToolKind(func(tool string) acpsdk.ToolKind {
 		if k, ok := kinds[tool]; ok {
 			return k
 		}

@@ -27,3 +27,15 @@ Zed 的 `settings.json`：
 ## 注意
 
 - 示例中的"本会话允许"会放行本会话内的全部命令；实际使用应按命令前缀等收窄 Grant。
+
+
+## ACP 契约修复依赖
+
+案例通过 `WithTerminalCapabilities` 明确声明本地编辑器终端可访问网络；远程、容器或无网络部署须按实际环境调整。`go.mod` 固定到已推送的 ACP 修复提交 `b9d39c785211`（伪版本 `v0.1.2-0.20261031134247-b9d39c785211`），不依赖本地 `replace` 或 `go.work`，也不表示已发布 v0.1.2。
+
+```sh
+GOWORK=off go test -race -count=1 ./orchestration/acp/...
+GOWORK=off go build ./orchestration/acp/...
+```
+
+离线测试覆盖本地执行与编辑器终端转发两条路径，不能替代真实编辑器联调。后续发布正式版本时再更新依赖。

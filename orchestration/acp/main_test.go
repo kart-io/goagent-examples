@@ -18,6 +18,8 @@ type editor struct {
 	mu          sync.Mutex
 	updates     []acpsdk.SessionNotification
 	permissions int
+	terminals   int
+	released    int
 }
 
 func (e *editor) SessionUpdate(_ context.Context, n acpsdk.SessionNotification) error {
@@ -39,19 +41,25 @@ func (e *editor) WriteTextFile(context.Context, acpsdk.WriteTextFileRequest) (ac
 	return acpsdk.WriteTextFileResponse{}, acpsdk.NewMethodNotFound("fs/write_text_file")
 }
 func (e *editor) CreateTerminal(context.Context, acpsdk.CreateTerminalRequest) (acpsdk.CreateTerminalResponse, error) {
-	return acpsdk.CreateTerminalResponse{}, acpsdk.NewMethodNotFound("terminal/create")
+	e.mu.Lock()
+	e.terminals++
+	e.mu.Unlock()
+	return acpsdk.CreateTerminalResponse{TerminalId: "term-1"}, nil
 }
 func (e *editor) KillTerminal(context.Context, acpsdk.KillTerminalRequest) (acpsdk.KillTerminalResponse, error) {
 	return acpsdk.KillTerminalResponse{}, nil
 }
 func (e *editor) TerminalOutput(context.Context, acpsdk.TerminalOutputRequest) (acpsdk.TerminalOutputResponse, error) {
-	return acpsdk.TerminalOutputResponse{}, nil
+	return acpsdk.TerminalOutputResponse{Output: "README.md"}, nil
 }
 func (e *editor) ReleaseTerminal(context.Context, acpsdk.ReleaseTerminalRequest) (acpsdk.ReleaseTerminalResponse, error) {
+	e.mu.Lock()
+	e.released++
+	e.mu.Unlock()
 	return acpsdk.ReleaseTerminalResponse{}, nil
 }
 func (e *editor) WaitForTerminalExit(context.Context, acpsdk.WaitForTerminalExitRequest) (acpsdk.WaitForTerminalExitResponse, error) {
-	return acpsdk.WaitForTerminalExitResponse{}, nil
+	return acpsdk.WaitForTerminalExitResponse{ExitCode: acpsdk.Ptr(0)}, nil
 }
 
 func TestACPAgentReadsFileAndRunsCommandWithApproval(t *testing.T) {
@@ -75,7 +83,7 @@ func TestACPAgentBadArgumentsReturnToModel(t *testing.T) {
 	require.Contains(t, seen[1][0], "argv")
 }
 
-func runScenario(t *testing.T, model llm.ToolStreamClient, wantPermissions, wantFinished int) {
+func runScenario(t *testing.T, model llm.ToolStreamClient, wantPermissions, wantFinished int, capabilities ...acpsdk.ClientCapabilities) {
 	t.Helper()
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "README.md"), []byte("# 演示项目"), 0o644))
@@ -89,7 +97,11 @@ func runScenario(t *testing.T, model llm.ToolStreamClient, wantPermissions, want
 
 	ed := &editor{}
 	c := acpsdk.NewClientSideConnection(ed, editorOut, editorIn)
-	_, err := c.Initialize(ctx, acpsdk.InitializeRequest{ProtocolVersion: acpsdk.ProtocolVersionNumber})
+	var caps acpsdk.ClientCapabilities
+	if len(capabilities) > 0 {
+		caps = capabilities[0]
+	}
+	_, err := c.Initialize(ctx, acpsdk.InitializeRequest{ProtocolVersion: acpsdk.ProtocolVersionNumber, ClientCapabilities: caps})
 	require.NoError(t, err)
 	s, err := c.NewSession(ctx, acpsdk.NewSessionRequest{Cwd: dir, McpServers: []acpsdk.McpServer{}})
 	require.NoError(t, err)
@@ -100,6 +112,10 @@ func runScenario(t *testing.T, model llm.ToolStreamClient, wantPermissions, want
 	ed.mu.Lock()
 	defer ed.mu.Unlock()
 	require.Equal(t, wantPermissions, ed.permissions, "执行命令前请求审批，读文件不需要")
+	if caps.Terminal {
+		require.Equal(t, 1, ed.terminals)
+		require.Equal(t, 1, ed.released)
+	}
 
 	var answer string
 	var finished int
@@ -113,4 +129,8 @@ func runScenario(t *testing.T, model llm.ToolStreamClient, wantPermissions, want
 	}
 	require.Equal(t, wantFinished, finished)
 	require.Contains(t, answer, "演示项目")
+}
+
+func TestACPAgentUsesEditorTerminal(t *testing.T) {
+	runScenario(t, demoModel(), 1, 2, acpsdk.ClientCapabilities{Terminal: true})
 }
