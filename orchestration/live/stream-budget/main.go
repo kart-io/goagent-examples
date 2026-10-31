@@ -14,11 +14,11 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/flow"
-	"github.com/kart-io/goagent-examples/internal/livemodel"
 )
 
 // Report 是需要摘要的合成故障复盘材料。

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kart-io/goagent/core/observe"
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
+	"github.com/kart-io/goagent/core/observe"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"

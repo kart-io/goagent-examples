@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/kart-io/goagent/core"
-	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
 	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
+	"github.com/kart-io/goagent/core"
+	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
 	"github.com/stretchr/testify/require"

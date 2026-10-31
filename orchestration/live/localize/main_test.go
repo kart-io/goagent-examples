@@ -9,12 +9,12 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/kart-io/goagent/builder/contextpolicy"
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
 	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase/livecasetest"
+	"github.com/kart-io/goagent/builder/contextpolicy"
 	"github.com/kart-io/goagent/llm"
 	"github.com/stretchr/testify/require"
 )

@@ -16,11 +16,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kart-io/goagent-examples/internal/livemodel"
+	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
-	"github.com/kart-io/goagent-examples/internal/livemodel"
-	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/tools"
 	"github.com/kart-io/goagent/workflow"
