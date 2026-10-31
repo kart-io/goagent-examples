@@ -56,7 +56,7 @@ type Client struct {
 func New(cfg Config) (*Client, error) {
 	switch cfg.Provider {
 	case "deepseek":
-		p, err := providers.NewDeepSeekWithOptions(llm.WithModel(cfg.Model), llm.WithMaxTokens(MaxTokens), llm.WithTemperature(0.2), llm.WithTimeout(RequestTimeout), llm.WithRetryCount(0))
+		p, err := providers.NewDeepSeekWithOptions(llm.WithModel(cfg.Model), llm.WithMaxTokens(MaxTokens), llm.WithTemperature(0.2), llm.WithTimeout(RequestTimeout))
 		if err != nil {
 			return nil, fmt.Errorf("创建 DeepSeek 客户端：%s", Redact(err.Error()))
 		}
@@ -68,7 +68,7 @@ func New(cfg Config) (*Client, error) {
 		}
 		return Wrap(m, cfg), nil
 	case "gemini":
-		p, err := providers.NewGeminiWithOptions(llm.WithModel(cfg.Model), llm.WithMaxTokens(MaxTokens), llm.WithTemperature(0.2), llm.WithTimeout(RequestTimeout), llm.WithRetryCount(0))
+		p, err := providers.NewGeminiWithOptions(llm.WithModel(cfg.Model), llm.WithMaxTokens(MaxTokens), llm.WithTemperature(0.2), llm.WithTimeout(RequestTimeout))
 		if err != nil {
 			return nil, fmt.Errorf("创建 Gemini 客户端：%s", Redact(err.Error()))
 		}

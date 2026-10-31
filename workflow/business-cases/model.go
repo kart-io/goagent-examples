@@ -71,7 +71,7 @@ func newModelJudge(provider, model string) (*modelJudge, error) {
 	if key == "" {
 		return nil, fmt.Errorf("%s_API_KEY is required", strings.ToUpper(provider))
 	}
-	opts := []llm.ClientOption{llm.WithAPIKey(key), llm.WithModel(model), llm.WithMaxTokens(modelMaxTokens), llm.WithTemperature(0.2), llm.WithTimeout(modelTimeout), llm.WithRetryCount(0)}
+	opts := []llm.ClientOption{llm.WithAPIKey(key), llm.WithModel(model), llm.WithMaxTokens(modelMaxTokens), llm.WithTemperature(0.2), llm.WithTimeout(modelTimeout)}
 	var client completionClient
 	var err error
 	if provider == "gemini" {
