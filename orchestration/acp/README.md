@@ -26,5 +26,4 @@ Zed 的 `settings.json`：
 
 ## 注意
 
-- acp 模块发布 tag 之前，本案例只能在工作区模式下构建：`go.work` 中 `use ../goagent-contrib/acp`，并执行 `go work edit -replace github.com/kart-io/goagent-contrib/acp@v0.1.0=../goagent-contrib/acp`。
 - 示例中的"本会话允许"会放行本会话内的全部命令；实际使用应按命令前缀等收窄 Grant。
