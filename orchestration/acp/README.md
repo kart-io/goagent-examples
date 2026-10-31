@@ -12,7 +12,12 @@ Zed 的 `settings.json`：
 ```json
 {
   "agent_servers": {
-    "goagent": { "command": "/tmp/goagent-acp", "env": { "GOAGENT_LIVE": "1", "DEEPSEEK_API_KEY": "..." } }
+    "goagent": {
+      "type": "custom",
+      "command": "/tmp/goagent-acp",
+      "args": [],
+      "env": { "GOAGENT_LIVE": "1", "DEEPSEEK_API_KEY": "..." }
+    }
   }
 }
 ```
