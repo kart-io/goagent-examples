@@ -26,7 +26,7 @@ import (
 	"github.com/kart-io/goagent/tools"
 )
 
-//go:embed web/index.html web/app.mjs web/sse.mjs web/style.css
+//go:embed web/index.html web/app.mjs web/sse.mjs web/protocol.mjs web/style.css
 var assets embed.FS
 
 type application struct {

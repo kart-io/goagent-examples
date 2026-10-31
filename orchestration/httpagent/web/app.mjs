@@ -1,3 +1,4 @@
+import { WSProtocol } from "./protocol.mjs";
 import { readEvents } from "./sse.mjs";
 const $ = (id) => document.getElementById(id);
 let controller = null,
@@ -58,6 +59,7 @@ async function ws(input) {
   return new Promise((resolve, reject) => {
     const scheme = location.protocol === "https:" ? "wss:" : "ws:";
     socket = new WebSocket(`${scheme}//${location.host}/api/ws`, "goagent.v1");
+    const protocol = new WSProtocol();
     let terminal = false,
       ready = false;
     socket.onopen = () =>
@@ -67,6 +69,7 @@ async function ws(input) {
     socket.onmessage = (message) => {
       try {
         const frame = JSON.parse(message.data);
+        protocol.accept(frame);
         if (frame.type === "accepted") {
           runID = frame.run_id;
           $("run-id").textContent = `Run ${runID}`;

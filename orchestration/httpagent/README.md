@@ -12,7 +12,7 @@
 # 仅首次创建；也可以用 GOWORK 指定项目外的临时 workspace。
 go work init . /path/to/goagent-contrib/httpagent
 # 新模块提交尚未推送时，精确替换 go.mod 中的该版本；不要提交机器路径。
-go work edit -replace=github.com/kart-io/goagent-contrib/httpagent@v0.0.0-20261031142854-8c5e3c1d4e42=/path/to/goagent-contrib/httpagent
+go work edit -replace=github.com/kart-io/goagent-contrib/httpagent@v0.0.0-20261031145228-d35f054145fd=/path/to/goagent-contrib/httpagent
 go run .
 ```
 
@@ -45,7 +45,7 @@ Plugin 的 PreStep、工具以及 HTTP 适配器 Observer 是不同扩展点；�
 ```sh
 go test -race -count=1 ./...
 go vet ./...
-node --test web/sse.test.mjs
+node --test web/*.test.mjs
 ```
 
 Go 测试通过实际 HTTP 服务验证 Plugin 工具经 JSON/SSE/入站 Webhook 执行。JS 测试覆盖逐字节 UTF-8、CRLF、多 data 行、半帧及无终态 EOF。真实浏览器验证记录位于主库 docs/evaluation/2026-10-31-httpagent-implementation/。
