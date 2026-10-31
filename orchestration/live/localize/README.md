@@ -1,4 +1,4 @@
-# 本地化：自定义上下文策略与同节点多 Agent
+# 本地化：带身份的 PreStep 与同节点多 Agent
 
 一个持久节点 `localize` 里先后运行两个 Agent：
 
@@ -9,11 +9,11 @@
 
 两个工具同名、实现不同，各自经独立 Dispatcher 记录日志。模型和工具的日志按 `WithDurableScope` 隔离；离线测试故意让两个 Agent 使用完全相同的调用 ID `c1`，验证它们不会互相命中日志。
 
-`glossaryPolicy` 是自定义的 `contextpolicy.Policy`：
+`glossaryPolicy` 是一个 PreStep，经 `WithIdentifiedPreStep(policy.Identity(), policy.PreStep)` 装入：
 
-- 把术语表追加到首条用户消息末尾。只改非 system 消息的正文，不增删消息，满足策略运行时的协议检查；重复调用保持幂等。
-- 描述信息包含 ID、Version，以及按术语内容和顺序计算的 `ConfigHash`，这些都进入模型请求意图。同版本只要改了一个译法，旧日志就不能复用，会在请求模型之前失败。
-- 翻译和校对两个 Agent 都挂这个策略，各用一个独立实例。只给翻译挂时，MiniMax 的校对会把 "no-questions-asked refund" 润色成别的说法。
+- 把术语表追加到首条用户消息末尾，不增删消息；重复执行保持幂等。持久运行中它的结果记入日志，恢复时回放。
+- 身份包含版本与按术语内容和顺序计算的哈希，进入 PreStep 记录的意图。同版本只要改了一个译法，旧日志就不能复用，会在请求模型之前失败。
+- 翻译和校对两个 Agent 都挂这个 PreStep，各用一个独立实例。只给翻译挂时，MiniMax 的校对会把 "no-questions-asked refund" 润色成别的说法。
 
 ```sh
 GOAGENT_LIVE_PROVIDER=minimax go run ./orchestration/live/localize -dir /tmp/localize-1

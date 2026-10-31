@@ -1,6 +1,6 @@
 // 本地化：同一个持久节点内先后运行翻译 Agent 与校对 Agent，二者都有名为 lookup_term
 // 的工具但实现不同，靠 WithDurableScope 隔离日志。翻译 Agent 挂载自定义术语表策略，
-// 策略的版本与配置哈希进入模型意图，术语表一改就不能复用旧日志。
+// 术语表 PreStep 的身份（版本与配置哈希）进入持久日志，术语表一改就不能复用旧日志。
 package main
 
 import (
@@ -12,13 +12,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync/atomic"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent/builder"
-	"github.com/kart-io/goagent/builder/contextpolicy"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/interfaces"
@@ -64,12 +64,12 @@ func MissingPhrases(text string) []string {
 
 const marker = "\n\n[术语表 "
 
-// glossaryPolicy 把术语表追加到首条用户消息末尾。只改非 system 消息的正文，
-// 不增删消息，满足策略运行时的协议约束；重复调用保持幂等。
+// glossaryPolicy 是一个 PreStep：把术语表追加到首条用户消息末尾，重复执行保持幂等。
+// Identity 包含版本与按术语内容和顺序计算的摘要，经 WithIdentifiedPreStep 进入持久日志。
 type glossaryPolicy struct {
-	glossary   Glossary
-	descriptor contextpolicy.Descriptor
-	injected   atomic.Int64
+	glossary Glossary
+	identity string
+	injected atomic.Int64
 }
 
 func newGlossaryPolicy(g Glossary) (*glossaryPolicy, error) {
@@ -81,15 +81,16 @@ func newGlossaryPolicy(g Glossary) (*glossaryPolicy, error) {
 		return nil, err
 	}
 	sum := sha256.Sum256(data)
-	return &glossaryPolicy{glossary: g, descriptor: contextpolicy.Descriptor{ID: "glossary", Version: g.Version, ConfigHash: hex.EncodeToString(sum[:]), Durable: true}}, nil
+	return &glossaryPolicy{glossary: g, identity: "glossary/" + g.Version + "/" + hex.EncodeToString(sum[:])}, nil
 }
 
-func (p *glossaryPolicy) Descriptor() contextpolicy.Descriptor { return p.descriptor }
+func (p *glossaryPolicy) Identity() string { return p.identity }
 func (p *glossaryPolicy) Stats() map[string]int64 {
 	return map[string]int64{"injected": p.injected.Load()}
 }
-func (p *glossaryPolicy) BeforeTurn(_ context.Context, turn contextpolicy.Turn) (contextpolicy.Turn, error) {
-	for i, m := range turn.Messages {
+func (p *glossaryPolicy) PreStep(_ context.Context, step *builder.Step) (builder.PreStepResult, error) {
+	messages := slices.Clone(step.Messages)
+	for i, m := range messages {
 		if m.Role != "user" {
 			continue
 		}
@@ -99,12 +100,13 @@ func (p *glossaryPolicy) BeforeTurn(_ context.Context, turn contextpolicy.Turn) 
 			for _, t := range p.glossary.Terms {
 				fmt.Fprintf(&b, "\n- %s → %s", t[0], t[1])
 			}
-			turn.Messages[i].Content = b.String()
+			messages[i].Content = b.String()
 			p.injected.Add(1)
 		}
 		break
 	}
-	return turn, nil
+	step.Messages = messages
+	return builder.PreStepResult{}, nil
 }
 
 // Result 汇总终稿、两个 Agent 的工具执行次数与计量。
@@ -164,7 +166,7 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, g
 		}
 		translator, err := builder.NewSimpleBuilder(client).WithDurableScope("translate").
 			WithSystemPrompt("你是中译英译员。原文中的商品编号必须调用 lookup_term 查询英文商品名，译文用商品名代替编号；其余【】术语按术语表翻译。只输出英文译文。").
-			WithTools(translatorTools...).WithContextPolicies(func() contextpolicy.Policy { return policy }).
+			WithTools(translatorTools...).WithIdentifiedPreStep(policy.Identity(), policy.PreStep).
 			WithMaxIterations(6).WithMaxTokens(8192).Build()
 		if err != nil {
 			return s, err
@@ -185,7 +187,7 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, g
 		}
 		proofreader, err := builder.NewSimpleBuilder(client).WithDurableScope("proofread").
 			WithSystemPrompt("你是英文校对。先调用一次 lookup_term（term 传 style）获取风格规范，再按规范润色译文；术语表中的英文译法必须逐字保留。只输出最终英文。").
-			WithTools(proofTools...).WithContextPolicies(func() contextpolicy.Policy { return proofPolicy }).
+			WithTools(proofTools...).WithIdentifiedPreStep(proofPolicy.Identity(), proofPolicy.PreStep).
 			WithMaxIterations(4).WithMaxTokens(8192).Build()
 		if err != nil {
 			return s, err

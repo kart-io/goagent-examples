@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -14,7 +15,7 @@ import (
 	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase/livecasetest"
-	"github.com/kart-io/goagent/builder/contextpolicy"
+	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/llm"
 	"github.com/stretchr/testify/require"
 )
@@ -30,36 +31,35 @@ func TestGlossaryPolicy(t *testing.T) {
 	require.NoError(t, err)
 	b, err := newGlossaryPolicy(Glossary{Version: "v1", Terms: append([][2]string(nil), DefaultGlossary.Terms...)})
 	require.NoError(t, err)
-	require.Equal(t, a.Descriptor(), b.Descriptor(), "相同配置得到相同描述")
-	require.True(t, a.Descriptor().Durable)
+	require.Equal(t, a.Identity(), b.Identity(), "相同配置得到相同身份")
 
 	changed := Glossary{Version: "v1", Terms: append([][2]string{{"签收", "receipt"}}, DefaultGlossary.Terms[1:]...)}
 	c, err := newGlossaryPolicy(changed)
 	require.NoError(t, err)
-	require.Equal(t, a.Descriptor().Version, c.Descriptor().Version)
-	require.NotEqual(t, a.Descriptor().ConfigHash, c.Descriptor().ConfigHash, "同版本改术语也必须改变哈希")
+	require.NotEqual(t, a.Identity(), c.Identity(), "同版本改术语也必须改变身份")
 	reordered := Glossary{Version: "v1", Terms: [][2]string{DefaultGlossary.Terms[1], DefaultGlossary.Terms[0], DefaultGlossary.Terms[2], DefaultGlossary.Terms[3]}}
 	d, err := newGlossaryPolicy(reordered)
 	require.NoError(t, err)
-	require.NotEqual(t, a.Descriptor().ConfigHash, d.Descriptor().ConfigHash, "顺序属于配置")
+	require.NotEqual(t, a.Identity(), d.Identity(), "顺序属于配置")
 
 	_, err = newGlossaryPolicy(Glossary{Version: "v1"})
 	require.Error(t, err)
 	_, err = newGlossaryPolicy(Glossary{Terms: DefaultGlossary.Terms})
 	require.Error(t, err)
 
-	turn := contextpolicy.Turn{Round: 2, RemainingCalls: 3, Messages: []llm.Message{
-		{Role: "system", Content: "sys"}, {Role: "user", Content: "原文"}, {Role: "assistant", Content: "a"}, {Role: "user", Content: "第二条"}}}
-	out, err := a.BeforeTurn(context.Background(), turn)
+	original := []llm.Message{{Role: "system", Content: "sys"}, {Role: "user", Content: "原文"}, {Role: "assistant", Content: "a"}, {Role: "user", Content: "第二条"}}
+	step := &builder.Step{Messages: slices.Clone(original)}
+	_, err = a.PreStep(context.Background(), step)
 	require.NoError(t, err)
-	require.Len(t, out.Messages, 4, "不增删消息")
-	require.Equal(t, "sys", out.Messages[0].Content, "不改 system")
-	require.Contains(t, out.Messages[1].Content, "签收 → delivery confirmation")
-	require.Equal(t, "第二条", out.Messages[3].Content, "只改首条用户消息")
-	require.Equal(t, 2, out.Round)
-	again, err := a.BeforeTurn(context.Background(), out)
+	require.Len(t, step.Messages, 4, "不增删消息")
+	require.Equal(t, "sys", step.Messages[0].Content, "不改 system")
+	require.Contains(t, step.Messages[1].Content, "签收 → delivery confirmation")
+	require.Equal(t, "第二条", step.Messages[3].Content, "只改首条用户消息")
+	require.Equal(t, "原文", original[1].Content, "不修改传入的对话")
+	first := step.Messages[1].Content
+	_, err = a.PreStep(context.Background(), step)
 	require.NoError(t, err)
-	require.Equal(t, out.Messages[1].Content, again.Messages[1].Content, "幂等")
+	require.Equal(t, first, step.Messages[1].Content, "幂等")
 	require.Equal(t, int64(1), a.Stats()["injected"])
 }
 

@@ -30,14 +30,14 @@ func run(dir string) (string, error) {
 	call := llm.ToolCall{ID: "lookup-1", Type: "function"}
 	call.Function.Name = "lookup"
 	call.Function.Arguments = "{}"
-	turn, err := policy.BeforeTurn(ctx, contextpolicy.Turn{Messages: []llm.Message{{Role: "assistant", ToolCalls: []llm.ToolCall{call}}, {Role: "tool", ToolCallID: call.ID, Content: "甲乙丙丁戊"}}})
+	messages, err := policy.Reduce(ctx, []llm.Message{{Role: "assistant", ToolCalls: []llm.ToolCall{call}}, {Role: "tool", ToolCallID: call.ID, Content: "甲乙丙丁戊"}}, false)
 	if err != nil {
 		return "", err
 	}
 	var ref struct {
 		Key string `json:"context_result"`
 	}
-	if err = json.Unmarshal([]byte(turn.Messages[1].Content), &ref); err != nil {
+	if err = json.Unmarshal([]byte(messages[1].Content), &ref); err != nil {
 		return "", err
 	}
 	out, err := policy.Invoke(ctx, &interfaces.ToolInput{Args: map[string]any{"key": ref.Key, "offset": float64(2)}})

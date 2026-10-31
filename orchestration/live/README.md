@@ -5,13 +5,13 @@
 | 案例 | 验证的能力 | 关键断言 |
 | --- | --- | --- |
 | [工单分诊](ticket-triage/README.md) | `NewRunnableTool` 包装规则图、`NewRunnableToolFactory` 独立子 Agent、持久根预算、`CleanupTimeout` | 3 张工单结论正确；子会话创建数等于清理数；同目录重跑零请求、计量不变 |
-| [长日志排障](log-triage/README.md) | `contextpolicy.Offload` 持久卸载、`read_context_result` 分页、跨进程恢复 | 日志被卸载为引用；读第一页时进程退出，新进程恢复不重发已完成请求；第三次纯回放 |
+| [长日志排障](log-triage/README.md) | `WithOffload` 持久卸载、`read_context_result` 分页、跨进程恢复 | 日志被卸载为引用；读第一页时进程退出，新进程恢复不重发已完成请求；第三次纯回放 |
 | [并行诊断与观测报告](parallel-diagnostics/README.md) | `AddParallel` 多 Agent、`observe` + OTel、`devtools.Recorder`、`Describe`、`WriteReport` | 三个分支并发且结论正确；所有 span 在宿主 trace 下；事件不含提示词和正文；报告无脚本 |
 | [流式摘要与预算争用](stream-budget/README.md) | `core/flow` 的 Source/Map/Fold、根预算并发准入 | 预览拼接等于终态；逐 token 模型首段早于完成；3 个子 Agent 共享 2 次额度时恰好 1 个在请求前被拒 |
 | [文稿审校循环](review-loop/README.md) | 持久图 `AddBranch` 循环、轮次上限、节点级检查点 | 第一稿必然被打回；第 2 轮开始前退出，恢复后不重跑第 1 轮；宿主独立核对终稿事实 |
 | [多级委派](delegation/README.md) | 三层嵌套（Agent → 子 Agent → 图工具）、`MaxDepth`、Dispatcher 重入保护 | 答案精确到分；三层请求都计入根预算；深度超限和重入在执行前快速失败 |
 | [人工审批暂停](approval/README.md) | `ApprovalNodes` 暂停与恢复、条件路由、外部效果幂等 | 大额暂停、错误审批键被拒；打款后崩溃，恢复时不重复付款也不再请求模型 |
-| [本地化](localize/README.md) | 自定义 `contextpolicy.Policy`、配置哈希进入意图、同节点多 Agent 作用域 | 同名工具、相同调用 ID 也不串日志；改术语表后在请求前拒绝复用旧日志 |
+| [本地化](localize/README.md) | 带身份的 PreStep（`WithIdentifiedPreStep`）、配置哈希进入意图、同节点多 Agent 作用域 | 同名工具、相同调用 ID 也不串日志；改术语表后在请求前拒绝复用旧日志 |
 | [会话日志与重放](session-replay/README.md) | `WithSessionLog` 与 `session.DurableStore` 同一份日志、中断轮次续写、`testing/replay` 回放 / 工具实跑 / 切开重答、轨迹导出 | 续写时只请求剩余的模型回合；第二轮历史来自日志；工具改动在工具边界报告分歧；重放不写原日志 |
 
 ## 运行

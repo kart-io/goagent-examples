@@ -90,8 +90,8 @@ func TestLiveLogTriageCrashRecovery(t *testing.T) {
 	require.Contains(t, resumed.Answer, ErrorCode)
 	require.Contains(t, resumed.Answer, ErrorUpstream)
 	require.Zero(t, resumed.FetchRuns, "崩溃前已完成的 fetch_logs 不再执行")
-	require.GreaterOrEqual(t, resumed.PageReads, int64(1), "未完成的读取在恢复时重试")
-	require.Equal(t, int64(1), resumed.Offloaded, "长日志被卸载为引用")
+	require.GreaterOrEqual(t, resumed.PageReads, int64(1), "未完成的读取在恢复时重试，引用表从回放的对话重建")
+	require.Zero(t, resumed.Offloaded, "卸载在崩溃前完成，恢复时回放 PreStep 的结果，不再卸载")
 	require.Equal(t, crashCalls+int(resumed.NewModelCalls), resumed.Budget.ReservedRequests, "崩溃前的请求被回放而非重发")
 	require.LessOrEqual(t, resumed.Budget.ReservedRequests, 10)
 

@@ -105,11 +105,16 @@ func run(ctx context.Context, dir string) (result, error) {
 	if err != nil {
 		return out, err
 	}
-	business, err := journalTools([]interfaces.Tool{ruleTool, childTool})
+	results, err := contextpolicy.NewDurableResultStore(store)
 	if err != nil {
 		return out, err
 	}
-	results, err := contextpolicy.NewDurableResultStore(store)
+	offload, err := contextpolicy.NewOffload(contextpolicy.OffloadConfig{Store: results, MaxToolResultRunes: 40, KeepRecentToolRounds: 1, Namespace: "order-evidence"})
+	if err != nil {
+		return out, err
+	}
+	// 证据读取工具与业务工具一起经 Dispatcher 记入日志。
+	business, err := journalTools([]interfaces.Tool{ruleTool, childTool, offload})
 	if err != nil {
 		return out, err
 	}
@@ -129,13 +134,7 @@ func run(ctx context.Context, dir string) (result, error) {
 			return llm.StreamChunk{Content: "批准退款：满足期限与政策。"}
 		}
 	}}
-	agent, err := builder.NewSimpleBuilder(model).WithDurableScope("order-review").WithTools(business...).WithMaxIterations(4).WithContextPolicies(func() contextpolicy.Policy {
-		p, e := contextpolicy.NewOffload(contextpolicy.OffloadConfig{Store: results, MaxToolResultRunes: 40, KeepRecentToolRounds: 1, Namespace: "order-evidence"})
-		if e != nil {
-			panic(e)
-		}
-		return p
-	}).WithPolicyToolAdapter(journalTools).Build()
+	agent, err := builder.NewSimpleBuilder(model).WithDurableScope("order-review").WithTools(business...).WithMaxIterations(4).WithOffload(offload).Build()
 	if err != nil {
 		return out, err
 	}

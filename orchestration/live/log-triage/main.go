@@ -95,33 +95,20 @@ func Run(ctx context.Context, client *livemodel.Client, dir string, hook readHoo
 	}
 	ctx = budget.WithController(durable.WithJournal(durable.WithExecutionKey(ctx, "incident/pay-1/agent"), store), controller)
 	var fetches, reads atomic.Int64
-	var policy atomic.Pointer[contextpolicy.Offload]
+	offload, err := contextpolicy.NewOffload(contextpolicy.OffloadConfig{Store: results, Namespace: "incident-logs", MaxToolResultRunes: 400, ReadPageRunes: 3000})
+	if err != nil {
+		return out, err
+	}
 	fetch := tools.NewFunctionTool("fetch_logs", "获取指定服务最近的日志全文", `{"type":"object","properties":{"service":{"type":"string","enum":["payment"]}},"required":["service"],"additionalProperties":false}`,
 		func(context.Context, map[string]any) (any, error) { fetches.Add(1); return PaymentLogs(), nil })
-	business, err := livecase.DispatchTools([]interfaces.Tool{fetch})
+	// 读取工具与 fetch_logs 一起经 Dispatcher 记入日志。
+	business, err := livecase.DispatchTools([]interfaces.Tool{fetch, countedTool{Tool: offload, runs: &reads, before: hook}})
 	if err != nil {
 		return out, err
 	}
 	agent, err := builder.NewSimpleBuilder(client).WithDurableScope("log-triage").WithSystemPrompt(prompt).WithTools(business...).
 		WithMaxIterations(8).WithMaxTokens(livemodel.MaxTokens).WithTimeout(8 * livemodel.RequestTimeout).
-		WithContextPolicies(func() contextpolicy.Policy {
-			p, e := contextpolicy.NewOffload(contextpolicy.OffloadConfig{Store: results, Namespace: "incident-logs", MaxToolResultRunes: 400, ReadPageRunes: 3000})
-			if e != nil {
-				panic(e)
-			}
-			policy.Store(p)
-			return p
-		}).
-		WithPolicyToolAdapter(func(ts []interfaces.Tool) ([]interfaces.Tool, error) {
-			wrapped := make([]interfaces.Tool, len(ts))
-			for i, t := range ts {
-				if _, ok := t.(tools.DurableIntentVersioner); !ok {
-					return nil, fmt.Errorf("策略工具 %s 缺少意图版本", t.Name())
-				}
-				wrapped[i] = countedTool{Tool: t, runs: &reads, before: hook}
-			}
-			return livecase.DispatchTools(wrapped)
-		}).Build()
+		WithOffload(offload).Build()
 	if err != nil {
 		return out, err
 	}
@@ -129,9 +116,7 @@ func Run(ctx context.Context, client *livemodel.Client, dir string, hook readHoo
 	answer, err := agent.AsRunnable().Invoke(ctx, "支付成功率突降，请排查 payment 服务日志。")
 	out.NewModelCalls = client.Calls() - before
 	out.FetchRuns, out.PageReads = fetches.Load(), reads.Load()
-	if p := policy.Load(); p != nil {
-		out.Offloaded = p.Stats()["offloaded_results"]
-	}
+	out.Offloaded = offload.Stats()["offloaded_results"]
 	if snapshot, e := controller.Snapshot(ctx); e == nil {
 		out.Budget = snapshot
 	}
