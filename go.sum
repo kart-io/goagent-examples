@@ -51,8 +51,8 @@ github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2 h1:8Tjv8EJ+pM1xP8mK6egEbD1OgnV
 github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.2/go.mod h1:pkJQ2tZHJ0aFOVEEot6oZmaVEZcRme73eIFmhiVuRWs=
 github.com/kart-io/goagent v0.32.0 h1:M/xrqmPBLA5tMvGRrRfnDGCsscxYgzGj/1MJK6mqTYw=
 github.com/kart-io/goagent v0.32.0/go.mod h1:+tp4/uNhdMeTlYv5qMP+nwYAdTofnnSuOixyqR1Qxa8=
-github.com/kart-io/goagent-contrib/acp v0.1.0 h1:hNKjNeXXNOLk0pGmsW28bkohAvQBJoZwraSSrAIsCaQ=
-github.com/kart-io/goagent-contrib/acp v0.1.0/go.mod h1:I7FGwuOIqDckpFFCTe+u8LMGDQ4JbGdqmeAD39GaPEQ=
+github.com/kart-io/goagent-contrib/acp v0.1.1 h1:urYX5KhrHRt305VACXMAR5bzK5JWOU1yh/DnVzjyWWc=
+github.com/kart-io/goagent-contrib/acp v0.1.1/go.mod h1:I7FGwuOIqDckpFFCTe+u8LMGDQ4JbGdqmeAD39GaPEQ=
 github.com/kart-io/logger v0.2.2 h1:YLTNkqR4nL5z1nvPbmSfhY3WvodVIYwFoml+JWgvNl8=
 github.com/kart-io/logger v0.2.2/go.mod h1:FslDvmiuObMHG/DRSpqT+gYJrviu4ieEW7ytRyj0Ack=
 github.com/klauspost/cpuid/v2 v2.2.9 h1:66ze0taIn2H33fBvCkXuv9BmCwDfafmiIVpKV9kKGuY=
