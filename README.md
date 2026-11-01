@@ -6,6 +6,8 @@
 
 ## 目录
 
+多 Agent 场景扩展需求见 [需求草案](docs/requirements/multi-agent-scenarios.md)，定义自然语言意图路由、多轮澄清、Tool/Workflow/子 Agent 执行选择、返回契约与分阶段验收；新增案例尚未按该文档实施。路由方案比较与执行边界见 [调研分析](docs/research/intent-execution-routing.md)。
+
 | 目录 | 内容 |
 | --- | --- |
 | [workflow/business-cases](workflow/business-cases/README.md) | DevOps、文章审核、自动回复；含真实模型评测入口 |
@@ -16,19 +18,20 @@
 | [orchestration/acp](orchestration/acp/README.md) | 以 ACP Agent 身份在 Zed 等编辑器中运行：工具通知、执行命令前审批、文件与终端经编辑器 |
 | [orchestration/httpagent](orchestration/httpagent/SCENARIOS.md) | 独立模块：Web页面、JSON/SSE/WS客户端、取消、双向Webhook与Hooks；固定已推送扩展提交，可独立运行 |
 | `orchestration/` 其余目录 | 子 Agent 工具化、组合订单、上下文恢复、字段适配、并行诊断、Runnable 工具、流式管道 |
+| [agent-usage](agent-usage/README.md) | Token 统计：单 Agent、父子协作、多平台同任务、推理明细、失败／取消与持久回放；含真实调用与完整验证报告 |
 | `internal/livemodel` | 真实模型客户端的构造与用量记录，供各案例共用 |
 | `scripts/` | 真实模型评测脚本 |
 
 ## 依赖 goagent
 
-根模块的 `go.mod` 固定一个 goagent 版本，单独克隆即可编译和测试。HTTP Agent 案例使用独立嵌套模块，其固定 contrib 依赖及运行要求见该目录 README；以下根模块命令不会递归测试嵌套模块。
+根模块的 go.mod 固定包含 Token 明细与推理接口的 GoAgent 提交，单独克隆即可编译和测试。HTTP Agent 案例使用独立嵌套模块，其固定 contrib 依赖及运行要求见该目录 README；以下根模块命令不会递归测试嵌套模块。
 
-与本地 goagent 联调时，把两个仓库放在同级目录并建立工作区：
+与本地 goagent 联调时，把两个仓库放在同级目录并建立可选工作区：
 
 ```bash
-make work        # 生成 go.work，指向 ../goagent（已被 .gitignore 忽略）
+make work        # 可选：生成 go.work，指向 ../goagent（已被 .gitignore 忽略）
 make test        # 有 go.work 时使用本地 goagent
-make test-remote # 忽略 go.work，只用 go.mod 固定的版本
+make test-remote # 忽略本地工作区，验证 go.mod 固定的远端提交
 ```
 
 goagent 发布新版本或案例需要新能力时，用 `GOWORK=off go get github.com/kart-io/goagent@<版本>` 更新 `go.mod`。

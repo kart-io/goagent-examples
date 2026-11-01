@@ -1,0 +1,41 @@
+{
+  "Findings": {
+    "cpu": "异常",
+    "db": "正常",
+    "network": "异常"
+  },
+  "Decision": "升级",
+  "NewModelCalls": 4,
+  "Budget": {
+    "ReservedRequests": 4,
+    "KnownUsageEntries": 4,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 327,
+      "completion_tokens": 165,
+      "total_tokens": 3558,
+      "reasoning_tokens": 3066
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 0,
+    "KnownTokenDelta": 3558
+  },
+  "EventCounts": {
+    "agent_end": 4,
+    "agent_start": 4,
+    "branch_end": 3,
+    "branch_start": 3,
+    "graph_end": 1,
+    "graph_start": 1,
+    "model_attempt_start": 4,
+    "model_end": 4,
+    "model_start": 4,
+    "model_usage": 4,
+    "node_end": 2,
+    "node_start": 2
+  },
+  "Dropped": 0,
+  "EventsPath": "/tmp/goagent-all-examples-20261101-r1/state/fixed-parallel-diagnostics/events.jsonl",
+  "ReportPath": "/tmp/goagent-all-examples-20261101-r1/state/fixed-parallel-diagnostics/report.html"
+}
+事件类型： agent_end, agent_start, branch_end, branch_start, graph_end, graph_start, model_attempt_start, model_end, model_start, model_usage, node_end, node_start

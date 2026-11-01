@@ -4,11 +4,14 @@ import (
 	"context"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
+	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
 	"github.com/kart-io/goagent/core/observe"
+	"github.com/kart-io/goagent/llm"
 	"github.com/stretchr/testify/require"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -103,4 +106,23 @@ func TestLiveParallelDiagnostics(t *testing.T) {
 		}
 	}
 	require.True(t, latestStart.Before(earliestEnd), "三个分支的模型请求应并发重叠")
+}
+
+func TestScriptedParallelDiagnosticsRootIdentity(t *testing.T) {
+	var calls atomic.Int64
+	client := livemodel.Wrap(&demomodel.Model{Calls: &calls, Respond: func(r *llm.CompletionRequest) llm.StreamChunk {
+		text := "结论：异常"
+		if strings.Contains(r.Messages[0].Content, "db 诊断") {
+			text = "结论：正常"
+		}
+		if strings.Contains(r.Messages[0].Content, "值班负责人") {
+			text = "结论：升级"
+		}
+		return llm.StreamChunk{Content: text, Delta: text}
+	}}, livemodel.Config{Provider: "scripted", Model: "root-regression"})
+	out, err := Run(context.Background(), client, t.TempDir())
+	require.NoError(t, err)
+	require.Equal(t, int64(4), out.NewModelCalls)
+	require.Equal(t, 4, out.Budget.ReservedRequests)
+	require.Equal(t, "升级", out.Decision)
 }

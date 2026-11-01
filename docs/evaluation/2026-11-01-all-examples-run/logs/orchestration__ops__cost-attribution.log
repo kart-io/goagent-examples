@@ -1,0 +1,40 @@
+{
+  "Answer": "结论：USD/ai\n2026-09 相较 2026-08 环比涨幅最大的币种是 USD，涨幅最大的大类是 AI，达到 87.5%。",
+  "Decision": "USD/ai",
+  "Accepted": {
+    "top_currency": "USD",
+    "top_category": "ai",
+    "summary": "2026-09 相较 2026-08 环比涨幅最大的币种是 USD，涨幅最大的大类是 AI，达到 87.5%。",
+    "evidence": [
+      {
+        "ref": "E6b9d87",
+        "excerpt": "{\"key\":\"compute\",\"base\":\"12300.00\",\"current\":\"13300.00\",\"delta\":\"1000.00\",\"pct\":\"8.1%\"}"
+      },
+      {
+        "ref": "E43f58d",
+        "excerpt": "{\"key\":\"ai\",\"base\":\"600.00\",\"current\":\"1125.00\",\"delta\":\"525.00\",\"pct\":\"87.5%\"}"
+      }
+    ]
+  },
+  "Submissions": 1,
+  "Repairs": 0,
+  "Rejections": null,
+  "DataToolRuns": 2,
+  "NewModelCalls": 3,
+  "Budget": {
+    "ReservedRequests": 3,
+    "KnownUsageEntries": 3,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 3806,
+      "completion_tokens": 292,
+      "total_tokens": 4950,
+      "cached_tokens": 778,
+      "reasoning_tokens": 852
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 3,
+    "KnownTokenDelta": 4950
+  }
+}
+期望结论：USD/ai

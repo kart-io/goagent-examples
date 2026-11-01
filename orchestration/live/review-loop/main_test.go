@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
+	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase/livecasetest"
 	"github.com/kart-io/goagent/core/durable"
+	"github.com/kart-io/goagent/llm"
 	"github.com/stretchr/testify/require"
 )
 
@@ -95,4 +98,30 @@ func TestLiveReviewLoopRecovery(t *testing.T) {
 	require.Equal(t, resumed.Draft, replayed.Draft)
 	require.Equal(t, resumed.Budget, replayed.Budget)
 	require.Equal(t, strconv.Itoa(resumed.Rounds), strconv.Itoa(replayed.Rounds))
+}
+
+func TestScriptedReviewLoopRootAndReplay(t *testing.T) {
+	var calls, reviews atomic.Int64
+	client := livemodel.Wrap(&demomodel.Model{Calls: &calls, Respond: func(r *llm.CompletionRequest) llm.StreamChunk {
+		text := "退款3个工作日内原路退回，定制商品除外，邮箱 refund@demo.example。"
+		if strings.Contains(r.Messages[0].Content, "严格的审校") {
+			if reviews.Add(1) == 1 {
+				text = "结论：修改"
+			} else {
+				text = "结论：通过"
+			}
+		}
+		return llm.StreamChunk{Content: text, Delta: text}
+	}}, livemodel.Config{Provider: "scripted", Model: "root-regression"})
+	dir := t.TempDir()
+	out, err := Run(context.Background(), client, dir, Hooks{})
+	require.NoError(t, err)
+	require.True(t, out.Done)
+	require.Equal(t, 2, out.Rounds)
+	require.Equal(t, int64(4), out.NewModelCalls)
+	again, err := Run(context.Background(), client, dir, Hooks{})
+	require.NoError(t, err)
+	require.True(t, again.Done)
+	require.Zero(t, again.NewModelCalls)
+	require.Equal(t, out.Budget, again.Budget)
 }

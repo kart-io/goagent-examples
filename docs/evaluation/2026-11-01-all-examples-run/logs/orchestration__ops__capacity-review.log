@@ -1,0 +1,173 @@
+{
+  "Items": [
+    {
+      "ID": "cap-a",
+      "Rule": "scale_down",
+      "RulePlan": {
+        "request_m": 300,
+        "limit_m": 650
+      },
+      "Screen": "scale_down",
+      "Verdict": "confirm",
+      "Final": "execute",
+      "Plan": {
+        "request_m": 300,
+        "limit_m": 650
+      },
+      "Reasons": null
+    },
+    {
+      "ID": "cap-b",
+      "Rule": "scale_up",
+      "RulePlan": {
+        "request_m": 600,
+        "limit_m": 1250
+      },
+      "Screen": "scale_up",
+      "Verdict": "confirm",
+      "Final": "execute",
+      "Plan": {
+        "request_m": 600,
+        "limit_m": 1250
+      },
+      "Reasons": null
+    },
+    {
+      "ID": "cap-c",
+      "Rule": "keep",
+      "Screen": "keep",
+      "Verdict": "",
+      "Final": "keep",
+      "Reasons": null
+    },
+    {
+      "ID": "cap-d",
+      "Rule": "scale_down",
+      "RulePlan": {
+        "request_m": 400,
+        "limit_m": 1200
+      },
+      "Screen": "scale_down",
+      "Verdict": "confirm",
+      "Final": "execute",
+      "Plan": {
+        "request_m": 400,
+        "limit_m": 1200
+      },
+      "Reasons": null
+    },
+    {
+      "ID": "cap-e",
+      "Rule": "insufficient_evidence",
+      "Screen": "keep",
+      "Verdict": "",
+      "Final": "manual_review",
+      "Reasons": [
+        "规则：证据不完整"
+      ]
+    },
+    {
+      "ID": "cap-f",
+      "Rule": "scale_up",
+      "RulePlan": {
+        "request_m": 500,
+        "limit_m": 950
+      },
+      "Screen": "scale_up",
+      "Verdict": "confirm",
+      "Final": "execute",
+      "Plan": {
+        "request_m": 500,
+        "limit_m": 950
+      },
+      "Reasons": null
+    },
+    {
+      "ID": "cap-g",
+      "Rule": "keep",
+      "Screen": "keep",
+      "Verdict": "",
+      "Final": "keep",
+      "Reasons": null
+    },
+    {
+      "ID": "cap-h",
+      "Rule": "scale_down",
+      "RulePlan": {
+        "request_m": 250,
+        "limit_m": 800
+      },
+      "Screen": "scale_down",
+      "Verdict": "confirm",
+      "Final": "execute",
+      "Plan": {
+        "request_m": 250,
+        "limit_m": 800
+      },
+      "Reasons": null
+    },
+    {
+      "ID": "cap-i",
+      "Rule": "insufficient_evidence",
+      "Screen": "keep",
+      "Verdict": "",
+      "Final": "manual_review",
+      "Reasons": [
+        "规则：证据不完整"
+      ]
+    },
+    {
+      "ID": "cap-j",
+      "Rule": "keep",
+      "Screen": "keep",
+      "Verdict": "",
+      "Final": "keep",
+      "Reasons": null
+    },
+    {
+      "ID": "cap-k",
+      "Rule": "scale_up",
+      "RulePlan": {
+        "request_m": 300,
+        "limit_m": 650
+      },
+      "Screen": "scale_up",
+      "Verdict": "confirm",
+      "Final": "execute",
+      "Plan": {
+        "request_m": 300,
+        "limit_m": 650
+      },
+      "Reasons": null
+    },
+    {
+      "ID": "cap-l",
+      "Rule": "insufficient_evidence",
+      "Screen": "keep",
+      "Verdict": "",
+      "Final": "manual_review",
+      "Reasons": [
+        "规则：证据不完整"
+      ]
+    }
+  ],
+  "BatchErrors": null,
+  "DeepReviews": 6,
+  "ChildrenCreated": 6,
+  "ChildrenClosed": 6,
+  "NewModelCalls": 8,
+  "Budget": {
+    "ReservedRequests": 8,
+    "KnownUsageEntries": 8,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 2716,
+      "completion_tokens": 790,
+      "total_tokens": 15689,
+      "reasoning_tokens": 12183
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 6,
+    "KnownTokenDelta": 15689
+  }
+}

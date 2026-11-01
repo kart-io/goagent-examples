@@ -1,0 +1,288 @@
+{
+  "cli_entry_count": 28,
+  "cli_executions": 46,
+  "cli_retests": 2,
+  "initial_cli_failures": [
+    {
+      "entry": "orchestration/live/parallel-diagnostics",
+      "label": "orchestration__live__parallel-diagnostics",
+      "args": [
+        "-dir",
+        "/tmp/goagent-all-examples-20261101-r1/state/live-parallel-diagnostics"
+      ],
+      "exit_code": 1,
+      "expected_exit_codes": [
+        0
+      ],
+      "passed": false,
+      "elapsed_seconds": 0.921,
+      "log": "logs/orchestration__live__parallel-diagnostics.log"
+    },
+    {
+      "entry": "orchestration/live/review-loop",
+      "label": "orchestration__live__review-loop",
+      "args": [
+        "-dir",
+        "/tmp/goagent-all-examples-20261101-r1/state/live-review-loop"
+      ],
+      "exit_code": 1,
+      "expected_exit_codes": [
+        0
+      ],
+      "passed": false,
+      "elapsed_seconds": 0.728,
+      "log": "logs/orchestration__live__review-loop.log"
+    }
+  ],
+  "final_cli": [
+    {
+      "entry": "agent-usage",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "agent-usage/agent",
+      "executions": 2,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "agent-usage/cases",
+      "executions": 3,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "agent-usage/live",
+      "executions": 3,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "agent-usage/task",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/agent-tool",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/composed-order",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/context-recovery",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/field-adapter",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/live/approval",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/live/delegation",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/live/localize",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/live/log-triage",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/live/parallel-diagnostics",
+      "executions": 1,
+      "initial_failures": 1,
+      "retest": {
+        "entry": "orchestration/live/parallel-diagnostics",
+        "args": [
+          "-dir",
+          "/tmp/goagent-all-examples-20261101-r1/state/fixed-parallel-diagnostics"
+        ],
+        "exit_code": 0,
+        "passed": true,
+        "elapsed_seconds": 18.113579988479614,
+        "source_sha256": "db0aef344b8c48234c8b11e9ce79c0e1026b3e4665dc97398b33df9ce153af35",
+        "log": "logs/fixed-parallel-diagnostics.log"
+      },
+      "passed": true
+    },
+    {
+      "entry": "orchestration/live/review-loop",
+      "executions": 1,
+      "initial_failures": 1,
+      "retest": {
+        "entry": "orchestration/live/review-loop",
+        "args": [
+          "-dir",
+          "/tmp/goagent-all-examples-20261101-r1/state/fixed-review-loop"
+        ],
+        "exit_code": 0,
+        "passed": true,
+        "elapsed_seconds": 23.23556399345398,
+        "source_sha256": "5d2037eb5deed91e63c96f361cf55271c4c1740c156936b094147d0299e82233",
+        "log": "logs/fixed-review-loop.log"
+      },
+      "passed": true
+    },
+    {
+      "entry": "orchestration/live/session-replay",
+      "executions": 4,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/live/stream-budget",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/live/ticket-triage",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/ops/alert-rca",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/ops/capacity-review",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/ops/cost-attribution",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/ops/scoped-lookup",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/ops/sql-review",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/parallel-diagnostics",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/runnable-tool",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "orchestration/stream-pipeline",
+      "executions": 1,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "workflow/business-cases",
+      "executions": 4,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    },
+    {
+      "entry": "workflow/refund-recovery",
+      "executions": 8,
+      "initial_failures": 0,
+      "retest": null,
+      "passed": true
+    }
+  ],
+  "real_model_tests": {
+    "github.com/kart-io/goagent-examples/orchestration/live/approval::TestLiveApprovalFlows": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/live/delegation::TestLiveDelegation": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/live/localize::TestLiveLocalizeRecovery": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/live/parallel-diagnostics::TestLiveParallelDiagnostics": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/live/review-loop::TestLiveReviewLoopRecovery": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/live/log-triage::TestLiveLogTriageCrashRecovery": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/live/stream-budget::TestLiveSummarize": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/live/stream-budget::TestLiveContend": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/live/session-replay::TestLiveSessionReplay": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/ops/alert-rca::TestLiveAlertRCA": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/live/ticket-triage::TestLiveTicketTriage": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/ops/cost-attribution::TestLiveCostAttribution": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/ops/capacity-review::TestLiveCapacityReview": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/ops/scoped-lookup::TestLiveScopedLookup": "pass",
+    "github.com/kart-io/goagent-examples/orchestration/ops/sql-review::TestLiveSQLReview": "pass"
+  },
+  "initial_real_test_failures": [
+    "github.com/kart-io/goagent-examples/orchestration/live/parallel-diagnostics::TestLiveParallelDiagnostics",
+    "github.com/kart-io/goagent-examples/orchestration/live/review-loop::TestLiveReviewLoopRecovery"
+  ],
+  "business_real_cases": 6,
+  "native_loop_passed": true,
+  "native_loop_calls": [
+    1,
+    1,
+    0
+  ],
+  "provider_scope": "Gemini for ordinary real-model cases; Gemini+DeepSeek+MiniMax for mixed provider usage case",
+  "live_business_report": "business-suite.json",
+  "native_report": "native-loop.json"
+}

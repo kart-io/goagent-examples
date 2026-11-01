@@ -1,0 +1,21 @@
+{
+  "English": "Unopened Aurora Wireless Earbuds are eligible for a no-questions-asked refund within 7 days of delivery confirmation. The payment will be refunded to the original payment method within 3 business days.",
+  "TranslatorLookups": 1,
+  "StyleLookups": 1,
+  "GlossaryInjected": 2,
+  "NewModelCalls": 4,
+  "Budget": {
+    "ReservedRequests": 4,
+    "KnownUsageEntries": 4,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 1116,
+      "completion_tokens": 116,
+      "total_tokens": 2004,
+      "reasoning_tokens": 772
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 2,
+    "KnownTokenDelta": 2004
+  }
+}

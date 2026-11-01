@@ -147,6 +147,7 @@ func Run(ctx context.Context, client *livemodel.Client, dir string) (Result, err
 		return out, err
 	}
 	before := client.Calls()
+	ctx = observe.WithRunID(ctx, controller.Configuration().RootKey)
 	final, runErr := run.Invoke(observe.WithObserver(budget.WithController(ctx, controller), recorder), Incident{Metrics: Snapshot, Findings: map[string]string{}})
 	out.NewModelCalls = client.Calls() - before
 	out.Budget, _ = controller.Snapshot(ctx)

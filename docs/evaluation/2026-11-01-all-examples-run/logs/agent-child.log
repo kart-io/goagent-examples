@@ -1,0 +1,6 @@
+writer hook: tokens=10 replay=false committed=true
+writer hook cumulative self=10
+writer role: input=7 output=3 self=10 requests=1
+call agent=writer self=10 inclusive=10 has_parent=true
+call agent=coordinator self=7 inclusive=17 has_parent=false
+mode=child task_total=17 complete=true

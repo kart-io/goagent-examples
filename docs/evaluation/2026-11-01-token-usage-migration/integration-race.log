@@ -1,0 +1,4 @@
+ok  	github.com/kart-io/goagent-examples/orchestration/live/localize	2.052s
+ok  	github.com/kart-io/goagent-examples/orchestration/ops/sql-review	8.476s
+ok  	github.com/kart-io/goagent-examples/internal/livemodel	4.826s
+ok  	github.com/kart-io/goagent-examples/workflow/business-cases	22.687s

@@ -1,0 +1,35 @@
+?   	github.com/kart-io/goagent-examples/agent-usage	[no test files]
+ok  	github.com/kart-io/goagent-examples/agent-usage/agent	(cached)
+ok  	github.com/kart-io/goagent-examples/agent-usage/cases	(cached)
+?   	github.com/kart-io/goagent-examples/agent-usage/internal/demo	[no test files]
+ok  	github.com/kart-io/goagent-examples/agent-usage/live	(cached)
+ok  	github.com/kart-io/goagent-examples/agent-usage/task	(cached)
+ok  	github.com/kart-io/goagent-examples/internal/livemodel	(cached)
+ok  	github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest	1.297s
+ok  	github.com/kart-io/goagent-examples/orchestration/agent-tool	1.229s
+ok  	github.com/kart-io/goagent-examples/orchestration/composed-order	3.736s
+ok  	github.com/kart-io/goagent-examples/orchestration/context-recovery	2.647s
+ok  	github.com/kart-io/goagent-examples/orchestration/field-adapter	1.669s
+?   	github.com/kart-io/goagent-examples/orchestration/internal/demomodel	[no test files]
+ok  	github.com/kart-io/goagent-examples/orchestration/internal/livecase	2.146s
+?   	github.com/kart-io/goagent-examples/orchestration/internal/livecase/livecasetest	[no test files]
+ok  	github.com/kart-io/goagent-examples/orchestration/live/approval	3.835s
+ok  	github.com/kart-io/goagent-examples/orchestration/live/delegation	3.280s
+ok  	github.com/kart-io/goagent-examples/orchestration/live/localize	(cached)
+ok  	github.com/kart-io/goagent-examples/orchestration/live/log-triage	1.933s
+ok  	github.com/kart-io/goagent-examples/orchestration/live/parallel-diagnostics	2.720s
+ok  	github.com/kart-io/goagent-examples/orchestration/live/review-loop	3.018s
+ok  	github.com/kart-io/goagent-examples/orchestration/live/session-replay	2.754s
+ok  	github.com/kart-io/goagent-examples/orchestration/live/stream-budget	2.440s
+ok  	github.com/kart-io/goagent-examples/orchestration/live/ticket-triage	1.304s
+ok  	github.com/kart-io/goagent-examples/orchestration/ops/alert-rca	7.370s
+ok  	github.com/kart-io/goagent-examples/orchestration/ops/capacity-review	12.341s
+ok  	github.com/kart-io/goagent-examples/orchestration/ops/cost-attribution	7.573s
+ok  	github.com/kart-io/goagent-examples/orchestration/ops/internal/opscase	3.906s
+ok  	github.com/kart-io/goagent-examples/orchestration/ops/scoped-lookup	13.505s
+ok  	github.com/kart-io/goagent-examples/orchestration/ops/sql-review	(cached)
+ok  	github.com/kart-io/goagent-examples/orchestration/parallel-diagnostics	2.241s
+?   	github.com/kart-io/goagent-examples/orchestration/runnable-tool	[no test files]
+?   	github.com/kart-io/goagent-examples/orchestration/stream-pipeline	[no test files]
+ok  	github.com/kart-io/goagent-examples/workflow/business-cases	(cached)
+ok  	github.com/kart-io/goagent-examples/workflow/refund-recovery	12.747s

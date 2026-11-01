@@ -52,7 +52,7 @@ type Client struct {
 	calls atomic.Int64
 }
 
-// New 创建不重试的真实模型客户端。
+// New 创建真实模型客户端。当前 GoAgent Provider 不隐式重试，恢复由 Agent 钩子负责。
 func New(cfg Config) (*Client, error) {
 	switch cfg.Provider {
 	case "deepseek":

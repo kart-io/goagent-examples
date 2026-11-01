@@ -1,0 +1,419 @@
+{
+  "Provider": "gemini",
+  "Model": "gemini-2.5-flash",
+  "RequestedReasoning": {
+    "budget_tokens": 128,
+    "budget_set": true
+  },
+  "Results": [
+    {
+      "Scenario": "task",
+      "Started": "2026-11-01T06:06:06.344863Z",
+      "Finished": "2026-11-01T06:06:17.301812Z",
+      "Passed": true,
+      "Report": {
+        "Root": {
+          "ReservedRequests": 6,
+          "KnownUsageEntries": 6,
+          "UnknownUsageEntries": 0,
+          "KnownTokens": {
+            "prompt_tokens": 939,
+            "completion_tokens": 47,
+            "total_tokens": 1289,
+            "reasoning_tokens": 303
+          },
+          "ReservedTokens": 0,
+          "ReservedToolCalls": 3,
+          "KnownTokenDelta": 1289
+        },
+        "Calls": [
+          {
+            "RunID": "live-task",
+            "AgentID": "researcher",
+            "AgentCallKey": "25301a08-fdc7-4d2a-95a6-9d349039ab62",
+            "ParentAgentCallKey": "44a75d41-6467-45a3-be4b-e433a94a7d4b",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 2,
+              "UnknownReasoningEntries": 1,
+              "UnknownToolUsePromptEntries": 2,
+              "KnownTokens": {
+                "prompt_tokens": 302,
+                "completion_tokens": 25,
+                "total_tokens": 388,
+                "reasoning_tokens": 61
+              },
+              "ReservedRequests": 2,
+              "KnownUsageEntries": 2,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            },
+            "Inclusive": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 2,
+              "UnknownReasoningEntries": 1,
+              "UnknownToolUsePromptEntries": 2,
+              "KnownTokens": {
+                "prompt_tokens": 302,
+                "completion_tokens": 25,
+                "total_tokens": 388,
+                "reasoning_tokens": 61
+              },
+              "ReservedRequests": 2,
+              "KnownUsageEntries": 2,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          },
+          {
+            "RunID": "live-task",
+            "AgentID": "coordinator",
+            "AgentCallKey": "44a75d41-6467-45a3-be4b-e433a94a7d4b",
+            "ParentAgentCallKey": "",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 3,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 3,
+              "KnownTokens": {
+                "prompt_tokens": 615,
+                "completion_tokens": 21,
+                "total_tokens": 828,
+                "reasoning_tokens": 192
+              },
+              "ReservedRequests": 3,
+              "KnownUsageEntries": 3,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            },
+            "Inclusive": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 6,
+              "UnknownReasoningEntries": 1,
+              "UnknownToolUsePromptEntries": 6,
+              "KnownTokens": {
+                "prompt_tokens": 939,
+                "completion_tokens": 47,
+                "total_tokens": 1289,
+                "reasoning_tokens": 303
+              },
+              "ReservedRequests": 6,
+              "KnownUsageEntries": 6,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          },
+          {
+            "RunID": "live-task",
+            "AgentID": "reviewer",
+            "AgentCallKey": "80a5e2ad-726f-408a-aaeb-463a4a1b7e4b",
+            "ParentAgentCallKey": "44a75d41-6467-45a3-be4b-e433a94a7d4b",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 1,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 1,
+              "KnownTokens": {
+                "prompt_tokens": 22,
+                "completion_tokens": 1,
+                "total_tokens": 73,
+                "reasoning_tokens": 50
+              },
+              "ReservedRequests": 1,
+              "KnownUsageEntries": 1,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            },
+            "Inclusive": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 1,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 1,
+              "KnownTokens": {
+                "prompt_tokens": 22,
+                "completion_tokens": 1,
+                "total_tokens": 73,
+                "reasoning_tokens": 50
+              },
+              "ReservedRequests": 1,
+              "KnownUsageEntries": 1,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          }
+        ],
+        "Agents": [
+          {
+            "AgentID": "coordinator",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 3,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 3,
+              "KnownTokens": {
+                "prompt_tokens": 615,
+                "completion_tokens": 21,
+                "total_tokens": 828,
+                "reasoning_tokens": 192
+              },
+              "ReservedRequests": 3,
+              "KnownUsageEntries": 3,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          },
+          {
+            "AgentID": "researcher",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 2,
+              "UnknownReasoningEntries": 1,
+              "UnknownToolUsePromptEntries": 2,
+              "KnownTokens": {
+                "prompt_tokens": 302,
+                "completion_tokens": 25,
+                "total_tokens": 388,
+                "reasoning_tokens": 61
+              },
+              "ReservedRequests": 2,
+              "KnownUsageEntries": 2,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          },
+          {
+            "AgentID": "reviewer",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 1,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 1,
+              "KnownTokens": {
+                "prompt_tokens": 22,
+                "completion_tokens": 1,
+                "total_tokens": 73,
+                "reasoning_tokens": 50
+              },
+              "ReservedRequests": 1,
+              "KnownUsageEntries": 1,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          }
+        ],
+        "Unattributed": {
+          "UnknownPromptEntries": 0,
+          "UnknownCompletionEntries": 0,
+          "UnknownTotalEntries": 0,
+          "UnknownCachedEntries": 0,
+          "UnknownReasoningEntries": 0,
+          "UnknownToolUsePromptEntries": 0,
+          "KnownTokens": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+          },
+          "ReservedRequests": 0,
+          "KnownUsageEntries": 0,
+          "UnknownUsageEntries": 0,
+          "PartialUsageEntries": 0
+        },
+        "UnknownUsageEntries": 0,
+        "PartialUsageEntries": 0,
+        "Complete": true
+      },
+      "Attempts": [
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-task",
+          "AgentID": "coordinator",
+          "AgentCallKey": "44a75d41-6467-45a3-be4b-e433a94a7d4b",
+          "ParentAgentCallKey": "",
+          "OperationKey": "36342d04-ea5d-4135-8a7a-135e40b7cd98",
+          "AttemptKey": "36342d04-ea5d-4135-8a7a-135e40b7cd98",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 110,
+            "completion_tokens": 8,
+            "total_tokens": 210,
+            "reasoning_tokens": 92
+          },
+          "KnownFields": 23,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        },
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-task",
+          "AgentID": "researcher",
+          "AgentCallKey": "25301a08-fdc7-4d2a-95a6-9d349039ab62",
+          "ParentAgentCallKey": "44a75d41-6467-45a3-be4b-e433a94a7d4b",
+          "OperationKey": "ad14629d-4810-48dd-8e4c-3f53ce50327c",
+          "AttemptKey": "ad14629d-4810-48dd-8e4c-3f53ce50327c",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 97,
+            "completion_tokens": 19,
+            "total_tokens": 177,
+            "reasoning_tokens": 61
+          },
+          "KnownFields": 23,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        },
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-task",
+          "AgentID": "researcher",
+          "AgentCallKey": "25301a08-fdc7-4d2a-95a6-9d349039ab62",
+          "ParentAgentCallKey": "44a75d41-6467-45a3-be4b-e433a94a7d4b",
+          "OperationKey": "042dad4b-8dfb-452f-847f-b9dca9b5d650",
+          "AttemptKey": "042dad4b-8dfb-452f-847f-b9dca9b5d650",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 205,
+            "completion_tokens": 6,
+            "total_tokens": 211
+          },
+          "KnownFields": 7,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        },
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-task",
+          "AgentID": "coordinator",
+          "AgentCallKey": "44a75d41-6467-45a3-be4b-e433a94a7d4b",
+          "ParentAgentCallKey": "",
+          "OperationKey": "a4ee0a4a-965e-4d3c-b7d4-0e67d48d5ae4",
+          "AttemptKey": "a4ee0a4a-965e-4d3c-b7d4-0e67d48d5ae4",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 228,
+            "completion_tokens": 8,
+            "total_tokens": 264,
+            "reasoning_tokens": 28
+          },
+          "KnownFields": 23,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        },
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-task",
+          "AgentID": "reviewer",
+          "AgentCallKey": "80a5e2ad-726f-408a-aaeb-463a4a1b7e4b",
+          "ParentAgentCallKey": "44a75d41-6467-45a3-be4b-e433a94a7d4b",
+          "OperationKey": "5c6b92e7-b73b-4c7c-8c15-c191b54e9026",
+          "AttemptKey": "5c6b92e7-b73b-4c7c-8c15-c191b54e9026",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 22,
+            "completion_tokens": 1,
+            "total_tokens": 73,
+            "reasoning_tokens": 50
+          },
+          "KnownFields": 23,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        },
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-task",
+          "AgentID": "coordinator",
+          "AgentCallKey": "44a75d41-6467-45a3-be4b-e433a94a7d4b",
+          "ParentAgentCallKey": "",
+          "OperationKey": "5c63579d-bef4-49ef-9be3-c4119c2eba6c",
+          "AttemptKey": "5c63579d-bef4-49ef-9be3-c4119c2eba6c",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 277,
+            "completion_tokens": 5,
+            "total_tokens": 354,
+            "reasoning_tokens": 72
+          },
+          "KnownFields": 23,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        }
+      ],
+      "ToolRuns": {
+        "lookup_order": 1,
+        "research": 1,
+        "review": 1
+      }
+    }
+  ]
+}

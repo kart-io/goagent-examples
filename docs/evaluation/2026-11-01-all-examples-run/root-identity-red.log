@@ -1,0 +1,17 @@
+--- FAIL: TestScriptedParallelDiagnosticsRootIdentity (0.00s)
+    main_test.go:124:
+            Error Trace:	/Users/costalong/code/go/src/github.com/kart/goagent-examples/orchestration/live/parallel-diagnostics/main_test.go:124
+            Error:      	Received unexpected error:
+                            node "diagnose": parallel branch "cpu": agent budget root conflict
+            Test:       	TestScriptedParallelDiagnosticsRootIdentity
+FAIL
+FAIL	github.com/kart-io/goagent-examples/orchestration/live/parallel-diagnostics	0.247s
+--- FAIL: TestScriptedReviewLoopRootAndReplay (0.03s)
+    main_test.go:118:
+            Error Trace:	/Users/costalong/code/go/src/github.com/kart/goagent-examples/orchestration/live/review-loop/main_test.go:118
+            Error:      	Received unexpected error:
+                            node "write": agent budget root conflict
+            Test:       	TestScriptedReviewLoopRootAndReplay
+FAIL
+FAIL	github.com/kart-io/goagent-examples/orchestration/live/review-loop	0.488s
+FAIL

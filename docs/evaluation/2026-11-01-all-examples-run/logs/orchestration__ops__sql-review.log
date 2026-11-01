@@ -1,0 +1,248 @@
+{
+  "Outcomes": [
+    {
+      "ticket": {
+        "id": "T-101",
+        "env": "test",
+        "statements": [
+          "INSERT INTO demo_coupons (code, discount) VALUES ('WELCOME5', 5)"
+        ],
+        "est_rows": 1
+      },
+      "hash": "97b02fc47dbc5d3c6e4ffb73d7116a84dbf7bc14dbeec52e2d3deacc14a4abfd",
+      "checks": [
+        {
+          "sql": "INSERT INTO demo_coupons (code, discount) VALUES ('WELCOME5', 5)",
+          "level": "ok"
+        }
+      ],
+      "rule_verdict": "pass",
+      "verdict": {
+        "decision": "approve",
+        "risk_level": "low",
+        "summary": "批准：测试环境中的单行 INSERT 操作，风险极低。",
+        "concerns": []
+      },
+      "status": "applied",
+      "receipt": "APPLY-T-101-97b02fc4",
+      "RunID": "sql/T-101@97b02fc47dbc",
+      "ApprovalKey": ""
+    },
+    {
+      "ticket": {
+        "id": "T-102",
+        "env": "test",
+        "statements": [
+          "DROP TABLE demo_sessions_old"
+        ],
+        "est_rows": 0
+      },
+      "hash": "52aaed91bc924649d75164bc8f8bf7aa57be5113ed4befc4ebd11e1cbe930a12",
+      "checks": [
+        {
+          "sql": "DROP TABLE demo_sessions_old",
+          "level": "block",
+          "rules": [
+            "R1-禁止 DROP/TRUNCATE"
+          ]
+        }
+      ],
+      "rule_verdict": "reject",
+      "status": "rejected",
+      "RunID": "sql/T-102@52aaed91bc92",
+      "ApprovalKey": ""
+    },
+    {
+      "ticket": {
+        "id": "T-103",
+        "env": "test",
+        "statements": [
+          "TRUNCATE TABLE demo_audit_tmp"
+        ],
+        "est_rows": 0
+      },
+      "hash": "e138d86b5efd3c1ee084f8538cebbb00db4079dccbfbb3feec9e2198d4f101b5",
+      "checks": [
+        {
+          "sql": "TRUNCATE TABLE demo_audit_tmp",
+          "level": "block",
+          "rules": [
+            "R1-禁止 DROP/TRUNCATE"
+          ]
+        }
+      ],
+      "rule_verdict": "reject",
+      "status": "rejected",
+      "RunID": "sql/T-103@e138d86b5efd",
+      "ApprovalKey": ""
+    },
+    {
+      "ticket": {
+        "id": "T-104",
+        "env": "test",
+        "statements": [
+          "ALTER TABLE demo_users ADD COLUMN level INT",
+          "UPDATE demo_users SET level = 1 WHERE id \u003c 100"
+        ],
+        "est_rows": 99
+      },
+      "hash": "772a1f0262aa30bbe792c74437fcd376d10f13f092caccb303a7157e570c5ffc",
+      "checks": [
+        {
+          "sql": "ALTER TABLE demo_users ADD COLUMN level INT",
+          "level": "block",
+          "rules": [
+            "R2-同一工单不得混合 DDL 与 DML"
+          ]
+        },
+        {
+          "sql": "UPDATE demo_users SET level = 1 WHERE id \u003c 100",
+          "level": "block",
+          "rules": [
+            "R2-同一工单不得混合 DDL 与 DML"
+          ]
+        }
+      ],
+      "rule_verdict": "reject",
+      "status": "rejected",
+      "RunID": "sql/T-104@772a1f0262aa",
+      "ApprovalKey": ""
+    },
+    {
+      "ticket": {
+        "id": "T-105",
+        "env": "test",
+        "statements": [
+          "UPDATE demo_orders SET status = 'closed'"
+        ],
+        "est_rows": 0
+      },
+      "hash": "9ac7d763fc87493ad85d312fb3eb42d492b115fa38be4f2b9fa77517dad24407",
+      "checks": [
+        {
+          "sql": "UPDATE demo_orders SET status = 'closed'",
+          "level": "block",
+          "rules": [
+            "R3-UPDATE/DELETE 必须带 WHERE"
+          ]
+        }
+      ],
+      "rule_verdict": "reject",
+      "status": "rejected",
+      "RunID": "sql/T-105@9ac7d763fc87",
+      "ApprovalKey": ""
+    },
+    {
+      "ticket": {
+        "id": "T-106",
+        "env": "test",
+        "statements": [
+          "DELETE FROM demo_events WHERE created_at \u003c '2026-01-01'"
+        ],
+        "est_rows": 2400000
+      },
+      "hash": "02376e662c3fcc8a414c9541961831b86205a32d92a1dac87024523b36f00919",
+      "checks": [
+        {
+          "sql": "DELETE FROM demo_events WHERE created_at \u003c '2026-01-01'",
+          "level": "warn",
+          "rules": [
+            "R5-自报影响行数 2400000 超过 10000"
+          ]
+        }
+      ],
+      "rule_verdict": "review",
+      "verdict": {
+        "decision": "approve",
+        "risk_level": "medium",
+        "summary": "在大批量删除操作在测试环境执行，影响行数巨大，但风险可控。",
+        "concerns": [
+          "影响行数巨大 (2,400,000)，可能导致执行时间过长和资源消耗高。",
+          "可能导致测试环境数据库短暂的性能影响或锁定。",
+          "大规模删除操作的回滚代价高昂且耗时。"
+        ]
+      },
+      "status": "waiting",
+      "RunID": "sql/T-106@02376e662c3f",
+      "ApprovalKey": "f78c120d345357a6398aa81c1f63b9b7ece6d540bbd05bf3b41267e408a7f764"
+    },
+    {
+      "ticket": {
+        "id": "T-107",
+        "env": "prod",
+        "statements": [
+          "UPDATE demo_users SET nickname = 'guest_42' WHERE id = 42"
+        ],
+        "est_rows": 1
+      },
+      "hash": "f6e7463588d69558fcf07a2f15daa157391af463be83415c5552b4ba8e1a6cd2",
+      "checks": [
+        {
+          "sql": "UPDATE demo_users SET nickname = 'guest_42' WHERE id = 42",
+          "level": "ok"
+        }
+      ],
+      "rule_verdict": "pass",
+      "verdict": {
+        "decision": "approve",
+        "risk_level": "medium",
+        "summary": "批准：生产环境上的单行更新操作，影响范围小但需注意回滚。",
+        "concerns": [
+          "涉及生产环境的DML操作",
+          "UPDATE语句通常不具备自动回滚能力，需手动处理"
+        ]
+      },
+      "status": "waiting",
+      "RunID": "sql/T-107@f6e7463588d6",
+      "ApprovalKey": "c4b948b92d3a605366fa3fb2ed4015adb4ceb8c3036ac332f3c1bc1d9fef9fee"
+    },
+    {
+      "ticket": {
+        "id": "T-108",
+        "env": "test",
+        "statements": [
+          "UPDATE demo_flags SET enabled = 1 WHERE name = 'beta_search'"
+        ],
+        "est_rows": 1
+      },
+      "hash": "2992e818392b041981dea4880bfb002784027437e03caf595ed7ca74575e7357",
+      "checks": [
+        {
+          "sql": "UPDATE demo_flags SET enabled = 1 WHERE name = 'beta_search'",
+          "level": "ok"
+        }
+      ],
+      "rule_verdict": "pass",
+      "verdict": {
+        "decision": "approve",
+        "risk_level": "low",
+        "summary": "此工单是对测试环境的单行更新操作，风险极低。",
+        "concerns": [
+          "影响范围仅限于测试环境",
+          "仅影响一行数据，影响面小",
+          "SQL语法及规则引擎检查已通过"
+        ]
+      },
+      "status": "applied",
+      "receipt": "APPLY-T-108-2992e818",
+      "RunID": "sql/T-108@2992e818392b",
+      "ApprovalKey": ""
+    }
+  ],
+  "NewModelCalls": 4,
+  "NewApplies": 2,
+  "Budget": {
+    "ReservedRequests": 4,
+    "KnownUsageEntries": 4,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 883,
+      "completion_tokens": 354,
+      "total_tokens": 5844,
+      "reasoning_tokens": 4607
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 0,
+    "KnownTokenDelta": 5844
+  }
+}

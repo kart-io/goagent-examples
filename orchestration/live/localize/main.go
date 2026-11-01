@@ -218,7 +218,7 @@ func Run(ctx context.Context, client *livemodel.Client, dir string, glossary Glo
 	if err != nil {
 		return out, err
 	}
-	controller, err := budget.NewDurable(budget.Config{RootKey: "localize/notice-1", Version: "v1/" + client.Live.Provider + "/" + client.Live.Model, MaxModelRequests: 12}, store)
+	controller, err := budget.NewDurable(budget.Config{RootKey: "notice-1", Version: "v1/" + client.Live.Provider + "/" + client.Live.Model, MaxModelRequests: 12}, store)
 	if err != nil {
 		return out, err
 	}

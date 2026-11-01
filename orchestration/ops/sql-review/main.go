@@ -24,6 +24,7 @@ import (
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
+	"github.com/kart-io/goagent/core/observe"
 	"github.com/kart-io/goagent/workflow"
 )
 
@@ -252,7 +253,13 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, a
 		enc := json.NewEncoder(&input)
 		enc.SetEscapeHTML(false)
 		_ = enc.Encode(map[string]any{"ticket": r.Ticket, "rule_verdict": r.RuleVerdict, "checks": r.Checks})
-		out, err := agent.AsRunnable().Invoke(ctx, "工单："+input.String())
+		// Tickets retain independent graph/durable keys, while all model calls
+		// belong to the host's batch budget and observation root.
+		modelCtx := ctx
+		if controller, ok := budget.FromContext(ctx); ok {
+			modelCtx = observe.WithRunID(ctx, controller.Configuration().RootKey)
+		}
+		out, err := agent.AsRunnable().Invoke(modelCtx, "工单："+input.String())
 		if err != nil && ctx.Err() != nil {
 			return r, err
 		}

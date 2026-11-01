@@ -1,0 +1,67 @@
+{
+  "Answer": "结论：inventory-svc\n操作：reserve\norder-svc 下单接口延迟升高是由于 inventory-svc 的 reserve 操作 P99 延迟显著增加，从 45ms 升至约 810ms，且在慢速下单链路中占比 92%。进一步分析发现，reserve 操作内部的 db.lock_wait 消耗了大部分时间。",
+  "Decision": "inventory-svc",
+  "Accepted": {
+    "downstream": "inventory-svc",
+    "operation": "reserve",
+    "summary": "order-svc 下单接口延迟升高是由于 inventory-svc 的 reserve 操作 P99 延迟显著增加，从 45ms 升至约 810ms，且在慢速下单链路中占比 92%。进一步分析发现，reserve 操作内部的 db.lock_wait 消耗了大部分时间。",
+    "evidence": [
+      {
+        "ref": "E7c0e3a",
+        "excerpt": "{\"downstream\":\"inventory-svc\",\"metric\":\"latency_p99\",\"points\":[\"14:00 45ms\",\"14:10 820ms\",\"14:20 870ms\"],\"ref\":\"E7c0e3a\"}"
+      },
+      {
+        "ref": "Eea27ef",
+        "excerpt": "{\"downstream\":\"inventory-svc\",\"operation\":\"reserve\",\"ref\":\"Eea27ef\",\"spans\":\"p99 810ms; in 92% of slow order traces; child span db.lock_wait p99 760ms\"}"
+      }
+    ]
+  },
+  "Submissions": 1,
+  "Repairs": 0,
+  "DataToolRuns": 4,
+  "Rejections": null,
+  "Lookups": [
+    {
+      "Focus": "metrics",
+      "Calls": [
+        "metrics_query",
+        "metrics_query"
+      ],
+      "Refs": [
+        "E7c0e3a",
+        "E0239da"
+      ]
+    },
+    {
+      "Focus": "traces",
+      "Calls": [
+        "traces_query",
+        "traces_query"
+      ],
+      "Refs": [
+        "Eea27ef",
+        "Ea526e7"
+      ]
+    }
+  ],
+  "LookupsCreated": 2,
+  "LookupsDone": 2,
+  "PeakLookups": 2,
+  "NewModelCalls": 8,
+  "Budget": {
+    "ReservedRequests": 8,
+    "KnownUsageEntries": 8,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 5602,
+      "completion_tokens": 694,
+      "total_tokens": 8392,
+      "cached_tokens": 710,
+      "reasoning_tokens": 2096
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 7,
+    "KnownTokenDelta": 8392
+  }
+}
+期望结论：inventory-svc / reserve

@@ -142,7 +142,7 @@ func Run(ctx context.Context, client *livemodel.Client, dir string, hooks Hooks)
 	if err != nil {
 		return out, err
 	}
-	controller, err := budget.NewDurable(budget.Config{RootKey: "doc/refund-notice", Version: "v1/" + client.Live.Provider + "/" + client.Live.Model, MaxModelRequests: 2 * MaxRounds}, store)
+	controller, err := budget.NewDurable(budget.Config{RootKey: "doc-1", Version: "v1/" + client.Live.Provider + "/" + client.Live.Model, MaxModelRequests: 2 * MaxRounds}, store)
 	if err != nil {
 		return out, err
 	}

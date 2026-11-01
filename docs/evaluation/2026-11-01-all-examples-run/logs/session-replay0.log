@@ -1,0 +1,113 @@
+{
+  "Answer": "结论：已发货\n您的订单 A100 已由顺丰发货，运单号 SF1234567。",
+  "Conclusion": "已发货",
+  "NewModelCalls": 0,
+  "ToolRuns": 0,
+  "FirstRequestMessages": 0,
+  "Boundaries": [
+    {
+      "ID": "model/turn/0",
+      "Key": "7eae736031742810b8e45fa8f45ad83a6b0b6145e8baaa2014882760ae606bfe",
+      "Kind": "model",
+      "Recorded": {
+        "response_model": "gemini-2.5-flash",
+        "provider_state": {
+          "provider": "gemini",
+          "data": {
+            "parts": [
+              {
+                "functionCall": {
+                  "args": {
+                    "order_id": "A100"
+                  },
+                  "name": "lookup_order"
+                },
+                "thoughtSignature": "CiQBaRR9E5bq4LXy0y+GbP25Us9dPQmEt9RcKKOBNOTnQUgN15EKXwFpFH0TT39rNNne1xwKjkclhXYlnqRqGrkwhC2BtRwNMTjK/V47OxvjAAmQL0MkYvEGT9+J8oeIyhxWkvbw1bYQkn06GXFA94E2Ndou80EhtE2T8QZzl0ZNZ2vNgO5UCtsBAWkUfRP7Kz2bqQHGa75D+ddF04XwDjSq0yYFIZ2HtOuVHqQ4a0sgh33/92rbQzFy3Mc+vXilUgoeRKL1QSxXz5DA0NBxn/Y9Sj304wsU9+o/RmzExkxdPENSK1WZjVDAEl0/J8sVXF2yRpp74CbB1D9IxQwCs9/wUevE9L1oMuUh8L6hwrTjRs9tKMbG3gramCAcMo8u/MdU6oFK90K7GliPArGwwnyTQjWl6kM15T7hh3AsRrMZkW7OUJ6RgAjcery3FzHdNvCobBOjwExea1F1FQFBViZ4UCeuCnEBaRR9E+rqcvDii8r6IDVhwu2QrdGTFaoT/MzXZzazNBFrT8gh87V58Ezk/INLyM1JcmxD28NjOQNl3tqXn3yBQQ7Td54Wa6qACG86NyVqv/sUAHnmNCmkpNyCEjPl+vwTa45jpCoPk3nK4grlm09ePA=="
+              }
+            ],
+            "role": "model"
+          }
+        },
+        "tool_calls": [
+          {
+            "id": "call_1793513001876111000_6b3e1015bb944f1b",
+            "type": "function",
+            "function": {
+              "name": "lookup_order",
+              "arguments": "{\"order_id\":\"A100\"}"
+            }
+          }
+        ],
+        "content": "",
+        "delta": "",
+        "role": "assistant",
+        "finish_reason": "tool_calls",
+        "usage": {
+          "prompt_tokens": 120,
+          "completion_tokens": 20,
+          "total_tokens": 224,
+          "reasoning_tokens": 84,
+          "known_fields": 23
+        },
+        "index": 0,
+        "timestamp": "2026-11-01T14:03:21.876722+08:00",
+        "done": true
+      },
+      "Mode": "replayed",
+      "Value": null,
+      "Diverged": false
+    },
+    {
+      "ID": "tool/turn/0/call/call_1793513001876111000_6b3e1015bb944f1b",
+      "Key": "095cf440ca52b3c15b51d769b73fccbfcc6e40fd927998b06fdb284a9576f178",
+      "Kind": "tool",
+      "Recorded": {
+        "result": "{\"order_id\":\"A100\",\"status\":\"已发货\",\"carrier\":\"顺丰 SF1234567\"}",
+        "success": true
+      },
+      "Mode": "replayed",
+      "Value": null,
+      "Diverged": false
+    },
+    {
+      "ID": "model/turn/1",
+      "Key": "047e9c64d6b58e90de199a1bfcb5ba092ab926bbee125121cd8d1f415e9e07c1",
+      "Kind": "model",
+      "Recorded": {
+        "response_model": "gemini-2.5-flash",
+        "provider_state": {
+          "provider": "gemini",
+          "data": {
+            "parts": [
+              {
+                "text": "结论：已发"
+              },
+              {
+                "text": "货\n您的订单 A100 已由顺丰发货，运"
+              },
+              {
+                "text": "单号 SF1234567。"
+              }
+            ],
+            "role": "model"
+          }
+        },
+        "content": "结论：已发货\n您的订单 A100 已由顺丰发货，运单号 SF1234567。",
+        "delta": "",
+        "role": "assistant",
+        "finish_reason": "stop",
+        "usage": {
+          "prompt_tokens": 268,
+          "completion_tokens": 31,
+          "total_tokens": 299
+        },
+        "index": 3,
+        "timestamp": "2026-11-01T14:03:23.405347+08:00",
+        "done": true
+      },
+      "Mode": "replayed",
+      "Value": null,
+      "Diverged": false
+    }
+  ]
+}

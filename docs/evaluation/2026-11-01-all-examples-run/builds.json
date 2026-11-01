@@ -1,0 +1,33 @@
+{
+  "entries": [
+    "agent-usage",
+    "agent-usage/agent",
+    "agent-usage/cases",
+    "agent-usage/live",
+    "agent-usage/task",
+    "orchestration/agent-tool",
+    "orchestration/composed-order",
+    "orchestration/context-recovery",
+    "orchestration/field-adapter",
+    "orchestration/live/approval",
+    "orchestration/live/delegation",
+    "orchestration/live/localize",
+    "orchestration/live/log-triage",
+    "orchestration/live/parallel-diagnostics",
+    "orchestration/live/review-loop",
+    "orchestration/live/session-replay",
+    "orchestration/live/stream-budget",
+    "orchestration/live/ticket-triage",
+    "orchestration/ops/alert-rca",
+    "orchestration/ops/capacity-review",
+    "orchestration/ops/cost-attribution",
+    "orchestration/ops/scoped-lookup",
+    "orchestration/ops/sql-review",
+    "orchestration/parallel-diagnostics",
+    "orchestration/runnable-tool",
+    "orchestration/stream-pipeline",
+    "workflow/business-cases",
+    "workflow/refund-recovery"
+  ],
+  "built": 28
+}

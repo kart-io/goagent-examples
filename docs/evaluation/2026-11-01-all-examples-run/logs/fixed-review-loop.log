@@ -1,0 +1,23 @@
+{
+  "Draft": "亲爱的顾客，\n\n感谢您选择本店！我们致力提供满意购物体验。\n\n如果您对商品不满意，请在签收后7天内联系客服，我们乐意为您办理退货退款。\n\n请确保商品全新、未使用，原包装及标签完好。定制刻字类商品不适用无理由退款。退回后，我们会在3-5个工作日内完成审核。审核通过后，退款将在3个工作日内原路退回。\n\n如有疑问，欢迎随时咨询客服。您也可发送邮件至 refund@demo.example 咨询。祝您购物愉快！",
+  "Verdict": "通过",
+  "Rounds": 2,
+  "WriterRuns": 2,
+  "ReviewerRuns": 2,
+  "NewModelCalls": 4,
+  "Budget": {
+    "ReservedRequests": 4,
+    "KnownUsageEntries": 4,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 772,
+      "completion_tokens": 331,
+      "total_tokens": 4260,
+      "reasoning_tokens": 3157
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 0,
+    "KnownTokenDelta": 4260
+  },
+  "Done": true
+}

@@ -1,0 +1,10 @@
+{
+  "docs/evaluation/2026-11-01-push-verification/root-race.log": "8da24ce5a9914ae4efb5c7870ff87ab38c35470a688dae073c8d45bff8c6f0f6",
+  "docs/evaluation/2026-11-01-push-verification/REPORT.md": "a970b49e9509114a2ae34009e5b55ef33a1fc2ad264053b90834a339087a0239",
+  "docs/evaluation/2026-11-01-push-verification/httpagent-race.log": "c500fc5acaf92d58829828183ad9db3bd75889f418a2f8bd1f89fac7155adfeb",
+  "docs/evaluation/2026-11-01-push-verification/web-protocol.log": "1fc1642f87fac5eb42c7cf8fd2dd6e07580880a42a992c3d4209780f2bbfc683",
+  "go.mod": "17ca028e481634150c84253a93aa18b454e715359afaf985b3ed82f8595f7776",
+  "go.sum": "7a5d2a5fd0fae9b8c436fe9de3a14681e1bc3c556243c13df5bce5ed39b49c47",
+  "README.md": "cb281ef7c013a121b5752f0c66727cb2a5b80beceba6a263312ad135a013111c",
+  "agent-usage/README.md": "063fc3cc801e61cb70f56e2c824978281a17c66449cc66305a28b68a690b611a"
+}

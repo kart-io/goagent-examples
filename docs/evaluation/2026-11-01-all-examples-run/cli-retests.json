@@ -1,0 +1,26 @@
+[
+  {
+    "entry": "orchestration/live/parallel-diagnostics",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/fixed-parallel-diagnostics"
+    ],
+    "exit_code": 0,
+    "passed": true,
+    "elapsed_seconds": 18.113579988479614,
+    "source_sha256": "db0aef344b8c48234c8b11e9ce79c0e1026b3e4665dc97398b33df9ce153af35",
+    "log": "logs/fixed-parallel-diagnostics.log"
+  },
+  {
+    "entry": "orchestration/live/review-loop",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/fixed-review-loop"
+    ],
+    "exit_code": 0,
+    "passed": true,
+    "elapsed_seconds": 23.23556399345398,
+    "source_sha256": "5d2037eb5deed91e63c96f361cf55271c4c1740c156936b094147d0299e82233",
+    "log": "logs/fixed-review-loop.log"
+  }
+]

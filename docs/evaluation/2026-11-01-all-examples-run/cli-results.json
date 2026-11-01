@@ -1,0 +1,762 @@
+[
+  {
+    "entry": "agent-usage",
+    "label": "agent-usage",
+    "args": [],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.538,
+    "log": "logs/agent-usage.log"
+  },
+  {
+    "entry": "agent-usage/task",
+    "label": "agent-usage__task",
+    "args": [],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.26,
+    "log": "logs/agent-usage__task.log"
+  },
+  {
+    "entry": "orchestration/agent-tool",
+    "label": "orchestration__agent-tool",
+    "args": [],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.202,
+    "log": "logs/orchestration__agent-tool.log"
+  },
+  {
+    "entry": "orchestration/field-adapter",
+    "label": "orchestration__field-adapter",
+    "args": [],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.131,
+    "log": "logs/orchestration__field-adapter.log"
+  },
+  {
+    "entry": "orchestration/parallel-diagnostics",
+    "label": "orchestration__parallel-diagnostics",
+    "args": [],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.13,
+    "log": "logs/orchestration__parallel-diagnostics.log"
+  },
+  {
+    "entry": "orchestration/runnable-tool",
+    "label": "orchestration__runnable-tool",
+    "args": [],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.2,
+    "log": "logs/orchestration__runnable-tool.log"
+  },
+  {
+    "entry": "orchestration/stream-pipeline",
+    "label": "orchestration__stream-pipeline",
+    "args": [],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.126,
+    "log": "logs/orchestration__stream-pipeline.log"
+  },
+  {
+    "entry": "agent-usage/agent",
+    "label": "agent-single",
+    "args": [
+      "-mode",
+      "single"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.224,
+    "log": "logs/agent-single.log"
+  },
+  {
+    "entry": "agent-usage/agent",
+    "label": "agent-child",
+    "args": [
+      "-mode",
+      "child"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.009,
+    "log": "logs/agent-child.log"
+  },
+  {
+    "entry": "orchestration/composed-order",
+    "label": "orchestration__composed-order",
+    "args": [
+      "/tmp/goagent-all-examples-20261101-r1/state/orchestration__composed-order"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.512,
+    "log": "logs/orchestration__composed-order.log"
+  },
+  {
+    "entry": "orchestration/context-recovery",
+    "label": "orchestration__context-recovery",
+    "args": [
+      "/tmp/goagent-all-examples-20261101-r1/state/orchestration__context-recovery"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.161,
+    "log": "logs/orchestration__context-recovery.log"
+  },
+  {
+    "entry": "workflow/business-cases",
+    "label": "business-devops",
+    "args": [
+      "-case",
+      "devops",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/business-devops",
+      "-live",
+      "-provider",
+      "gemini",
+      "-model",
+      "gemini-2.5-flash"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 9.774,
+    "log": "logs/business-devops.log"
+  },
+  {
+    "entry": "workflow/business-cases",
+    "label": "business-devops-approve",
+    "args": [
+      "-case",
+      "devops",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/business-devops",
+      "-live",
+      "-provider",
+      "gemini",
+      "-model",
+      "gemini-2.5-flash",
+      "-approve",
+      "18363f092b08e4919a6200718ee0f4066c1f85ac99dd0691101bd5906dcc8ca3",
+      "-actor",
+      "demo-operator"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.08,
+    "log": "logs/business-devops-approve.log"
+  },
+  {
+    "entry": "workflow/business-cases",
+    "label": "business-article-review",
+    "args": [
+      "-case",
+      "article-review",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/business-article-review",
+      "-live",
+      "-provider",
+      "gemini",
+      "-model",
+      "gemini-2.5-flash"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 4.26,
+    "log": "logs/business-article-review.log"
+  },
+  {
+    "entry": "workflow/business-cases",
+    "label": "business-auto-reply",
+    "args": [
+      "-case",
+      "auto-reply",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/business-auto-reply",
+      "-live",
+      "-provider",
+      "gemini",
+      "-model",
+      "gemini-2.5-flash"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 19.669,
+    "log": "logs/business-auto-reply.log"
+  },
+  {
+    "entry": "workflow/refund-recovery",
+    "label": "refund-steps-waiting",
+    "args": [
+      "-engine",
+      "steps",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/refund-steps"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.446,
+    "log": "logs/refund-steps-waiting.log"
+  },
+  {
+    "entry": "workflow/refund-recovery",
+    "label": "refund-steps-crash",
+    "args": [
+      "-engine",
+      "steps",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/refund-steps",
+      "-approve",
+      "ad17d5b2c7077bf6b540658da4e1a9cbf5f702b8dc0b6d5e2589a4fad93152f2",
+      "-approver",
+      "demo-reviewer",
+      "-crash-after-refund"
+    ],
+    "exit_code": 86,
+    "expected_exit_codes": [
+      86
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.02,
+    "log": "logs/refund-steps-crash.log"
+  },
+  {
+    "entry": "workflow/refund-recovery",
+    "label": "refund-steps-resume",
+    "args": [
+      "-engine",
+      "steps",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/refund-steps"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.031,
+    "log": "logs/refund-steps-resume.log"
+  },
+  {
+    "entry": "workflow/refund-recovery",
+    "label": "refund-steps-replay",
+    "args": [
+      "-engine",
+      "steps",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/refund-steps"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.007,
+    "log": "logs/refund-steps-replay.log"
+  },
+  {
+    "entry": "workflow/refund-recovery",
+    "label": "refund-graph-waiting",
+    "args": [
+      "-engine",
+      "graph",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/refund-graph"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.124,
+    "log": "logs/refund-graph-waiting.log"
+  },
+  {
+    "entry": "workflow/refund-recovery",
+    "label": "refund-graph-crash",
+    "args": [
+      "-engine",
+      "graph",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/refund-graph",
+      "-approve",
+      "4deef5b58469a7537d5c31115b25a1dda6a62d5aefd3a6813c64739ea10f30db",
+      "-approver",
+      "demo-reviewer",
+      "-crash-after-refund"
+    ],
+    "exit_code": 86,
+    "expected_exit_codes": [
+      86
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.017,
+    "log": "logs/refund-graph-crash.log"
+  },
+  {
+    "entry": "workflow/refund-recovery",
+    "label": "refund-graph-resume",
+    "args": [
+      "-engine",
+      "graph",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/refund-graph"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.034,
+    "log": "logs/refund-graph-resume.log"
+  },
+  {
+    "entry": "workflow/refund-recovery",
+    "label": "refund-graph-replay",
+    "args": [
+      "-engine",
+      "graph",
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/refund-graph"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.008,
+    "log": "logs/refund-graph-replay.log"
+  },
+  {
+    "entry": "orchestration/live/approval",
+    "label": "orchestration__live__approval",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-approval"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 4.514,
+    "log": "logs/orchestration__live__approval.log"
+  },
+  {
+    "entry": "orchestration/live/delegation",
+    "label": "orchestration__live__delegation",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-delegation"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 11.279,
+    "log": "logs/orchestration__live__delegation.log"
+  },
+  {
+    "entry": "orchestration/live/localize",
+    "label": "orchestration__live__localize",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-localize"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 28.415,
+    "log": "logs/orchestration__live__localize.log"
+  },
+  {
+    "entry": "orchestration/live/log-triage",
+    "label": "orchestration__live__log-triage",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-log-triage"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 12.555,
+    "log": "logs/orchestration__live__log-triage.log"
+  },
+  {
+    "entry": "orchestration/live/parallel-diagnostics",
+    "label": "orchestration__live__parallel-diagnostics",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-parallel-diagnostics"
+    ],
+    "exit_code": 1,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": false,
+    "elapsed_seconds": 0.921,
+    "log": "logs/orchestration__live__parallel-diagnostics.log"
+  },
+  {
+    "entry": "orchestration/live/review-loop",
+    "label": "orchestration__live__review-loop",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-review-loop"
+    ],
+    "exit_code": 1,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": false,
+    "elapsed_seconds": 0.728,
+    "log": "logs/orchestration__live__review-loop.log"
+  },
+  {
+    "entry": "orchestration/live/session-replay",
+    "label": "orchestration__live__session-replay",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-session-replay",
+      "-ask",
+      "0"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 13.824,
+    "log": "logs/orchestration__live__session-replay.log"
+  },
+  {
+    "entry": "orchestration/live/session-replay",
+    "label": "session-ask1",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-session-replay",
+      "-ask",
+      "1"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 4.057,
+    "log": "logs/session-ask1.log"
+  },
+  {
+    "entry": "orchestration/live/session-replay",
+    "label": "session-replay0",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-session-replay",
+      "-replay",
+      "0"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.016,
+    "log": "logs/session-replay0.log"
+  },
+  {
+    "entry": "orchestration/live/session-replay",
+    "label": "session-export",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-session-replay",
+      "-export",
+      "/tmp/goagent-all-examples-20261101-r1/outputs/session.jsonl"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 0.013,
+    "log": "logs/session-export.log"
+  },
+  {
+    "entry": "orchestration/live/stream-budget",
+    "label": "orchestration__live__stream-budget",
+    "args": [],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 9.582,
+    "log": "logs/orchestration__live__stream-budget.log"
+  },
+  {
+    "entry": "orchestration/live/ticket-triage",
+    "label": "orchestration__live__ticket-triage",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/live-ticket-triage"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 28.458,
+    "log": "logs/orchestration__live__ticket-triage.log"
+  },
+  {
+    "entry": "orchestration/ops/alert-rca",
+    "label": "orchestration__ops__alert-rca",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/ops-alert-rca"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 12.531,
+    "log": "logs/orchestration__ops__alert-rca.log"
+  },
+  {
+    "entry": "orchestration/ops/capacity-review",
+    "label": "orchestration__ops__capacity-review",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/ops-capacity-review"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 36.236,
+    "log": "logs/orchestration__ops__capacity-review.log"
+  },
+  {
+    "entry": "orchestration/ops/cost-attribution",
+    "label": "orchestration__ops__cost-attribution",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/ops-cost-attribution"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 11.12,
+    "log": "logs/orchestration__ops__cost-attribution.log"
+  },
+  {
+    "entry": "orchestration/ops/scoped-lookup",
+    "label": "orchestration__ops__scoped-lookup",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/ops-scoped-lookup"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 19.24,
+    "log": "logs/orchestration__ops__scoped-lookup.log"
+  },
+  {
+    "entry": "orchestration/ops/sql-review",
+    "label": "orchestration__ops__sql-review",
+    "args": [
+      "-dir",
+      "/tmp/goagent-all-examples-20261101-r1/state/ops-sql-review"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 33.088,
+    "log": "logs/orchestration__ops__sql-review.log"
+  },
+  {
+    "entry": "agent-usage/live",
+    "label": "usage-live-single",
+    "args": [
+      "-provider",
+      "gemini",
+      "-model",
+      "gemini-2.5-flash",
+      "-scenario",
+      "single",
+      "-thinking-budget",
+      "128",
+      "-out",
+      "/tmp/goagent-all-examples-20261101-r1/outputs/usage-single"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 3.284,
+    "log": "logs/usage-live-single.log"
+  },
+  {
+    "entry": "agent-usage/live",
+    "label": "usage-live-child",
+    "args": [
+      "-provider",
+      "gemini",
+      "-model",
+      "gemini-2.5-flash",
+      "-scenario",
+      "child",
+      "-thinking-budget",
+      "128",
+      "-out",
+      "/tmp/goagent-all-examples-20261101-r1/outputs/usage-child"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 5.256,
+    "log": "logs/usage-live-child.log"
+  },
+  {
+    "entry": "agent-usage/live",
+    "label": "usage-live-task",
+    "args": [
+      "-provider",
+      "gemini",
+      "-model",
+      "gemini-2.5-flash",
+      "-scenario",
+      "task",
+      "-thinking-budget",
+      "128",
+      "-out",
+      "/tmp/goagent-all-examples-20261101-r1/outputs/usage-task"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 10.97,
+    "log": "logs/usage-live-task.log"
+  },
+  {
+    "entry": "agent-usage/cases",
+    "label": "usage-boundary-mixed-replay",
+    "args": [
+      "-case",
+      "mixed-replay",
+      "-out",
+      "/tmp/goagent-all-examples-20261101-r1/outputs/boundary-mixed-replay"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 9.811,
+    "log": "logs/usage-boundary-mixed-replay.log"
+  },
+  {
+    "entry": "agent-usage/cases",
+    "label": "usage-boundary-tool-error",
+    "args": [
+      "-case",
+      "tool-error",
+      "-out",
+      "/tmp/goagent-all-examples-20261101-r1/outputs/boundary-tool-error"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 2.947,
+    "log": "logs/usage-boundary-tool-error.log"
+  },
+  {
+    "entry": "agent-usage/cases",
+    "label": "usage-boundary-cancel",
+    "args": [
+      "-case",
+      "cancel",
+      "-out",
+      "/tmp/goagent-all-examples-20261101-r1/outputs/boundary-cancel"
+    ],
+    "exit_code": 0,
+    "expected_exit_codes": [
+      0
+    ],
+    "passed": true,
+    "elapsed_seconds": 3.441,
+    "log": "logs/usage-boundary-cancel.log"
+  }
+]

@@ -1,0 +1,25 @@
+{
+  "Draft": "",
+  "Verdict": "",
+  "Rounds": 0,
+  "WriterRuns": 1,
+  "ReviewerRuns": 0,
+  "NewModelCalls": 0,
+  "Budget": {
+    "ReservedRequests": 0,
+    "KnownUsageEntries": 0,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 0,
+      "completion_tokens": 0,
+      "total_tokens": 0
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 0,
+    "KnownTokenDelta": 0
+  },
+  "Done": false
+}
+宿主检查：终稿缺少 [3个工作日 定制 refund@demo.example]
+
+node "write": agent budget root conflict

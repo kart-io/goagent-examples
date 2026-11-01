@@ -1,0 +1,154 @@
+{
+  "Provider": "gemini",
+  "Model": "gemini-2.5-flash",
+  "RequestedReasoning": {
+    "budget_tokens": 128,
+    "budget_set": true
+  },
+  "Results": [
+    {
+      "Scenario": "single",
+      "Started": "2026-11-01T06:05:58.70846Z",
+      "Finished": "2026-11-01T06:06:01.074424Z",
+      "Passed": true,
+      "Report": {
+        "Root": {
+          "ReservedRequests": 1,
+          "KnownUsageEntries": 1,
+          "UnknownUsageEntries": 0,
+          "KnownTokens": {
+            "prompt_tokens": 15,
+            "completion_tokens": 1,
+            "total_tokens": 44,
+            "reasoning_tokens": 28
+          },
+          "ReservedTokens": 0,
+          "ReservedToolCalls": 0,
+          "KnownTokenDelta": 44
+        },
+        "Calls": [
+          {
+            "RunID": "live-single",
+            "AgentID": "writer",
+            "AgentCallKey": "0157f183-e3e9-47b6-8b70-4ab0de78cd19",
+            "ParentAgentCallKey": "",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 1,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 1,
+              "KnownTokens": {
+                "prompt_tokens": 15,
+                "completion_tokens": 1,
+                "total_tokens": 44,
+                "reasoning_tokens": 28
+              },
+              "ReservedRequests": 1,
+              "KnownUsageEntries": 1,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            },
+            "Inclusive": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 1,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 1,
+              "KnownTokens": {
+                "prompt_tokens": 15,
+                "completion_tokens": 1,
+                "total_tokens": 44,
+                "reasoning_tokens": 28
+              },
+              "ReservedRequests": 1,
+              "KnownUsageEntries": 1,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          }
+        ],
+        "Agents": [
+          {
+            "AgentID": "writer",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 1,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 1,
+              "KnownTokens": {
+                "prompt_tokens": 15,
+                "completion_tokens": 1,
+                "total_tokens": 44,
+                "reasoning_tokens": 28
+              },
+              "ReservedRequests": 1,
+              "KnownUsageEntries": 1,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          }
+        ],
+        "Unattributed": {
+          "UnknownPromptEntries": 0,
+          "UnknownCompletionEntries": 0,
+          "UnknownTotalEntries": 0,
+          "UnknownCachedEntries": 0,
+          "UnknownReasoningEntries": 0,
+          "UnknownToolUsePromptEntries": 0,
+          "KnownTokens": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+          },
+          "ReservedRequests": 0,
+          "KnownUsageEntries": 0,
+          "UnknownUsageEntries": 0,
+          "PartialUsageEntries": 0
+        },
+        "UnknownUsageEntries": 0,
+        "PartialUsageEntries": 0,
+        "Complete": true
+      },
+      "Attempts": [
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-single",
+          "AgentID": "writer",
+          "AgentCallKey": "0157f183-e3e9-47b6-8b70-4ab0de78cd19",
+          "ParentAgentCallKey": "",
+          "OperationKey": "f353f6c6-fde8-4a86-a9a7-cd7947bd7726",
+          "AttemptKey": "f353f6c6-fde8-4a86-a9a7-cd7947bd7726",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 15,
+            "completion_tokens": 1,
+            "total_tokens": 44,
+            "reasoning_tokens": 28
+          },
+          "KnownFields": 23,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        }
+      ],
+      "ToolRuns": {
+        "lookup_order": 0,
+        "research": 0,
+        "review": 0
+      }
+    }
+  ]
+}

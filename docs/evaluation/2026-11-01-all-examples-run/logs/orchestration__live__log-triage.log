@@ -1,0 +1,22 @@
+{
+  "Answer": "错误码：PGW-504\n上游：bank-gw-3\n处置建议：检查上游网关 `bank-gw-3` 的状态，确认是否存在超时或熔断问题。",
+  "NewModelCalls": 5,
+  "FetchRuns": 1,
+  "PageReads": 3,
+  "Offloaded": 1,
+  "Budget": {
+    "ReservedRequests": 5,
+    "KnownUsageEntries": 5,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 13261,
+      "completion_tokens": 135,
+      "total_tokens": 13874,
+      "cached_tokens": 5625,
+      "reasoning_tokens": 478
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 4,
+    "KnownTokenDelta": 13874
+  }
+}

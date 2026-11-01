@@ -1,0 +1,6 @@
+provider=gemini scenario=child passed=true tokens=287 requests=3 tools=1 unknown=0 partial=0
+  agent=coordinator self=236
+  agent=writer self=51
+  attempt agent=coordinator requested_model=gemini-2.5-flash response_model="gemini-2.5-flash" reasoning=44 reasoning_known=true tool_input=0 tool_input_known=false reasoning_configured=true
+  attempt agent=writer requested_model=gemini-2.5-flash response_model="gemini-2.5-flash" reasoning=35 reasoning_known=true tool_input=0 tool_input_known=false reasoning_configured=true
+  attempt agent=coordinator requested_model=gemini-2.5-flash response_model="gemini-2.5-flash" reasoning=0 reasoning_known=false tool_input=0 tool_input_known=false reasoning_configured=true

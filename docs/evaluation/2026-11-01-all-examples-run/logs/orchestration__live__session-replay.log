@@ -1,0 +1,7 @@
+{
+  "Answer": "结论：已发货\n您的订单 A100 已由顺丰发货，运单号 SF1234567。",
+  "Conclusion": "已发货",
+  "NewModelCalls": 2,
+  "ToolRuns": 1,
+  "FirstRequestMessages": 2
+}

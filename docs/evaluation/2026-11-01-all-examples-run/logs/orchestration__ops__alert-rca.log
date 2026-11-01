@@ -1,0 +1,55 @@
+{
+  "Answer": "结论：config_change\ncheckout-api 的数据库连接池配置 db.max_open_conns 从 200 降低到 50，导致数据库连接池耗尽，进而引发服务 5xx 错误率升高和延迟增加。",
+  "Decision": "config_change",
+  "Accepted": {
+    "root_cause": "config_change",
+    "summary": "checkout-api 的数据库连接池配置 db.max_open_conns 从 200 降低到 50，导致数据库连接池耗尽，进而引发服务 5xx 错误率升高和延迟增加。",
+    "evidence": [
+      {
+        "ref": "E80592a",
+        "excerpt": "10:02 config db.max_open_conns 200 -\u003e 50 by deploy-bot ticket CFG-118"
+      },
+      {
+        "ref": "Ecaf491",
+        "excerpt": "10:05:12 ERROR acquire db conn timeout after 2s: pool exhausted (max_open=50 in_use=50)"
+      },
+      {
+        "ref": "Ecaf491",
+        "excerpt": "10:05:13 ERROR POST /checkout 503 upstream=order-db-proxy cause=pool exhausted"
+      },
+      {
+        "ref": "E20e54f",
+        "excerpt": "10:04:58 WARN db pool wait queue length 120"
+      },
+      {
+        "ref": "Eb1e41f",
+        "excerpt": "10:05 17.8%"
+      },
+      {
+        "ref": "E46d8da",
+        "excerpt": "10:05 2900ms"
+      }
+    ]
+  },
+  "Submissions": 1,
+  "Repairs": 0,
+  "Rejections": null,
+  "DataToolRuns": 6,
+  "NewModelCalls": 3,
+  "Budget": {
+    "ReservedRequests": 3,
+    "KnownUsageEntries": 3,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 3518,
+      "completion_tokens": 438,
+      "total_tokens": 4812,
+      "cached_tokens": 804,
+      "reasoning_tokens": 856
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 7,
+    "KnownTokenDelta": 4812
+  }
+}
+期望根因：config_change

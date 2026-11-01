@@ -1,0 +1,24 @@
+{
+  "Answer": "结论：9031.20 元\n根据财务专家的计算，含税总价是 9031.2 元人民币。",
+  "Total": 9031.2,
+  "ExpertsCreated": 1,
+  "ExpertsDone": 1,
+  "ConvertRuns": 1,
+  "TaxRuns": 1,
+  "NewModelCalls": 5,
+  "Budget": {
+    "ReservedRequests": 5,
+    "KnownUsageEntries": 5,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 1625,
+      "completion_tokens": 161,
+      "total_tokens": 2189,
+      "reasoning_tokens": 403
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 3,
+    "KnownTokenDelta": 2189
+  }
+}
+期望含税总价：9031.20 元

@@ -1,0 +1,22 @@
+{
+  "Status": "completed",
+  "Decision": "退款",
+  "Receipt": "PAY-28dcbfe3",
+  "ApprovalKey": "",
+  "NewPayments": 1,
+  "NewModelCalls": 1,
+  "Budget": {
+    "ReservedRequests": 1,
+    "KnownUsageEntries": 1,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 94,
+      "completion_tokens": 20,
+      "total_tokens": 343,
+      "reasoning_tokens": 229
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 0,
+    "KnownTokenDelta": 343
+  }
+}

@@ -1,0 +1,10 @@
+hook agent=coordinator attempt_tokens=3 replay=false committed=true
+hook agent=reviewer attempt_tokens=5 replay=false committed=true
+hook agent=researcher attempt_tokens=1 replay=false committed=true
+hook agent=researcher attempt_tokens=3 replay=false committed=true
+hook agent=coordinator attempt_tokens=6 replay=false committed=true
+task tokens: input=12 output=6 total=18 model_requests=5 tool_calls=3 complete=true
+agent=coordinator self=9
+agent=researcher self=4
+agent=reviewer self=5
+local_tool_runs=1 hook_notifications=5 unknown=0 partial=0

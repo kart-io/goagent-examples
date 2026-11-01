@@ -1,0 +1,272 @@
+{
+  "Provider": "gemini",
+  "Model": "gemini-2.5-flash",
+  "RequestedReasoning": {
+    "budget_tokens": 128,
+    "budget_set": true
+  },
+  "Results": [
+    {
+      "Scenario": "child",
+      "Started": "2026-11-01T06:06:01.086632Z",
+      "Finished": "2026-11-01T06:06:06.330192Z",
+      "Passed": true,
+      "Report": {
+        "Root": {
+          "ReservedRequests": 3,
+          "KnownUsageEntries": 3,
+          "UnknownUsageEntries": 0,
+          "KnownTokens": {
+            "prompt_tokens": 198,
+            "completion_tokens": 10,
+            "total_tokens": 287,
+            "reasoning_tokens": 79
+          },
+          "ReservedTokens": 0,
+          "ReservedToolCalls": 1,
+          "KnownTokenDelta": 287
+        },
+        "Calls": [
+          {
+            "RunID": "live-child",
+            "AgentID": "coordinator",
+            "AgentCallKey": "3e979134-47b4-43c8-b99f-14305954c13a",
+            "ParentAgentCallKey": "",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 2,
+              "UnknownReasoningEntries": 1,
+              "UnknownToolUsePromptEntries": 2,
+              "KnownTokens": {
+                "prompt_tokens": 183,
+                "completion_tokens": 9,
+                "total_tokens": 236,
+                "reasoning_tokens": 44
+              },
+              "ReservedRequests": 2,
+              "KnownUsageEntries": 2,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            },
+            "Inclusive": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 3,
+              "UnknownReasoningEntries": 1,
+              "UnknownToolUsePromptEntries": 3,
+              "KnownTokens": {
+                "prompt_tokens": 198,
+                "completion_tokens": 10,
+                "total_tokens": 287,
+                "reasoning_tokens": 79
+              },
+              "ReservedRequests": 3,
+              "KnownUsageEntries": 3,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          },
+          {
+            "RunID": "live-child",
+            "AgentID": "writer",
+            "AgentCallKey": "7202e798-9498-4e0b-a328-63dda9fddc03",
+            "ParentAgentCallKey": "3e979134-47b4-43c8-b99f-14305954c13a",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 1,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 1,
+              "KnownTokens": {
+                "prompt_tokens": 15,
+                "completion_tokens": 1,
+                "total_tokens": 51,
+                "reasoning_tokens": 35
+              },
+              "ReservedRequests": 1,
+              "KnownUsageEntries": 1,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            },
+            "Inclusive": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 1,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 1,
+              "KnownTokens": {
+                "prompt_tokens": 15,
+                "completion_tokens": 1,
+                "total_tokens": 51,
+                "reasoning_tokens": 35
+              },
+              "ReservedRequests": 1,
+              "KnownUsageEntries": 1,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          }
+        ],
+        "Agents": [
+          {
+            "AgentID": "coordinator",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 2,
+              "UnknownReasoningEntries": 1,
+              "UnknownToolUsePromptEntries": 2,
+              "KnownTokens": {
+                "prompt_tokens": 183,
+                "completion_tokens": 9,
+                "total_tokens": 236,
+                "reasoning_tokens": 44
+              },
+              "ReservedRequests": 2,
+              "KnownUsageEntries": 2,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          },
+          {
+            "AgentID": "writer",
+            "Self": {
+              "UnknownPromptEntries": 0,
+              "UnknownCompletionEntries": 0,
+              "UnknownTotalEntries": 0,
+              "UnknownCachedEntries": 1,
+              "UnknownReasoningEntries": 0,
+              "UnknownToolUsePromptEntries": 1,
+              "KnownTokens": {
+                "prompt_tokens": 15,
+                "completion_tokens": 1,
+                "total_tokens": 51,
+                "reasoning_tokens": 35
+              },
+              "ReservedRequests": 1,
+              "KnownUsageEntries": 1,
+              "UnknownUsageEntries": 0,
+              "PartialUsageEntries": 0
+            }
+          }
+        ],
+        "Unattributed": {
+          "UnknownPromptEntries": 0,
+          "UnknownCompletionEntries": 0,
+          "UnknownTotalEntries": 0,
+          "UnknownCachedEntries": 0,
+          "UnknownReasoningEntries": 0,
+          "UnknownToolUsePromptEntries": 0,
+          "KnownTokens": {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0
+          },
+          "ReservedRequests": 0,
+          "KnownUsageEntries": 0,
+          "UnknownUsageEntries": 0,
+          "PartialUsageEntries": 0
+        },
+        "UnknownUsageEntries": 0,
+        "PartialUsageEntries": 0,
+        "Complete": true
+      },
+      "Attempts": [
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-child",
+          "AgentID": "coordinator",
+          "AgentCallKey": "3e979134-47b4-43c8-b99f-14305954c13a",
+          "ParentAgentCallKey": "",
+          "OperationKey": "0f07c117-3032-4876-86b4-e1d970230d99",
+          "AttemptKey": "0f07c117-3032-4876-86b4-e1d970230d99",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 59,
+            "completion_tokens": 8,
+            "total_tokens": 111,
+            "reasoning_tokens": 44
+          },
+          "KnownFields": 23,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        },
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-child",
+          "AgentID": "writer",
+          "AgentCallKey": "7202e798-9498-4e0b-a328-63dda9fddc03",
+          "ParentAgentCallKey": "3e979134-47b4-43c8-b99f-14305954c13a",
+          "OperationKey": "290af3dd-2b2b-4f20-91e1-06aa8382735e",
+          "AttemptKey": "290af3dd-2b2b-4f20-91e1-06aa8382735e",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 15,
+            "completion_tokens": 1,
+            "total_tokens": 51,
+            "reasoning_tokens": 35
+          },
+          "KnownFields": 23,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        },
+        {
+          "ResponseModel": "gemini-2.5-flash",
+          "Reasoning": {
+            "budget_tokens": 128,
+            "budget_set": true
+          },
+          "ReasoningConfigured": true,
+          "RunID": "live-child",
+          "AgentID": "coordinator",
+          "AgentCallKey": "3e979134-47b4-43c8-b99f-14305954c13a",
+          "ParentAgentCallKey": "",
+          "OperationKey": "4df39a6b-bc1a-4d19-8b1e-39f0bded0f64",
+          "AttemptKey": "4df39a6b-bc1a-4d19-8b1e-39f0bded0f64",
+          "Provider": "gemini",
+          "Model": "gemini-2.5-flash",
+          "Attempt": 0,
+          "Tokens": {
+            "prompt_tokens": 124,
+            "completion_tokens": 1,
+            "total_tokens": 125
+          },
+          "KnownFields": 7,
+          "Source": "provider",
+          "Revision": 1,
+          "Replayed": false,
+          "AccountingCommitted": true
+        }
+      ],
+      "ToolRuns": {
+        "lookup_order": 0,
+        "research": 0,
+        "review": 0
+      }
+    }
+  ]
+}

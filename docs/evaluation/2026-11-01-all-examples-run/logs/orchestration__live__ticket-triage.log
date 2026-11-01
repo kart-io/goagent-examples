@@ -1,0 +1,23 @@
+{
+  "Ticket": "A1001",
+  "Decision": "批准",
+  "Answer": "结论：批准\n理由：商品在签收 7 天内且未拆封，可无理由退款。",
+  "NewModelCalls": 4,
+  "LookupRuns": 1,
+  "ChildCreated": 1,
+  "ChildClose": 1,
+  "Budget": {
+    "ReservedRequests": 4,
+    "KnownUsageEntries": 4,
+    "UnknownUsageEntries": 0,
+    "KnownTokens": {
+      "prompt_tokens": 1426,
+      "completion_tokens": 126,
+      "total_tokens": 2716,
+      "reasoning_tokens": 1164
+    },
+    "ReservedTokens": 0,
+    "ReservedToolCalls": 2,
+    "KnownTokenDelta": 2716
+  }
+}

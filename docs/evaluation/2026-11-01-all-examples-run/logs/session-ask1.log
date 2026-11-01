@@ -1,0 +1,7 @@
+{
+  "Answer": "结论：待发货\n您的订单 B200 正在等待发货。",
+  "Conclusion": "待发货",
+  "NewModelCalls": 2,
+  "ToolRuns": 1,
+  "FirstRequestMessages": 6
+}
