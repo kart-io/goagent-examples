@@ -1,0 +1,22 @@
+=== RUN   TestLiveAgentContext
+=== RUN   TestLiveAgentContext/delegation
+    run_test.go:95: provider=minimax model=MiniMax-M3.1-Flash mode=delegation requests=3 reserved=3 peak=1 inflight=0 children=1/1 root_tokens={PromptTokens:4895 CompletionTokens:1308 TotalTokens:6203 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=minimax mode=delegation agent=itinerary self_tokens={PromptTokens:4100 CompletionTokens:1280 TotalTokens:5380 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=minimax mode=delegation agent=parent self_tokens={PromptTokens:795 CompletionTokens:28 TotalTokens:823 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=1 unknown_entries=0
+    run_test.go:103: live execution failed: tool "submit_report" arguments: validating root: required: missing properties: ["Conflicts"]
+=== RUN   TestLiveAgentContext/pipeline
+    run_test.go:95: provider=minimax model=MiniMax-M3.1-Flash mode=pipeline requests=2 reserved=2 peak=1 inflight=0 children=1/1 root_tokens={PromptTokens:4087 CompletionTokens:1037 TotalTokens:5124 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=minimax mode=pipeline agent=itinerary self_tokens={PromptTokens:4087 CompletionTokens:1037 TotalTokens:5124 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:103: live execution failed: node "itinerary": invalid business conclusion
+=== RUN   TestLiveAgentContext/parallel
+    run_test.go:95: provider=minimax model=MiniMax-M3.1-Flash mode=parallel requests=4 reserved=4 peak=2 inflight=0 children=2/2 root_tokens={PromptTokens:8224 CompletionTokens:2213 TotalTokens:10437 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=minimax mode=parallel agent=itinerary self_tokens={PromptTokens:4114 CompletionTokens:1079 TotalTokens:5193 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=minimax mode=parallel agent=rules self_tokens={PromptTokens:4110 CompletionTokens:1134 TotalTokens:5244 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:103: live execution failed: node "experts": parallel branch "rules": invalid business conclusion
+--- FAIL: TestLiveAgentContext (36.46s)
+    --- FAIL: TestLiveAgentContext/delegation (12.88s)
+    --- FAIL: TestLiveAgentContext/pipeline (5.39s)
+    --- FAIL: TestLiveAgentContext/parallel (18.19s)
+FAIL
+FAIL	github.com/kart-io/goagent-examples/orchestration/agent-context	37.212s
+FAIL

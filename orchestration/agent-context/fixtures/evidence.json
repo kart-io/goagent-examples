@@ -1,0 +1,13 @@
+{
+  "CandidateID": "A", "Version": 1,
+  "Adults": 1, "Children": 1, "Currency": "SGD",
+  "AdultFareMinor": 40000, "ChildFareMinor": 30000, "TotalMinor": 70000,
+  "Legs": [
+    {"From": "SIN", "To": "NRT", "Date": "2027-03-10", "Direct": true},
+    {"From": "NRT", "To": "SIN", "Date": "2027-03-17", "Direct": true}
+  ],
+  "BaggagePieces": 1, "BaggageKG": 20, "BaggageBasis": "per traveler on each leg",
+  "Refundable": false, "ChangeFeeMinor": 5000,
+  "ChangeCondition": "before departure; fare difference payable",
+  "RulesVersion": "synthetic-rules-1"
+}

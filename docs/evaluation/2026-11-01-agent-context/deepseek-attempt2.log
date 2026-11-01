@@ -1,0 +1,24 @@
+=== RUN   TestLiveAgentContext
+=== RUN   TestLiveAgentContext/delegation
+    run_test.go:95: provider=deepseek model=deepseek-flash mode=delegation requests=4 reserved=4 peak=1 inflight=0 children=1/1 root_tokens={PromptTokens:7171 CompletionTokens:1214 TotalTokens:8385 CachedTokens:3584 ReasoningTokens:160 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=deepseek mode=delegation agent=itinerary self_tokens={PromptTokens:4980 CompletionTokens:769 TotalTokens:5749 CachedTokens:2304 ReasoningTokens:82 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=deepseek mode=delegation agent=parent self_tokens={PromptTokens:2191 CompletionTokens:445 TotalTokens:2636 CachedTokens:1280 ReasoningTokens:78 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:100: provider=deepseek mode=delegation role=itinerary execution=succeeded business=feasible adoption=accepted
+=== RUN   TestLiveAgentContext/pipeline
+    run_test.go:95: provider=deepseek model=deepseek-flash mode=pipeline requests=4 reserved=4 peak=1 inflight=0 children=2/2 root_tokens={PromptTokens:11481 CompletionTokens:1445 TotalTokens:12926 CachedTokens:7040 ReasoningTokens:104 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=deepseek mode=pipeline agent=budget self_tokens={PromptTokens:6530 CompletionTokens:743 TotalTokens:7273 CachedTokens:2944 ReasoningTokens:51 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=deepseek mode=pipeline agent=itinerary self_tokens={PromptTokens:4951 CompletionTokens:702 TotalTokens:5653 CachedTokens:4096 ReasoningTokens:53 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:100: provider=deepseek mode=pipeline role=itinerary execution=succeeded business=feasible adoption=accepted
+    run_test.go:100: provider=deepseek mode=pipeline role=budget execution=succeeded business=feasible adoption=accepted
+=== RUN   TestLiveAgentContext/parallel
+    run_test.go:95: provider=deepseek model=deepseek-flash mode=parallel requests=4 reserved=4 peak=2 inflight=0 children=2/2 root_tokens={PromptTokens:9897 CompletionTokens:1477 TotalTokens:11374 CachedTokens:6400 ReasoningTokens:137 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=deepseek mode=parallel agent=itinerary self_tokens={PromptTokens:4951 CompletionTokens:746 TotalTokens:5697 CachedTokens:4096 ReasoningTokens:72 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=deepseek mode=parallel agent=rules self_tokens={PromptTokens:4946 CompletionTokens:731 TotalTokens:5677 CachedTokens:2304 ReasoningTokens:65 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:100: provider=deepseek mode=parallel role=itinerary execution=succeeded business=feasible adoption=accepted
+    run_test.go:100: provider=deepseek mode=parallel role=rules execution=succeeded business=feasible adoption=accepted
+--- PASS: TestLiveAgentContext (19.06s)
+    --- PASS: TestLiveAgentContext/delegation (7.32s)
+    --- PASS: TestLiveAgentContext/pipeline (7.06s)
+    --- PASS: TestLiveAgentContext/parallel (4.67s)
+PASS
+ok  	github.com/kart-io/goagent-examples/orchestration/agent-context	20.613s

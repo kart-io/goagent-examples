@@ -1,0 +1,22 @@
+=== RUN   TestLiveAgentContext
+=== RUN   TestLiveAgentContext/delegation
+    run_test.go:95: provider=gemini model=gemini-2.5-flash mode=delegation requests=2 reserved=2 peak=1 inflight=0 children=1/1 root_tokens={PromptTokens:2414 CompletionTokens:519 TotalTokens:3974 CachedTokens:0 ReasoningTokens:1041 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=gemini mode=delegation agent=itinerary self_tokens={PromptTokens:1967 CompletionTokens:509 TotalTokens:3416 CachedTokens:0 ReasoningTokens:940 ToolUsePromptTokens:0} known_entries=1 unknown_entries=0
+    run_test.go:97: provider=gemini mode=delegation agent=parent self_tokens={PromptTokens:447 CompletionTokens:10 TotalTokens:558 CachedTokens:0 ReasoningTokens:101 ToolUsePromptTokens:0} known_entries=1 unknown_entries=0
+    run_test.go:103: live execution failed: negative conclusion unsupported: synthetic hard constraints are met
+=== RUN   TestLiveAgentContext/pipeline
+    run_test.go:95: provider=gemini model=gemini-2.5-flash mode=pipeline requests=2 reserved=2 peak=1 inflight=0 children=1/1 root_tokens={PromptTokens:5179 CompletionTokens:45 TotalTokens:6057 CachedTokens:2642 ReasoningTokens:833 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=1 complete=false
+    run_test.go:97: provider=gemini mode=pipeline agent=itinerary self_tokens={PromptTokens:5179 CompletionTokens:45 TotalTokens:6057 CachedTokens:2642 ReasoningTokens:833 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:103: live execution failed: node "itinerary": gemini: incomplete or blocked response (finish="MALFORMED_FUNCTION_CALL")
+=== RUN   TestLiveAgentContext/parallel
+    run_test.go:95: provider=gemini model=gemini-2.5-flash mode=parallel requests=3 reserved=3 peak=2 inflight=0 children=2/2 root_tokens={PromptTokens:6923 CompletionTokens:581 TotalTokens:8221 CachedTokens:2627 ReasoningTokens:717 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=1 complete=false
+    run_test.go:97: provider=gemini mode=parallel agent=itinerary self_tokens={PromptTokens:4957 CompletionTokens:581 TotalTokens:6255 CachedTokens:2627 ReasoningTokens:717 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=gemini mode=parallel agent=rules self_tokens={PromptTokens:1966 CompletionTokens:0 TotalTokens:1966 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=1 unknown_entries=0
+    run_test.go:103: live execution failed: node "experts": parallel branch "rules": gemini: incomplete or blocked response (finish="MALFORMED_FUNCTION_CALL")
+--- FAIL: TestLiveAgentContext (33.22s)
+    --- FAIL: TestLiveAgentContext/delegation (10.36s)
+    --- FAIL: TestLiveAgentContext/pipeline (11.63s)
+    --- FAIL: TestLiveAgentContext/parallel (11.22s)
+FAIL
+FAIL	github.com/kart-io/goagent-examples/orchestration/agent-context	33.520s
+FAIL

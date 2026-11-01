@@ -1,0 +1,9 @@
+{
+  "core_commit": "da848ae4f5e23460761c95d407483b9e9f2d7ec1",
+  "examples_module_core": "v0.32.3-0.20261101061326-da848ae4f5e2",
+  "http_module_core": "v0.32.2",
+  "toolchain": "go1.25.0",
+  "workspace": "GOWORK=off",
+  "original_main_entries": 37,
+  "current_main_entries": 38
+}

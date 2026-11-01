@@ -1,0 +1,24 @@
+=== RUN   TestLiveAgentContext
+=== RUN   TestLiveAgentContext/delegation
+    run_test.go:95: provider=gemini model=gemini-2.5-pro mode=delegation requests=4 reserved=4 peak=1 inflight=0 children=1/1 root_tokens={PromptTokens:7743 CompletionTokens:462 TotalTokens:10291 CachedTokens:0 ReasoningTokens:2086 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=gemini mode=delegation agent=itinerary self_tokens={PromptTokens:5693 CompletionTokens:398 TotalTokens:7842 CachedTokens:0 ReasoningTokens:1751 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=gemini mode=delegation agent=parent self_tokens={PromptTokens:2050 CompletionTokens:64 TotalTokens:2449 CachedTokens:0 ReasoningTokens:335 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:100: provider=gemini mode=delegation role=itinerary execution=succeeded business=feasible adoption=accepted
+=== RUN   TestLiveAgentContext/pipeline
+    run_test.go:95: provider=gemini model=gemini-2.5-pro mode=pipeline requests=4 reserved=4 peak=1 inflight=0 children=2/2 root_tokens={PromptTokens:12760 CompletionTokens:726 TotalTokens:16284 CachedTokens:0 ReasoningTokens:2798 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=gemini mode=pipeline agent=budget self_tokens={PromptTokens:7165 CompletionTokens:368 TotalTokens:9068 CachedTokens:0 ReasoningTokens:1535 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=gemini mode=pipeline agent=itinerary self_tokens={PromptTokens:5595 CompletionTokens:358 TotalTokens:7216 CachedTokens:0 ReasoningTokens:1263 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:100: provider=gemini mode=pipeline role=itinerary execution=succeeded business=feasible adoption=accepted
+    run_test.go:100: provider=gemini mode=pipeline role=budget execution=succeeded business=feasible adoption=accepted
+=== RUN   TestLiveAgentContext/parallel
+    run_test.go:95: provider=gemini model=gemini-2.5-pro mode=parallel requests=4 reserved=4 peak=2 inflight=0 children=2/2 root_tokens={PromptTokens:11062 CompletionTokens:746 TotalTokens:14748 CachedTokens:0 ReasoningTokens:2940 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=gemini mode=parallel agent=itinerary self_tokens={PromptTokens:5136 CompletionTokens:388 TotalTokens:6335 CachedTokens:0 ReasoningTokens:811 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=gemini mode=parallel agent=rules self_tokens={PromptTokens:5926 CompletionTokens:358 TotalTokens:8413 CachedTokens:0 ReasoningTokens:2129 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:100: provider=gemini mode=parallel role=itinerary execution=succeeded business=feasible adoption=accepted
+    run_test.go:100: provider=gemini mode=parallel role=rules execution=succeeded business=feasible adoption=accepted
+--- PASS: TestLiveAgentContext (101.90s)
+    --- PASS: TestLiveAgentContext/delegation (34.26s)
+    --- PASS: TestLiveAgentContext/pipeline (40.56s)
+    --- PASS: TestLiveAgentContext/parallel (27.08s)
+PASS
+ok  	github.com/kart-io/goagent-examples/orchestration/agent-context	103.204s

@@ -1,0 +1,87 @@
+{
+  "simulated": true,
+  "live_model": false,
+  "case_count": 20,
+  "cases": [
+    {
+      "case": "structured-and-readonly-agent",
+      "passed": true
+    },
+    {
+      "case": "agent-clarification",
+      "passed": true
+    },
+    {
+      "case": "roundtrip-family",
+      "passed": true
+    },
+    {
+      "case": "missing-fields",
+      "passed": true
+    },
+    {
+      "case": "no-flights",
+      "passed": true
+    },
+    {
+      "case": "price-change",
+      "passed": true
+    },
+    {
+      "case": "currency-change",
+      "passed": true
+    },
+    {
+      "case": "rules-change",
+      "passed": true
+    },
+    {
+      "case": "sold-out",
+      "passed": true
+    },
+    {
+      "case": "expired",
+      "passed": true
+    },
+    {
+      "case": "payment-declined",
+      "passed": true
+    },
+    {
+      "case": "payment-unknown",
+      "passed": true
+    },
+    {
+      "case": "ticket-unknown",
+      "passed": true
+    },
+    {
+      "case": "ticket-failed",
+      "passed": true
+    },
+    {
+      "case": "refund-unknown",
+      "passed": true
+    },
+    {
+      "case": "reject-invalid-authorizations",
+      "passed": true
+    },
+    {
+      "case": "revision-and-cancel",
+      "passed": true
+    },
+    {
+      "case": "crash-after-payment",
+      "passed": true
+    },
+    {
+      "case": "crash-after-ticket",
+      "passed": true
+    },
+    {
+      "case": "crash-after-refund",
+      "passed": true
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+[
+  {
+    "Mode": "delegation",
+    "ExecutionStatus": "succeeded",
+    "Requests": 4,
+    "Peak": 1,
+    "InFlight": 0,
+    "ChildrenClosed": 1,
+    "ChildrenCreated": 1,
+    "KnownTokens": 60
+  },
+  {
+    "Mode": "pipeline",
+    "ExecutionStatus": "succeeded",
+    "Requests": 4,
+    "Peak": 1,
+    "InFlight": 0,
+    "ChildrenClosed": 2,
+    "ChildrenCreated": 2,
+    "KnownTokens": 60
+  },
+  {
+    "Mode": "parallel",
+    "ExecutionStatus": "succeeded",
+    "Requests": 4,
+    "Peak": 1,
+    "InFlight": 0,
+    "ChildrenClosed": 2,
+    "ChildrenCreated": 2,
+    "KnownTokens": 60
+  }
+]

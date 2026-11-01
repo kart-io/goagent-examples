@@ -14,6 +14,7 @@
 
 - No v1/v2 API paths. Existing examples stay source-compatible and retain their assertions.
 - No speculative core changes: use Builder reservation -> shared host transport permit -> actual request; no double Reserve.
+- Provider generation recovery may retry the exact Gemini MALFORMED_FUNCTION_CALL once per child invocation before emitted output, through Builder; no retry of host validation/tool effects and no hidden client retry. All attempts consume shared budget/usage.
 - P1 has root request cap 12, root in-flight model cap 2, child concurrency 2, task deadline 5 minutes. Token usage is observation, not actual-token stop admission.
 - The example is read-only for business resources; host may persist immutable artifacts, usage and session logs.
 - Default tests/CLI use scripted transport around actual Agent loops. Live model access is opt-in; current user has authorized real validation and environment is sourced from ~/.zshrc without printing secrets.
@@ -31,29 +32,29 @@
 ## Task 1: Close review contracts (root owns)
 
 Files: design and review documents above.
-- [ ] Specify one common authority/qualification protection and consistent lock protocol for normal write, recovery and version updates.
-- [ ] Resolve I-01 with existing Builder reservation followed by transport limiter; resolve I-02 by request-only hard admission/token observation for P1.
-- [ ] Clarify ChangeID atomic registration and Fork ProviderState fallback.
-- [ ] Record which findings are resolved by text vs still awaiting future dynamic W/F verification; render Mermaid and check links/whitespace.
+- [x] Specify one common authority/qualification protection and consistent lock protocol for normal write, recovery and version updates.
+- [x] Resolve I-01 with existing Builder reservation followed by transport limiter; resolve I-02 by request-only hard admission/token observation for P1.
+- [x] Clarify ChangeID atomic registration and Fork ProviderState fallback.
+- [x] Record which findings are resolved by text vs still awaiting future dynamic W/F verification; render Mermaid and check links/whitespace.
 
 ## Task 2: Implement complete isolated read-only example (fresh implementer)
 
 Files owned exclusively by implementer: orchestration/agent-context/* and its new README/fixtures/tests. Do not modify root README or design/review/plan docs.
 Interface: `Run(context.Context, Config, Task) (Result, error)`; Config includes Mode (delegation/pipeline/parallel), Dir, optional livemodel client. CLI supports -mode, -dir, -live. Tests include `TestLiveAgentContext` with mode subtests, gated by GOAGENT_LIVE.
-- [ ] Read full design, apply the explicit I-01/I-02 rulings above; write failing tests before production code.
-- [ ] Define role briefs retaining why, hard/negative constraints, confirmed decisions, exclusions, evidence refs, output and completion criteria. Separate trusted host envelope from model data.
-- [ ] Implement immutable local evidence/artifacts and typed reports; validate known synthetic travelers, budget/currency and itinerary fields against real stored evidence rather than model assertions.
-- [ ] Implement invocation-slot replacement, candidate/upstream/report binding and lock-atomic acceptance; reject stale/canceled/duplicate-id-different-payload results and preserve historical receipts.
-- [ ] Implement real Builder and native read-only tools in all three modes, independent child SessionID/Dispatcher/lifecycle, role projection, explicit ctx session identity and shared budget/usage hook.
-- [ ] Implement shared transport limiter (after Builder Reserve; no second reservation), release permits across streaming completion/error/cancel. Test peak and observed root request counts.
-- [ ] Test privacy and sufficient briefs, decision inheritance, A-vs-B binding, evidence meaning mismatch, unreadable/wrong-version artifact, stale/duplicate adoption, parallel isolation/cancel/error/budget exhaustion, session identity composition and cleanup.
-- [ ] Offline race and build of new package pass; document exact commands, Mermaid architecture/flow, limits and separate F/W/P2 boundaries. Report TDD RED/GREEN evidence, results and any scope gaps. Do not commit until root has reviewed the artifact, and do not call paid models.
+- [x] Read full design, apply the explicit I-01/I-02 rulings above; write failing tests before production code.
+- [x] Define role briefs retaining why, hard/negative constraints, confirmed decisions, exclusions, evidence refs, output and completion criteria. Separate trusted host envelope from model data.
+- [x] Implement immutable local evidence/artifacts and typed reports; validate known synthetic travelers, budget/currency and itinerary fields against real stored evidence rather than model assertions.
+- [x] Implement invocation-slot replacement, candidate/upstream/report binding and lock-atomic acceptance; reject stale/canceled/duplicate-id-different-payload results and preserve historical receipts.
+- [x] Implement real Builder and native read-only tools in all three modes, independent child SessionID/Dispatcher/lifecycle, role projection, explicit ctx session identity and shared budget/usage hook.
+- [x] Implement shared transport limiter (after Builder Reserve; no second reservation), release permits across streaming completion/error/cancel. Test peak and observed root request counts.
+- [x] Test privacy and sufficient briefs, decision inheritance, A-vs-B binding, evidence meaning mismatch, unreadable/wrong-version artifact, stale/duplicate adoption, parallel isolation/cancel/error/budget exhaustion, session identity composition and cleanup.
+- [x] Offline race and build of new package pass; document exact commands, Mermaid architecture/flow, limits and separate F/W/P2 boundaries. Report TDD RED/GREEN evidence, results and any scope gaps. Do not commit until root has reviewed the artifact, and do not call paid models.
 
 ## Task 3: Independent review, integration and verification (root)
 
-- [ ] Fresh reviewer checks contract compliance and code quality; fix important findings with regressions.
-- [ ] Root README links new example. Verify all modules' actual core dependency selection.
-- [ ] Run examples root race/build, HTTP nested race/build and node protocol tests, core root test and nested frameworkbench test/build; preserve original tests and flags.
-- [ ] Run new CLI all three modes and flight CLI20 regressions. Run TestLiveAgentContext on Gemini/DeepSeek/MiniMax CN with bounded requests; log only safe evidence and usage.
-- [ ] If any actual core change becomes necessary, first demonstrate failed contract test, implement a minimal optional extension and validate temporary workspace against all modules plus fixed-version track. Otherwise explicitly report core unchanged.
-- [ ] Record outcomes and limitations, update design/review implementation status, commit reviewable changes locally, retain feature branch without pushing.
+- [x] Fresh reviewer checks contract compliance and code quality; fix important findings with regressions.
+- [x] Root README links new example. Verify all modules' actual core dependency selection.
+- [x] Run examples root race/build, HTTP nested race/build and node protocol tests, core root test and nested frameworkbench test/build; preserve original tests and flags.
+- [x] Run new CLI all three modes and flight CLI20 regressions. Run TestLiveAgentContext on Gemini/DeepSeek/MiniMax CN with bounded requests; log only safe evidence and usage.
+- [x] If any actual core change becomes necessary, first demonstrate failed contract test, implement a minimal optional extension and validate temporary workspace against all modules plus fixed-version track. Otherwise explicitly report core unchanged.
+- [x] Record outcomes and limitations, update design/review implementation status, commit reviewable changes locally, retain feature branch without pushing.

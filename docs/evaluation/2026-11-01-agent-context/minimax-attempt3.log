@@ -1,0 +1,24 @@
+=== RUN   TestLiveAgentContext
+=== RUN   TestLiveAgentContext/delegation
+    run_test.go:95: provider=minimax model=MiniMax-M3.1-Flash mode=delegation requests=4 reserved=4 peak=1 inflight=0 children=1/1 root_tokens={PromptTokens:7219 CompletionTokens:884 TotalTokens:8103 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=minimax mode=delegation agent=itinerary self_tokens={PromptTokens:4898 CompletionTokens:602 TotalTokens:5500 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=minimax mode=delegation agent=parent self_tokens={PromptTokens:2321 CompletionTokens:282 TotalTokens:2603 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:100: provider=minimax mode=delegation role=itinerary execution=succeeded business=feasible adoption=accepted
+=== RUN   TestLiveAgentContext/pipeline
+    run_test.go:95: provider=minimax model=MiniMax-M3.1-Flash mode=pipeline requests=4 reserved=4 peak=1 inflight=0 children=2/2 root_tokens={PromptTokens:11344 CompletionTokens:1179 TotalTokens:12523 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=minimax mode=pipeline agent=budget self_tokens={PromptTokens:6446 CompletionTokens:624 TotalTokens:7070 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=minimax mode=pipeline agent=itinerary self_tokens={PromptTokens:4898 CompletionTokens:555 TotalTokens:5453 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:100: provider=minimax mode=pipeline role=itinerary execution=succeeded business=feasible adoption=accepted
+    run_test.go:100: provider=minimax mode=pipeline role=budget execution=succeeded business=feasible adoption=accepted
+=== RUN   TestLiveAgentContext/parallel
+    run_test.go:95: provider=minimax model=MiniMax-M3.1-Flash mode=parallel requests=4 reserved=4 peak=2 inflight=0 children=2/2 root_tokens={PromptTokens:9756 CompletionTokens:1112 TotalTokens:10868 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} unknown_usage=0 partial_usage=0 complete=true
+    run_test.go:97: provider=minimax mode=parallel agent=itinerary self_tokens={PromptTokens:4877 CompletionTokens:546 TotalTokens:5423 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:97: provider=minimax mode=parallel agent=rules self_tokens={PromptTokens:4879 CompletionTokens:566 TotalTokens:5445 CachedTokens:0 ReasoningTokens:0 ToolUsePromptTokens:0} known_entries=2 unknown_entries=0
+    run_test.go:100: provider=minimax mode=parallel role=itinerary execution=succeeded business=feasible adoption=accepted
+    run_test.go:100: provider=minimax mode=parallel role=rules execution=succeeded business=feasible adoption=accepted
+--- PASS: TestLiveAgentContext (30.21s)
+    --- PASS: TestLiveAgentContext/delegation (9.34s)
+    --- PASS: TestLiveAgentContext/pipeline (14.34s)
+    --- PASS: TestLiveAgentContext/parallel (6.53s)
+PASS
+ok  	github.com/kart-io/goagent-examples/orchestration/agent-context	31.773s

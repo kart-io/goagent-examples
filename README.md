@@ -6,11 +6,12 @@
 
 ## 目录
 
-多 Agent 场景扩展需求见 [需求草案](docs/requirements/multi-agent-scenarios.md)，定义自然语言意图路由、多轮澄清、Tool/Workflow/子 Agent 执行选择、返回契约与分阶段验收；新增案例尚未按该文档实施。路由方案比较与执行边界见 [调研分析](docs/research/intent-execution-routing.md)。 多 Agent 上下文传递的场景、隔离边界及候选案例见 [上下文协作分析](docs/research/2026-11-01-multi-agent-context.md)，目前为待确定方案，尚未新增可执行案例。
+多 Agent 场景扩展需求见 [需求草案](docs/requirements/multi-agent-scenarios.md)，定义自然语言意图路由、多轮澄清、Tool/Workflow/子 Agent 执行选择、返回契约与分阶段验收；新增案例尚未按该文档实施。路由方案比较与执行边界见 [调研分析](docs/research/intent-execution-routing.md)。 多 Agent 上下文传递的场景、隔离边界及候选案例见 [上下文协作分析](docs/research/2026-11-01-multi-agent-context.md)，只读 P1 案例见 [agent-context](orchestration/agent-context/README.md)，支持 delegation、pipeline、parallel；Fork、共享文件提交和持久恢复另行验收。
 
 | 目录 | 内容 |
 | --- | --- |
 | [workflow/business-cases](workflow/business-cases/README.md) | DevOps、文章审核、自动回复；含真实模型评测入口 |
+| [orchestration/agent-context](orchestration/agent-context/README.md) | 父子 Agent 简报投影、串行依赖、并行专家、证据与报告采纳、会话隔离及根请求/token 统计；只读合成差旅场景 |
 | [orchestration/flight-booking](orchestration/flight-booking/README.md) | 机票预订：Agent 澄清与只读比价、Workflow 两次确认、支付出票核对与崩溃恢复；业务全部模拟 |
 | [workflow/refund-recovery](workflow/refund-recovery/README.md) | 退款审批与跨进程崩溃恢复 |
 | [orchestration/live](orchestration/live/README.md) | 可组合编排的真实模型案例：审批、多级委派、本地化、长日志排障、审校循环、流式预算、工单分诊、会话日志与重放 |
