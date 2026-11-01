@@ -6,7 +6,7 @@
 
 ## 目录
 
-多 Agent 场景扩展需求见 [需求草案](docs/requirements/multi-agent-scenarios.md)，定义自然语言意图路由、多轮澄清、Tool/Workflow/子 Agent 执行选择、返回契约与分阶段验收；新增案例尚未按该文档实施。路由方案比较与执行边界见 [调研分析](docs/research/intent-execution-routing.md)。
+多 Agent 场景扩展需求见 [需求草案](docs/requirements/multi-agent-scenarios.md)，定义自然语言意图路由、多轮澄清、Tool/Workflow/子 Agent 执行选择、返回契约与分阶段验收；新增案例尚未按该文档实施。路由方案比较与执行边界见 [调研分析](docs/research/intent-execution-routing.md)。 多 Agent 上下文传递的场景、隔离边界及候选案例见 [上下文协作分析](docs/research/2026-11-01-multi-agent-context.md)，目前为待确定方案，尚未新增可执行案例。
 
 | 目录 | 内容 |
 | --- | --- |
