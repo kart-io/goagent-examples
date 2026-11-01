@@ -1,0 +1,14 @@
+=== RUN   TestLiveExtractionAndComparison
+=== RUN   TestLiveExtractionAndComparison/clarification
+    live_test.go:85: LIVE_EVIDENCE {"provider":"minimax","model":"MiniMax-M3.1-Flash","case":"TestLiveExtractionAndComparison/clarification","stage":"ask-for-details","status":"needs_input","network_calls":1,"model_attempts":1,"usage_events":1,"task_usage":{"prompt_tokens":467,"completion_tokens":133,"total_tokens":600},"effects":{"holds":0,"payments":0,"tickets":0,"refunds":0},"read_only_tools":0}
+    live_test.go:90: LIVE_EVIDENCE {"provider":"minimax","model":"MiniMax-M3.1-Flash","case":"TestLiveExtractionAndComparison/clarification","stage":"supply-details","status":"awaiting_selection","network_calls":1,"model_attempts":1,"usage_events":1,"task_usage":{"prompt_tokens":958,"completion_tokens":270,"total_tokens":1228},"effects":{"holds":0,"payments":0,"tickets":0,"refunds":0},"read_only_tools":0}
+=== RUN   TestLiveExtractionAndComparison/ambiguous-date
+    live_test.go:100: LIVE_EVIDENCE {"provider":"minimax","model":"MiniMax-M3.1-Flash","case":"TestLiveExtractionAndComparison/ambiguous-date","stage":"relative-date","status":"needs_input","network_calls":1,"model_attempts":1,"usage_events":1,"task_usage":{"prompt_tokens":494,"completion_tokens":194,"total_tokens":688},"effects":{"holds":0,"payments":0,"tickets":0,"refunds":0},"read_only_tools":0}
+=== RUN   TestLiveExtractionAndComparison/cannot-authorize-from-text
+    live_test.go:110: LIVE_EVIDENCE {"provider":"minimax","model":"MiniMax-M3.1-Flash","case":"TestLiveExtractionAndComparison/cannot-authorize-from-text","stage":"injected-authorization","status":"awaiting_selection","network_calls":1,"model_attempts":1,"usage_events":1,"task_usage":{"prompt_tokens":507,"completion_tokens":202,"total_tokens":709},"effects":{"holds":0,"payments":0,"tickets":0,"refunds":0},"read_only_tools":0}
+--- PASS: TestLiveExtractionAndComparison (12.13s)
+    --- PASS: TestLiveExtractionAndComparison/clarification (4.88s)
+    --- PASS: TestLiveExtractionAndComparison/ambiguous-date (3.86s)
+    --- PASS: TestLiveExtractionAndComparison/cannot-authorize-from-text (3.39s)
+PASS
+ok      github.com/kart-io/goagent-examples/orchestration/flight-booking    13.451s

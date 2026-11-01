@@ -1,0 +1,41 @@
+=== RUN   TestLiveExtractionAndComparison
+=== RUN   TestLiveExtractionAndComparison/booking-and-two-confirmations
+    live_test.go:49: LIVE_EVIDENCE {"provider":"minimax","model":"MiniMax-M3.1-Flash","case":"TestLiveExtractionAndComparison/booking-and-two-confirmations","stage":"extract","status":"","network_calls":1,"model_attempts":1,"usage_events":1,"task_usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0},"effects":{"holds":0,"payments":0,"tickets":0,"refunds":0},"read_only_tools":0,"failure":"travel Agent failed: MiniMax HTTP 状态 401"}
+    live_test.go:49:
+            Error Trace:    <repo>/orchestration/flight-booking/live_test.go:41
+                                        <repo>/orchestration/flight-booking/live_test.go:49
+            Error:          Received unexpected error:
+                            travel Agent failed: MiniMax HTTP 状态 401
+            Test:           TestLiveExtractionAndComparison/booking-and-two-confirmations
+=== RUN   TestLiveExtractionAndComparison/clarification
+    live_test.go:85: LIVE_EVIDENCE {"provider":"minimax","model":"MiniMax-M3.1-Flash","case":"TestLiveExtractionAndComparison/clarification","stage":"ask-for-details","status":"","network_calls":1,"model_attempts":1,"usage_events":1,"task_usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0},"effects":{"holds":0,"payments":0,"tickets":0,"refunds":0},"read_only_tools":0,"failure":"travel Agent failed: MiniMax HTTP 状态 401"}
+    live_test.go:85:
+            Error Trace:    <repo>/orchestration/flight-booking/live_test.go:41
+                                        <repo>/orchestration/flight-booking/live_test.go:85
+            Error:          Received unexpected error:
+                            travel Agent failed: MiniMax HTTP 状态 401
+            Test:           TestLiveExtractionAndComparison/clarification
+=== RUN   TestLiveExtractionAndComparison/ambiguous-date
+    live_test.go:100: LIVE_EVIDENCE {"provider":"minimax","model":"MiniMax-M3.1-Flash","case":"TestLiveExtractionAndComparison/ambiguous-date","stage":"relative-date","status":"","network_calls":1,"model_attempts":1,"usage_events":1,"task_usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0},"effects":{"holds":0,"payments":0,"tickets":0,"refunds":0},"read_only_tools":0,"failure":"travel Agent failed: MiniMax HTTP 状态 401"}
+    live_test.go:100:
+            Error Trace:    <repo>/orchestration/flight-booking/live_test.go:41
+                                        <repo>/orchestration/flight-booking/live_test.go:100
+            Error:          Received unexpected error:
+                            travel Agent failed: MiniMax HTTP 状态 401
+            Test:           TestLiveExtractionAndComparison/ambiguous-date
+=== RUN   TestLiveExtractionAndComparison/cannot-authorize-from-text
+    live_test.go:110: LIVE_EVIDENCE {"provider":"minimax","model":"MiniMax-M3.1-Flash","case":"TestLiveExtractionAndComparison/cannot-authorize-from-text","stage":"injected-authorization","status":"","network_calls":1,"model_attempts":1,"usage_events":1,"task_usage":{"prompt_tokens":0,"completion_tokens":0,"total_tokens":0},"effects":{"holds":0,"payments":0,"tickets":0,"refunds":0},"read_only_tools":0,"failure":"travel Agent failed: MiniMax HTTP 状态 401"}
+    live_test.go:110:
+            Error Trace:    <repo>/orchestration/flight-booking/live_test.go:41
+                                        <repo>/orchestration/flight-booking/live_test.go:110
+            Error:          Received unexpected error:
+                            travel Agent failed: MiniMax HTTP 状态 401
+            Test:           TestLiveExtractionAndComparison/cannot-authorize-from-text
+--- FAIL: TestLiveExtractionAndComparison (2.34s)
+    --- FAIL: TestLiveExtractionAndComparison/booking-and-two-confirmations (0.85s)
+    --- FAIL: TestLiveExtractionAndComparison/clarification (0.53s)
+    --- FAIL: TestLiveExtractionAndComparison/ambiguous-date (0.45s)
+    --- FAIL: TestLiveExtractionAndComparison/cannot-authorize-from-text (0.52s)
+FAIL
+FAIL    github.com/kart-io/goagent-examples/orchestration/flight-booking    6.396s
+FAIL

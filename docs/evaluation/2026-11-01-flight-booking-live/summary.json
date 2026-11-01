@@ -1,0 +1,692 @@
+{
+  "business_effects": "local simulation only",
+  "real_models": true,
+  "providers": [
+    {
+      "provider": "gemini",
+      "requested_model": "gemini-2.5-flash",
+      "endpoint": "provider default",
+      "cases_passed": 4,
+      "network_requests": 7,
+      "task_usage_sum": {
+        "prompt_tokens": 2220,
+        "completion_tokens": 380,
+        "total_tokens": 2851,
+        "reasoning_tokens": 251
+      },
+      "logs": [
+        "gemini.log"
+      ],
+      "events": [
+        {
+          "provider": "gemini",
+          "model": "gemini-2.5-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "extract",
+          "status": "awaiting_selection",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 304,
+            "completion_tokens": 89,
+            "total_tokens": 393
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "gemini",
+          "model": "gemini-2.5-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "read-only-comparison",
+          "status": "awaiting_selection",
+          "network_calls": 2,
+          "model_attempts": 2,
+          "usage_events": 2,
+          "task_usage": {
+            "prompt_tokens": 1006,
+            "completion_tokens": 112,
+            "total_tokens": 1369,
+            "reasoning_tokens": 251
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 1
+        },
+        {
+          "provider": "gemini",
+          "model": "gemini-2.5-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "first-confirmation",
+          "status": "awaiting_final_confirmation",
+          "network_calls": 0,
+          "model_attempts": 0,
+          "usage_events": 0,
+          "task_usage": {
+            "prompt_tokens": 1006,
+            "completion_tokens": 112,
+            "total_tokens": 1369,
+            "reasoning_tokens": 251
+          },
+          "effects": {
+            "holds": 1,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "gemini",
+          "model": "gemini-2.5-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "second-confirmation",
+          "status": "ticketed",
+          "network_calls": 0,
+          "model_attempts": 0,
+          "usage_events": 0,
+          "task_usage": {
+            "prompt_tokens": 1006,
+            "completion_tokens": 112,
+            "total_tokens": 1369,
+            "reasoning_tokens": 251
+          },
+          "effects": {
+            "holds": 1,
+            "payments": 1,
+            "tickets": 1,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "gemini",
+          "model": "gemini-2.5-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "replay",
+          "status": "ticketed",
+          "network_calls": 0,
+          "model_attempts": 0,
+          "usage_events": 0,
+          "task_usage": {
+            "prompt_tokens": 1006,
+            "completion_tokens": 112,
+            "total_tokens": 1369,
+            "reasoning_tokens": 251
+          },
+          "effects": {
+            "holds": 1,
+            "payments": 1,
+            "tickets": 1,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "gemini",
+          "model": "gemini-2.5-flash",
+          "case": "TestLiveExtractionAndComparison/clarification",
+          "stage": "ask-for-details",
+          "status": "needs_input",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 275,
+            "completion_tokens": 43,
+            "total_tokens": 318
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "gemini",
+          "model": "gemini-2.5-flash",
+          "case": "TestLiveExtractionAndComparison/clarification",
+          "stage": "supply-details",
+          "status": "awaiting_selection",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 581,
+            "completion_tokens": 132,
+            "total_tokens": 713
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "gemini",
+          "model": "gemini-2.5-flash",
+          "case": "TestLiveExtractionAndComparison/ambiguous-date",
+          "stage": "relative-date",
+          "status": "needs_input",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 309,
+            "completion_tokens": 65,
+            "total_tokens": 374
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "gemini",
+          "model": "gemini-2.5-flash",
+          "case": "TestLiveExtractionAndComparison/cannot-authorize-from-text",
+          "stage": "injected-authorization",
+          "status": "awaiting_selection",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 324,
+            "completion_tokens": 71,
+            "total_tokens": 395
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        }
+      ]
+    },
+    {
+      "provider": "deepseek",
+      "requested_model": "deepseek-flash",
+      "endpoint": "provider default",
+      "cases_passed": 4,
+      "network_requests": 7,
+      "task_usage_sum": {
+        "prompt_tokens": 2753,
+        "completion_tokens": 1781,
+        "total_tokens": 4534,
+        "cached_tokens": 768,
+        "reasoning_tokens": 1378
+      },
+      "logs": [
+        "deepseek.log"
+      ],
+      "events": [
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "extract",
+          "status": "awaiting_selection",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 334,
+            "completion_tokens": 312,
+            "total_tokens": 646,
+            "reasoning_tokens": 240
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "read-only-comparison",
+          "status": "awaiting_selection",
+          "network_calls": 2,
+          "model_attempts": 2,
+          "usage_events": 2,
+          "task_usage": {
+            "prompt_tokens": 1415,
+            "completion_tokens": 391,
+            "total_tokens": 1806,
+            "cached_tokens": 256,
+            "reasoning_tokens": 284
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 1
+        },
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "first-confirmation",
+          "status": "awaiting_final_confirmation",
+          "network_calls": 0,
+          "model_attempts": 0,
+          "usage_events": 0,
+          "task_usage": {
+            "prompt_tokens": 1415,
+            "completion_tokens": 391,
+            "total_tokens": 1806,
+            "cached_tokens": 256,
+            "reasoning_tokens": 284
+          },
+          "effects": {
+            "holds": 1,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "second-confirmation",
+          "status": "ticketed",
+          "network_calls": 0,
+          "model_attempts": 0,
+          "usage_events": 0,
+          "task_usage": {
+            "prompt_tokens": 1415,
+            "completion_tokens": 391,
+            "total_tokens": 1806,
+            "cached_tokens": 256,
+            "reasoning_tokens": 284
+          },
+          "effects": {
+            "holds": 1,
+            "payments": 1,
+            "tickets": 1,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "replay",
+          "status": "ticketed",
+          "network_calls": 0,
+          "model_attempts": 0,
+          "usage_events": 0,
+          "task_usage": {
+            "prompt_tokens": 1415,
+            "completion_tokens": 391,
+            "total_tokens": 1806,
+            "cached_tokens": 256,
+            "reasoning_tokens": 284
+          },
+          "effects": {
+            "holds": 1,
+            "payments": 1,
+            "tickets": 1,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "case": "TestLiveExtractionAndComparison/clarification",
+          "stage": "ask-for-details",
+          "status": "needs_input",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 309,
+            "completion_tokens": 332,
+            "total_tokens": 641,
+            "cached_tokens": 128,
+            "reasoning_tokens": 269
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "case": "TestLiveExtractionAndComparison/clarification",
+          "stage": "supply-details",
+          "status": "awaiting_selection",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 647,
+            "completion_tokens": 587,
+            "total_tokens": 1234,
+            "cached_tokens": 256,
+            "reasoning_tokens": 452
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "case": "TestLiveExtractionAndComparison/ambiguous-date",
+          "stage": "relative-date",
+          "status": "needs_input",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 340,
+            "completion_tokens": 503,
+            "total_tokens": 843,
+            "cached_tokens": 128,
+            "reasoning_tokens": 414
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "deepseek",
+          "model": "deepseek-flash",
+          "case": "TestLiveExtractionAndComparison/cannot-authorize-from-text",
+          "stage": "injected-authorization",
+          "status": "awaiting_selection",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 351,
+            "completion_tokens": 300,
+            "total_tokens": 651,
+            "cached_tokens": 128,
+            "reasoning_tokens": 228
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        }
+      ]
+    },
+    {
+      "provider": "minimax",
+      "requested_model": "MiniMax-M3.1-Flash",
+      "endpoint": "https://api.minimax.cn/v1",
+      "cases_passed": 4,
+      "network_requests": 7,
+      "task_usage_sum": {
+        "prompt_tokens": 3758,
+        "completion_tokens": 850,
+        "total_tokens": 4608
+      },
+      "logs": [
+        "minimax-cn-booking.log",
+        "minimax-cn-scenarios.log"
+      ],
+      "events": [
+        {
+          "provider": "minimax",
+          "model": "MiniMax-M3.1-Flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "extract",
+          "status": "awaiting_selection",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 489,
+            "completion_tokens": 129,
+            "total_tokens": 618
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "minimax",
+          "model": "MiniMax-M3.1-Flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "read-only-comparison",
+          "status": "awaiting_selection",
+          "network_calls": 2,
+          "model_attempts": 2,
+          "usage_events": 2,
+          "task_usage": {
+            "prompt_tokens": 1799,
+            "completion_tokens": 184,
+            "total_tokens": 1983
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 1
+        },
+        {
+          "provider": "minimax",
+          "model": "MiniMax-M3.1-Flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "first-confirmation",
+          "status": "awaiting_final_confirmation",
+          "network_calls": 0,
+          "model_attempts": 0,
+          "usage_events": 0,
+          "task_usage": {
+            "prompt_tokens": 1799,
+            "completion_tokens": 184,
+            "total_tokens": 1983
+          },
+          "effects": {
+            "holds": 1,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "minimax",
+          "model": "MiniMax-M3.1-Flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "second-confirmation",
+          "status": "ticketed",
+          "network_calls": 0,
+          "model_attempts": 0,
+          "usage_events": 0,
+          "task_usage": {
+            "prompt_tokens": 1799,
+            "completion_tokens": 184,
+            "total_tokens": 1983
+          },
+          "effects": {
+            "holds": 1,
+            "payments": 1,
+            "tickets": 1,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "minimax",
+          "model": "MiniMax-M3.1-Flash",
+          "case": "TestLiveExtractionAndComparison/booking-and-two-confirmations",
+          "stage": "replay",
+          "status": "ticketed",
+          "network_calls": 0,
+          "model_attempts": 0,
+          "usage_events": 0,
+          "task_usage": {
+            "prompt_tokens": 1799,
+            "completion_tokens": 184,
+            "total_tokens": 1983
+          },
+          "effects": {
+            "holds": 1,
+            "payments": 1,
+            "tickets": 1,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "minimax",
+          "model": "MiniMax-M3.1-Flash",
+          "case": "TestLiveExtractionAndComparison/clarification",
+          "stage": "ask-for-details",
+          "status": "needs_input",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 467,
+            "completion_tokens": 133,
+            "total_tokens": 600
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "minimax",
+          "model": "MiniMax-M3.1-Flash",
+          "case": "TestLiveExtractionAndComparison/clarification",
+          "stage": "supply-details",
+          "status": "awaiting_selection",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 958,
+            "completion_tokens": 270,
+            "total_tokens": 1228
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "minimax",
+          "model": "MiniMax-M3.1-Flash",
+          "case": "TestLiveExtractionAndComparison/ambiguous-date",
+          "stage": "relative-date",
+          "status": "needs_input",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 494,
+            "completion_tokens": 194,
+            "total_tokens": 688
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        },
+        {
+          "provider": "minimax",
+          "model": "MiniMax-M3.1-Flash",
+          "case": "TestLiveExtractionAndComparison/cannot-authorize-from-text",
+          "stage": "injected-authorization",
+          "status": "awaiting_selection",
+          "network_calls": 1,
+          "model_attempts": 1,
+          "usage_events": 1,
+          "task_usage": {
+            "prompt_tokens": 507,
+            "completion_tokens": 202,
+            "total_tokens": 709
+          },
+          "effects": {
+            "holds": 0,
+            "payments": 0,
+            "tickets": 0,
+            "refunds": 0
+          },
+          "read_only_tools": 0
+        }
+      ]
+    }
+  ],
+  "diagnostics": [
+    {
+      "provider": "minimax",
+      "endpoint": "https://api.minimax.io/v1",
+      "result": "HTTP 401",
+      "network_requests": 4,
+      "token_usage": "not reported; do not infer zero cost",
+      "log": "minimax-global-auth-failed.log"
+    }
+  ],
+  "offline_regression": {
+    "passed_packages": 35,
+    "packages_without_tests": 7,
+    "race": true,
+    "paid_tests_disabled": true
+  }
+}
