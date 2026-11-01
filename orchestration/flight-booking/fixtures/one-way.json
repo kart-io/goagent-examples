@@ -1,0 +1,8 @@
+{
+  "from": "SIN",
+  "to": "PVG",
+  "depart_date": "2030-01-10",
+  "cabin": "economy",
+  "budget_cents": 500000,
+  "travelers": [{"ref": "demo-adult-1", "kind": "adult"}]
+}

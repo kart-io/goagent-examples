@@ -1,0 +1,74 @@
+--- FAIL: TestNewIssuanceRequiresValidHeldConditionsAfterPayment (1.87s)
+    --- FAIL: TestNewIssuanceRequiresValidHeldConditionsAfterPayment/expiry (0.37s)
+        booking_test.go:274:
+            Error Trace:    <repo>/orchestration/flight-booking/booking_test.go:274
+            Error:      Not equal:
+                        expected: "refunded"
+                        actual  : "ticketed"
+
+                        Diff:
+                        --- Expected
+                        +++ Actual
+                        @@ -1 +1 @@
+                        -refunded
+                        +ticketed
+            Test:       TestNewIssuanceRequiresValidHeldConditionsAfterPayment/expiry
+    --- FAIL: TestNewIssuanceRequiresValidHeldConditionsAfterPayment/price (0.37s)
+        booking_test.go:274:
+            Error Trace:    <repo>/orchestration/flight-booking/booking_test.go:274
+            Error:      Not equal:
+                        expected: "refunded"
+                        actual  : "ticketed"
+
+                        Diff:
+                        --- Expected
+                        +++ Actual
+                        @@ -1 +1 @@
+                        -refunded
+                        +ticketed
+            Test:       TestNewIssuanceRequiresValidHeldConditionsAfterPayment/price
+    --- FAIL: TestNewIssuanceRequiresValidHeldConditionsAfterPayment/currency (0.38s)
+        booking_test.go:274:
+            Error Trace:    <repo>/orchestration/flight-booking/booking_test.go:274
+            Error:      Not equal:
+                        expected: "refunded"
+                        actual  : "ticketed"
+
+                        Diff:
+                        --- Expected
+                        +++ Actual
+                        @@ -1 +1 @@
+                        -refunded
+                        +ticketed
+            Test:       TestNewIssuanceRequiresValidHeldConditionsAfterPayment/currency
+    --- FAIL: TestNewIssuanceRequiresValidHeldConditionsAfterPayment/rules (0.38s)
+        booking_test.go:274:
+            Error Trace:    <repo>/orchestration/flight-booking/booking_test.go:274
+            Error:      Not equal:
+                        expected: "refunded"
+                        actual  : "ticketed"
+
+                        Diff:
+                        --- Expected
+                        +++ Actual
+                        @@ -1 +1 @@
+                        -refunded
+                        +ticketed
+            Test:       TestNewIssuanceRequiresValidHeldConditionsAfterPayment/rules
+    --- FAIL: TestNewIssuanceRequiresValidHeldConditionsAfterPayment/sold-out (0.36s)
+        booking_test.go:274:
+            Error Trace:    <repo>/orchestration/flight-booking/booking_test.go:274
+            Error:      Not equal:
+                        expected: "refunded"
+                        actual  : "ticketed"
+
+                        Diff:
+                        --- Expected
+                        +++ Actual
+                        @@ -1 +1 @@
+                        -refunded
+                        +ticketed
+            Test:       TestNewIssuanceRequiresValidHeldConditionsAfterPayment/sold-out
+FAIL
+FAIL    github.com/kart-io/goagent-examples/orchestration/flight-booking    2.369s
+FAIL

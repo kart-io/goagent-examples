@@ -1,0 +1,9 @@
+--- FAIL: TestConfirmationRejectsReplacementInput (0.33s)
+    booking_test.go:246:
+        Error Trace:    <repo>/orchestration/flight-booking/booking_test.go:246
+        Error:      An error is expected but got nil.
+        Test:       TestConfirmationRejectsReplacementInput
+        Messages:   do not ignore replacement data and charge an old itinerary
+FAIL
+FAIL    github.com/kart-io/goagent-examples/orchestration/flight-booking    0.589s
+FAIL

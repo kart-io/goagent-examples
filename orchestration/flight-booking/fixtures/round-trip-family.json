@@ -1,0 +1,12 @@
+{
+  "from": "SIN",
+  "to": "NRT",
+  "depart_date": "2030-01-10",
+  "return_date": "2030-01-15",
+  "cabin": "economy",
+  "budget_cents": 900000,
+  "travelers": [
+    {"ref": "demo-adult-1", "kind": "adult"},
+    {"ref": "demo-child-1", "kind": "child"}
+  ]
+}

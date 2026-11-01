@@ -1,0 +1,15 @@
+--- FAIL: TestSameDayReturnChronology (0.09s)
+    booking_test.go:295:
+        Error Trace:    <repo>/orchestration/flight-booking/booking_test.go:295
+        Error:      Should be true
+        Test:       TestSameDayReturnChronology
+        Messages:   return cannot depart before outbound arrival
+--- FAIL: TestAcceptedAuthorizationExpiresBeforeGraphAdvances (0.24s)
+    recovery_test.go:107:
+        Error Trace:    <repo>/orchestration/flight-booking/recovery_test.go:107
+        Error:      Received unexpected error:
+                    node "pay": final authorization or held quote no longer valid
+        Test:       TestAcceptedAuthorizationExpiresBeforeGraphAdvances
+FAIL
+FAIL    github.com/kart-io/goagent-examples/orchestration/flight-booking    0.846s
+FAIL
