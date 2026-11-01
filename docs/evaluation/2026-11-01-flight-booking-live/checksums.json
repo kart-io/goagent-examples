@@ -7,7 +7,7 @@
   "docs/evaluation/2026-11-01-flight-booking-live/minimax-global-auth-failed.log": "f2d789cf36854a1e2fef61fb946b929ad7dd6e676801fc61d00b209c0d626ae7",
   "docs/evaluation/2026-11-01-flight-booking-live/offline-root-race.log": "9ba8eff0c82a2ccacd64ea836ccaf8b1e1a1abcef4dc0727b66226a7bfff76d5",
   "docs/evaluation/2026-11-01-flight-booking-live/summary.json": "813ec82e27ab1712d6d38fbca98717b55325797666f59f79e6359be66443ab95",
-  "orchestration/flight-booking/README.md": "63d33ce8b92b7ab3b471c99114fccf6469843a3cfb81093df0bd762832c843b4",
+  "orchestration/flight-booking/README.md": "67813bc057f499777a32b9d4d20fd52bea74cf12be882423a084acdc88d62451",
   "orchestration/flight-booking/agent.go": "f3b1732803426d77c948e62d12620bf8b15c2bc87fe8f8c4acb08c745204eae6",
   "orchestration/flight-booking/booking.go": "987ec7f53b8c6fc849059324e4b6962ed39554cacdf4787b5e9a3ab390b78c4b",
   "orchestration/flight-booking/live_test.go": "3e7af5c92867555b6a4100f88b937548b96fac5e729a61579f62395c1e0ab548"

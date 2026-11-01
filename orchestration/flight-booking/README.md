@@ -13,20 +13,138 @@
 
 不需要每一步都调用 Agent，也不强制创建子 Agent。将来可以将复杂行程规划委派给只读子 Agent，但交易授权仍由宿主和 Workflow 管理。示例没有修改 GoAgent 核心。
 
+## 架构图
+
+宿主 `Run` 是所有命令的统一入口：校验命令、演示身份和修订号，并按业务请求加锁。Agent 的输出先经过宿主校验；付款和出票由确定性业务函数执行，不作为 Agent 可调用的工具暴露。
+
+```mermaid
+flowchart TB
+  USER["用户 / CLI"] --> HOST["宿主 Run · booking.go<br/>身份、命令、修订校验 / 每请求文件锁"]
+
+  subgraph AGENTS["Agent 层 · agent.go"]
+    INTENT["需求 Agent<br/>提取字段 / 澄清意图"]
+    COMPARE["比价 Agent<br/>推荐已存在的报价 ID"]
+    DISPATCH["tools.Dispatcher"]
+    READ["list_flights 只读工具<br/>读取宿主已加载的候选报价"]
+    CLIENT["internal/livemodel<br/>离线脚本 / Gemini / DeepSeek / MiniMax"]
+    COMPARE --> DISPATCH --> READ
+    READ --> COMPARE
+    INTENT --> CLIENT
+    COMPARE --> CLIENT
+  end
+
+  HOST -->|"message"| INTENT
+  INTENT --> VALIDATE["宿主校验结构化输出及业务字段"]
+  VALIDATE -->|"缺参：needs_input"| USER
+  VALIDATE -->|"完整合法"| GRAPH
+  HOST -->|"compare：保留原等待项"| COMPARE
+  COMPARE -->|"宿主校验推荐 ID，输出权威价格"| HOST
+
+  subgraph TRANSACTION["交易执行层"]
+    GRAPH["DurableGraph · graph.go<br/>search → choose → prepare → pay → issue → settle"]
+    APPROVE["宿主确认记录 + WithBeforeApprove<br/>第一次选择 / 第二次支付出票授权"]
+    SUPPLIER["确定性业务函数 · supplier.go<br/>报价 / 锁座 / 支付 / 出票 / 补偿退款"]
+    GRAPH --> SUPPLIER
+    APPROVE -->|"批准 choose / pay 节点"| GRAPH
+  end
+
+  HOST -->|"start：结构化请求绕过 Agent / status：恢复"| GRAPH
+  HOST -->|"select / confirm：验证令牌及快照绑定"| APPROVE
+  HOST -->|"付款前 revise / cancel"| SUPPLIER
+
+  subgraph STORAGE["独立的本地持久化存储"]
+    BUSINESS[("business/<br/>业务状态、确认记录、对话与 Agent 操作日志")]
+    CHECKPOINT[("graphs/<br/>节点、路由与审批检查点")]
+    RECEIPTS[("supplier/<br/>锁座及幂等支付、票号、退款收据")]
+    USAGE[("usage/<br/>任务级持久预算和 token 账本")]
+  end
+
+  HOST --> BUSINESS
+  GRAPH -->|"保存节点业务结果"| BUSINESS
+  GRAPH --> CHECKPOINT
+  SUPPLIER --> RECEIPTS
+  HOST --> BUDGET["core/budget + usage hook<br/>任务累计用量 / 本次调用通知"]
+  BUDGET --> USAGE
+  INTENT -.->|"模型尝试用量"| BUDGET
+  COMPARE -.->|"模型尝试用量"| BUDGET
+```
+
+这里没有必需的子 Agent，也没有后台自动确认。`choose` 和 `pay` 是实际的图审批节点；用户提交的是业务确认令牌，宿主校验并持久化授权后，才使用内部图审批键推进对应节点。业务状态、供应商收据与图检查点分别保存，不共享一个事务。
+
+## 预订流程图
+
+实线展示用户交互和交易推进。`message` 仅用于待补信息阶段；需求已明确时，`start -input` 可直接进入同一个 Workflow。`compare` 是两处等待状态的只读旁路，执行后保留原确认令牌，不推进交易。
+
 ```mermaid
 flowchart TD
-  U[自然语言] --> A[Agent 澄清并提取需求]
-  J[完整结构化输入] --> S[Workflow 查询报价]
-  A --> S
-  S --> C1[第一次确认：选定行程]
-  S --> R[可选：只读比价 Agent + Tool]
-  R --> C1
-  C1 --> H[复核报价并模拟锁座]
-  H --> C2[第二次确认：最终金额与支付出票授权]
-  C2 --> P[复核后支付]
-  P --> T[出票 / 查询原记录]
-  T --> F[有效票号 / 退款补偿 / 待核对]
+  ENTRY{"输入方式"} -->|"message"| AGENT["需求 Agent 提取意图与字段"]
+  ENTRY -->|"start -input"| VALIDATE["宿主校验需求"]
+  AGENT -->|"book / clarify / compare"| VALIDATE
+  AGENT -->|"取消、退改签或不支持的意图"| ATTENTION["needs_attention<br/>未执行交易操作"]
+  VALIDATE -->|"缺参或日期、机场不明确"| ASK["needs_input：询问用户"]
+  ASK -->|"用户补充 message"| AGENT
+  VALIDATE -->|"非法日期、旅客或预算"| REJECT["rejected：明确拒绝"]
+  VALIDATE -->|"完整合法"| SEARCH["search：查询合成航班及报价"]
+  SEARCH -->|"无满足条件的报价"| REJECT
+  SEARCH -->|"有报价"| WAIT1["awaiting_selection<br/>展示航段、旅客、舱位、价格和规则"]
+  WAIT1 -->|"用户 select：报价 ID + 第一次令牌"| CHECK1{"宿主校验选择确认"}
+  CHECK1 -->|"身份、修订或令牌错误"| DENY1["拒绝当前命令，保留原等待"]
+  DENY1 --> WAIT1
+  CHECK1 -->|"确认已过期"| REQUOTE["requote_required<br/>付款前可 revise：新修订重新查询和确认"]
+  CHECK1 -->|"合法"| PREPARE["批准 choose → prepare<br/>复核报价、库存和规则"]
+  PREPARE -->|"条件失效"| REQUOTE
+  PREPARE -->|"条件仍有效"| HOLD["创建模拟锁座和最终快照"]
+  HOLD --> WAIT2["awaiting_final_confirmation<br/>展示最终金额、锁座和有效期"]
+  WAIT2 -->|"用户 confirm：第二次令牌"| CHECK2{"宿主校验最终授权"}
+  CHECK2 -->|"身份、修订或令牌错误"| DENY2["拒绝当前命令，保留原等待"]
+  DENY2 --> WAIT2
+  CHECK2 -->|"快照变化或已过期"| RELEASE["释放未付款锁座"]
+  RELEASE --> REQUOTE
+  CHECK2 -->|"精确授权有效"| PAY["批准 pay：付款前再次校验<br/>按稳定业务键模拟支付"]
+  PAY -->|"付款成功或核对到原付款"| ISSUE["issue：复核锁座条件后模拟出票"]
+  PAY -->|"拒绝、条件失效或结果未知"| RECOVER["按异常与恢复流程处理"]
+  ISSUE -->|"已有原票号或新出票成功"| DONE["ticketed：返回有效模拟票号"]
+  ISSUE -->|"明确失败或结果未知"| RECOVER
 ```
+
+第一次确认允许复核和锁座，不能付款；第二次确认只授权当前修订的精确快照。两处确认及已完成结果的恢复查询不需要再请求模型。`revise` 会使旧确认不能用于新修订；用户不能通过聊天文本代替 `select` 或 `confirm` 命令。
+
+## 异常与恢复流程图
+
+下图中的“结果未知”和“副作用已提交但检查点未保存”使用同一个原则：先以原业务键核对收据，不更换 ID 重做。图节点可能被再次执行，业务账本负责去重。
+
+```mermaid
+flowchart TD
+  INTERRUPT["结果未知 / 供应商提交后进程退出"] --> STATUS["新进程执行 status<br/>从原检查点继续节点，查询原业务键收据"]
+  STATUS --> KIND{"当前操作"}
+
+  KIND -->|"支付：payment_pending 或 pay 未保存"| PAYCHECK{"是否有已提交付款收据"}
+  PAYCHECK -->|"有"| PAID["使用原付款，不重复扣款"]
+  PAYCHECK -->|"无"| AUTH{"授权及锁座条件仍有效"}
+  AUTH -->|"是"| PAY["以同一业务键尝试模拟支付"]
+  AUTH -->|"否"| REQUOTE["释放未付款锁座<br/>requote_required"]
+  PAY -->|"明确拒绝"| DECLINE["释放未付款锁座<br/>rejected"]
+  PAY -->|"成功"| PAID
+  PAY -->|"结果未知"| PAYWAIT["payment_pending：等待再次核对"]
+  PAID --> TICKETCHECK{"是否已有票号"}
+
+  KIND -->|"出票：ticketing_pending 或 issue 未保存"| TICKETCHECK
+  TICKETCHECK -->|"有"| TICKETED["ticketed：返回原票号<br/>不重复出票"]
+  TICKETCHECK -->|"无"| VALID{"当前锁座与报价条件有效"}
+  VALID -->|"是"| ISSUE["以同一业务键尝试模拟出票"]
+  VALID -->|"否：已付款不能静默重报价"| REFUND["settle：模拟退款补偿"]
+  ISSUE -->|"成功"| TICKETED
+  ISSUE -->|"明确失败"| REFUND
+  ISSUE -->|"结果未知"| TICKETWAIT["ticketing_pending：等待再次核对"]
+
+  KIND -->|"退款：refund_pending 或 settle 未保存"| REFUNDCHECK{"是否已有退款收据"}
+  REFUNDCHECK -->|"有"| REFUNDED["refunded：返回原退款收据"]
+  REFUNDCHECK -->|"无"| REFUND
+  REFUND -->|"成功"| REFUNDED
+  REFUND -->|"结果未知"| REFUNDWAIT["refund_pending：等待再次核对"]
+```
+
+主动取消与异常补偿是不同入口：付款前 `cancel` 释放锁座并返回 `canceled`；已有付款时返回 `needs_attention`，主动退票和改签不在本轮自动执行范围内。已经提交的收据优先于后来过期的授权；但只有付款、还没有票号且锁座条件失效时，应核对后退款，不能继续创建新票。
 
 ## 两次确认
 

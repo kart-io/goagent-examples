@@ -6,7 +6,7 @@
   "docs/evaluation/2026-11-01-flight-booking/replacement-input-red.log": "f880e92b2d601025e11453f8bea0c08ecfa8f5df0973f09bb004b81f407d4f4f",
   "docs/evaluation/2026-11-01-flight-booking/root-race.log": "1073b92c044ff887ddac1a034ca017332a78f0d6a78052e95353205d640d9a57",
   "docs/evaluation/2026-11-01-flight-booking/ticket-conditions-red.log": "11e1b2781ddf0c02a4f5d9edc13601097c1aedeb01b512ec9daf3c78db179f90",
-  "orchestration/flight-booking/README.md": "63d33ce8b92b7ab3b471c99114fccf6469843a3cfb81093df0bd762832c843b4",
+  "orchestration/flight-booking/README.md": "67813bc057f499777a32b9d4d20fd52bea74cf12be882423a084acdc88d62451",
   "orchestration/flight-booking/agent.go": "f3b1732803426d77c948e62d12620bf8b15c2bc87fe8f8c4acb08c745204eae6",
   "orchestration/flight-booking/agent_test.go": "e66d0cefbf87975895230d23cd8ece2e8d8378a42d61063de7764dccfe249506",
   "orchestration/flight-booking/booking.go": "987ec7f53b8c6fc849059324e4b6962ed39554cacdf4787b5e9a3ab390b78c4b",
