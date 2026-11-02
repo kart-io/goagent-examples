@@ -264,7 +264,8 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, a
 			return r, err
 		}
 		// 模型调用失败（含预算拒绝）与输出不合法同样处理：转人工，不中止整批工单。
-		v, reason := ParseVerdict("")
+		v, _ := ParseVerdict("")
+		var reason string
 		if err == nil {
 			v, reason = ParseVerdict(fmt.Sprint(out.Result))
 		} else {

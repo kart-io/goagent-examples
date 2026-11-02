@@ -77,7 +77,7 @@ func dispatcher(ts ...interfaces.Tool) *tools.Dispatcher {
 
 func main() {
 	dir := must(os.MkdirTemp("", "goagent-usage-demo-"))
-	defer os.RemoveAll(dir)
+	defer func() { _ = os.RemoveAll(dir) }()
 	store := must(durable.NewFileStore(dir))
 	controller := must(budget.NewDurable(budget.Config{RootKey: "demo", Version: "v1", MaxModelRequests: 5, MaxAgentCalls: 8}, store))
 	ctx := budget.WithController(durable.WithJournal(durable.WithExecutionKey(context.Background(), "demo"), store), controller)

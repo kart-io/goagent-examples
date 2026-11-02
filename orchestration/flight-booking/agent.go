@@ -130,7 +130,7 @@ func (s *service) converse(ctx context.Context, o *booking, message string) erro
 		return err
 	}
 	if parsed.Request == nil {
-		return fmt.Errorf("Agent request object is required")
+		return fmt.Errorf("agent request object is required")
 	}
 	switch parsed.Intent {
 	case "book", "clarify":
@@ -143,7 +143,7 @@ func (s *service) converse(ctx context.Context, o *booking, message string) erro
 		o.Status = "needs_attention"
 		o.Message = "此意图需要明确业务命令或人工处理；Agent 未执行取消、退改签或支付。"
 	default:
-		return fmt.Errorf("Agent returned unsupported intent")
+		return fmt.Errorf("agent returned unsupported intent")
 	}
 	o.Messages = append(o.Messages, message)
 	return nil
@@ -197,5 +197,5 @@ func (s *service) compare(ctx context.Context, o *booking) (int, error) {
 			return int(runs.Load()), nil
 		}
 	}
-	return int(runs.Load()), fmt.Errorf("Agent recommended unknown quote")
+	return int(runs.Load()), fmt.Errorf("agent recommended unknown quote")
 }

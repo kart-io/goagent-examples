@@ -172,7 +172,7 @@ func run(ctx context.Context, model llm.ToolStreamClient, failAudit bool) (resul
 }
 
 func main() {
-	var model llm.ToolStreamClient = demoModel()
+	var model = demoModel()
 	if os.Getenv("GOAGENT_LIVE") == "1" {
 		live, err := livemodel.FromEnv()
 		if err != nil {

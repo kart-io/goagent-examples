@@ -84,7 +84,7 @@ func conflict(ctx context.Context) error {
 
 func main() {
 	ctx := context.Background()
-	var model llm.ToolStreamClient = demoModel()
+	var model = demoModel()
 	if os.Getenv("GOAGENT_LIVE") == "1" {
 		client, err := livemodel.FromEnv()
 		if err != nil {
