@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/gorilla/websocket v1.5.3
-	github.com/kart-io/goagent v0.34.0
+	github.com/kart-io/goagent v0.35.0
 	github.com/kart-io/goagent-contrib/httpagent v0.0.0-20261031151618-cfb3e85df18a
 	github.com/stretchr/testify v1.12.1
 )

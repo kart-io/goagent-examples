@@ -6,7 +6,7 @@ require (
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
-	github.com/kart-io/goagent v0.34.0
+	github.com/kart-io/goagent v0.35.0
 	github.com/kart-io/goagent-contrib/acp v0.1.2-0.20261031134247-b9d39c785211
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/stretchr/testify v1.12.1
