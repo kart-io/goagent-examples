@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"github.com/kart-io/goagent/core/usage"
 	"github.com/kart-io/goagent-examples/agent-usage/internal/demo"
+	"github.com/kart-io/goagent/core/usage"
 	"github.com/kart-io/goagent/llm"
 	"testing"
 )

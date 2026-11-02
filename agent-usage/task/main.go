@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sync/atomic"
 
+	"github.com/kart-io/goagent-examples/agent-usage/internal/demo"
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/core/budget"
-	"github.com/kart-io/goagent-examples/agent-usage/internal/demo"
 	"github.com/kart-io/goagent/tools"
 )
 
