@@ -143,7 +143,7 @@ func TestMiniMaxCanceledRequestAndRedaction(t *testing.T) {
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = client.Complete(ctx, &llm.CompletionRequest{Model: "MiniMax-M3.1-Flash", MaxTokens: 50, Messages: []llm.Message{{Role: "user", Content: "test"}}})
+	_, err = llm.Complete(ctx, client, &llm.CompletionRequest{Model: "MiniMax-M3.1-Flash", MaxTokens: 50, Messages: []llm.Message{{Role: "user", Content: "test"}}})
 	require.ErrorIs(t, err, context.Canceled)
 	require.Equal(t, "[REDACTED] [REDACTED]", redactModelError("global-test-secret cn-test-secret"))
 }
