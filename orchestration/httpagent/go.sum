@@ -91,8 +91,8 @@ github.com/invopop/jsonschema v0.14.0 h1:MHQqLhvpNUZfw+hM3AZDYK7jxO8FZoQeQM77g8i
 github.com/invopop/jsonschema v0.14.0/go.mod h1:ygm6C2EaVNMBDPpaPlnOA2pFAxBnxGjFlMZABxm9n2I=
 github.com/kart-io/goagent v0.43.0 h1:TCtQlXjbjQH5EzEnE12wzyTYGP+Z/GjqX3XluORnpwQ=
 github.com/kart-io/goagent v0.43.0/go.mod h1:RQasKLFjHgzPeutECXlz/mII/bO7spp3n4vIFZjX/SM=
-github.com/kart-io/goagent-contrib/httpagent v0.1.0 h1:c9m+lmQWkym1GcuBkgldAS6FGStmPo4zxGSCRqdmsHg=
-github.com/kart-io/goagent-contrib/httpagent v0.1.0/go.mod h1:b5/WcRnzcnFXn19YPg6LwgMgko7yom6U4b02SkaerZ8=
+github.com/kart-io/goagent-contrib/httpagent v0.2.0 h1:Yvw/iTHpkBFxe98tuZcGRlq6lWcf76ilp1ccnc/n5Jc=
+github.com/kart-io/goagent-contrib/httpagent v0.2.0/go.mod h1:FKH6PlKHcByfMxHsZFu4o63myxfEkT1eH5qOH/STrq0=
 github.com/kart-io/logger v0.2.2 h1:YLTNkqR4nL5z1nvPbmSfhY3WvodVIYwFoml+JWgvNl8=
 github.com/kart-io/logger v0.2.2/go.mod h1:FslDvmiuObMHG/DRSpqT+gYJrviu4ieEW7ytRyj0Ack=
 github.com/klauspost/cpuid/v2 v2.2.9 h1:66ze0taIn2H33fBvCkXuv9BmCwDfafmiIVpKV9kKGuY=
