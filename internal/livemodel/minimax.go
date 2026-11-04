@@ -142,26 +142,7 @@ func (m *minimax) completeTurn(ctx context.Context, req *llm.CompletionRequest, 
 	return out, nil
 }
 
-func (m *minimax) Complete(ctx context.Context, req *llm.CompletionRequest) (*llm.CompletionResponse, error) {
-	turn, err := m.completeTurn(ctx, req, nil)
-	if err != nil {
-		return nil, err
-	}
-	out := &llm.CompletionResponse{Content: turn.Content, Model: req.Model, Provider: "minimax", FinishReason: turn.FinishReason}
-	if turn.Usage != nil {
-		out.Usage = &interfaces.TokenUsage{PromptTokens: turn.Usage.PromptTokens, CompletionTokens: turn.Usage.CompletionTokens, TotalTokens: turn.Usage.TotalTokens}
-		out.TokensUsed = turn.Usage.TotalTokens
-	}
-	return out, nil
-}
 func (m *minimax) Provider() constants.Provider { return constants.Provider("minimax") }
-func (m *minimax) IsAvailable() bool            { return m.key != "" }
-func (m *minimax) Chat(ctx context.Context, messages []llm.Message) (*llm.CompletionResponse, error) {
-	return m.Complete(ctx, &llm.CompletionRequest{Messages: messages, Model: m.model, MaxTokens: MaxTokens})
-}
-func (m *minimax) ChatStream(ctx context.Context, messages []llm.Message) (<-chan *llm.StreamChunk, error) {
-	return m.CompleteStream(ctx, &llm.CompletionRequest{Messages: messages, Model: m.model, MaxTokens: MaxTokens})
-}
 func (m *minimax) CompleteStream(ctx context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return m.CompleteToolsStream(ctx, req, nil)
 }

@@ -140,15 +140,6 @@ func (c *limitedClient) CompleteToolsStream(ctx context.Context, r *llm.Completi
 func (c *limitedClient) CompleteStream(ctx context.Context, r *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return c.CompleteToolsStream(ctx, r, nil)
 }
-func (c *limitedClient) ChatStream(ctx context.Context, m []llm.Message) (<-chan *llm.StreamChunk, error) {
-	return c.CompleteStream(ctx, &llm.CompletionRequest{Messages: m})
-}
-func (c *limitedClient) Complete(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error) {
-	return nil, fmt.Errorf("native streaming required")
-}
-func (c *limitedClient) Chat(ctx context.Context, m []llm.Message) (*llm.CompletionResponse, error) {
-	return c.Complete(ctx, &llm.CompletionRequest{Messages: m})
-}
 func (c *limitedClient) StreamMode() core.StreamMode {
 	if v, ok := c.ToolStreamClient.(core.StreamCapability); ok {
 		return v.StreamMode()
@@ -187,19 +178,9 @@ func (c *limitedClient) ValidateReasoning(r *llm.CompletionRequest) error {
 type scriptedModel struct{ role string }
 
 func (*scriptedModel) Provider() constants.Provider { return constants.ProviderOpenAI }
-func (*scriptedModel) IsAvailable() bool            { return true }
 func (*scriptedModel) ModelName() string            { return "offline-agent-context" }
-func (m *scriptedModel) Complete(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error) {
-	return nil, fmt.Errorf("native streaming required")
-}
-func (m *scriptedModel) Chat(ctx context.Context, ms []llm.Message) (*llm.CompletionResponse, error) {
-	return m.Complete(ctx, &llm.CompletionRequest{Messages: ms})
-}
 func (m *scriptedModel) CompleteStream(ctx context.Context, r *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return m.CompleteToolsStream(ctx, r, nil)
-}
-func (m *scriptedModel) ChatStream(ctx context.Context, ms []llm.Message) (<-chan *llm.StreamChunk, error) {
-	return m.CompleteStream(ctx, &llm.CompletionRequest{Messages: ms})
 }
 func (m *scriptedModel) CompleteToolsStream(ctx context.Context, r *llm.CompletionRequest, _ []interfaces.Tool) (<-chan *llm.StreamChunk, error) {
 	if err := ctx.Err(); err != nil {

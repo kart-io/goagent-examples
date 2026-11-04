@@ -108,9 +108,6 @@ func (c *Client) CompleteToolsStream(ctx context.Context, req *llm.CompletionReq
 	c.calls.Add(1)
 	return c.ToolStreamClient.CompleteToolsStream(ctx, c.withModel(req), tools)
 }
-func (c *Client) ChatStream(ctx context.Context, messages []llm.Message) (<-chan *llm.StreamChunk, error) {
-	return c.CompleteStream(ctx, &llm.CompletionRequest{Messages: messages})
-}
 
 // withModel 补齐 Builder 未设置的模型名与输出上限，不修改调用方请求。
 func (c *Client) withModel(req *llm.CompletionRequest) *llm.CompletionRequest {

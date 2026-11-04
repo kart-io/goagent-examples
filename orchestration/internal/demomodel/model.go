@@ -3,11 +3,11 @@ package demomodel
 
 import (
 	"context"
-	"fmt"
+	"sync/atomic"
+
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
 	"github.com/kart-io/goagent/llm/constants"
-	"sync/atomic"
 )
 
 // Model counts actual transport entries; replay never enters it.
@@ -17,13 +17,6 @@ type Model struct {
 }
 
 func (m *Model) Provider() constants.Provider { return constants.ProviderOpenAI }
-func (m *Model) IsAvailable() bool            { return true }
-func (m *Model) Complete(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error) {
-	return nil, fmt.Errorf("demo requires structured streaming")
-}
-func (m *Model) Chat(ctx context.Context, ms []llm.Message) (*llm.CompletionResponse, error) {
-	return m.Complete(ctx, &llm.CompletionRequest{Messages: ms})
-}
 func (m *Model) CompleteStream(ctx context.Context, r *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -41,9 +34,6 @@ func (m *Model) CompleteStream(ctx context.Context, r *llm.CompletionRequest) (<
 	ch <- &turn
 	close(ch)
 	return ch, nil
-}
-func (m *Model) ChatStream(ctx context.Context, ms []llm.Message) (<-chan *llm.StreamChunk, error) {
-	return m.CompleteStream(ctx, &llm.CompletionRequest{Messages: ms})
 }
 func (m *Model) CompleteToolsStream(ctx context.Context, r *llm.CompletionRequest, _ []interfaces.Tool) (<-chan *llm.StreamChunk, error) {
 	return m.CompleteStream(ctx, r)

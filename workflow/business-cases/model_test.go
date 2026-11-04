@@ -9,14 +9,28 @@ import (
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
+	"github.com/kart-io/goagent/llm/constants"
 	"github.com/stretchr/testify/require"
 )
 
 type completionFunc func(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error)
 
-func (f completionFunc) Complete(ctx context.Context, req *llm.CompletionRequest) (*llm.CompletionResponse, error) {
-	return f(ctx, req)
+func (f completionFunc) CompleteStream(ctx context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
+	resp, err := f(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	chunk := &llm.StreamChunk{Content: resp.Content, FinishReason: resp.FinishReason, Done: true}
+	if resp.Usage != nil {
+		chunk.Usage = &llm.Usage{PromptTokens: resp.Usage.PromptTokens, CompletionTokens: resp.Usage.CompletionTokens, TotalTokens: resp.Usage.TotalTokens}
+	}
+	ch := make(chan *llm.StreamChunk, 1)
+	ch <- chunk
+	close(ch)
+	return ch, nil
 }
+
+func (completionFunc) Provider() constants.Provider { return constants.ProviderCustom }
 
 func fakeJudge(content string) *modelJudge {
 	return &modelJudge{provider: "fake", model: "test-model", client: completionFunc(func(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error) {
