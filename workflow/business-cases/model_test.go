@@ -16,21 +16,71 @@ import (
 type completionFunc func(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error)
 
 func (f completionFunc) CompleteStream(ctx context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
-	resp, err := f(ctx, req)
+	response, err := f(ctx, req)
 	if err != nil {
 		return nil, err
 	}
-	chunk := &llm.StreamChunk{Content: resp.Content, FinishReason: resp.FinishReason, Done: true}
-	if resp.Usage != nil {
-		chunk.Usage = &llm.Usage{PromptTokens: resp.Usage.PromptTokens, CompletionTokens: resp.Usage.CompletionTokens, TotalTokens: resp.Usage.TotalTokens}
+	stream := make(chan *llm.StreamChunk, 1)
+	if response != nil {
+		final := &llm.StreamChunk{Content: response.Content, FinishReason: response.FinishReason, Done: true}
+		if response.Usage != nil {
+			final.Usage = &llm.Usage{PromptTokens: response.Usage.PromptTokens, CompletionTokens: response.Usage.CompletionTokens, TotalTokens: response.Usage.TotalTokens}
+		}
+		stream <- final
 	}
-	ch := make(chan *llm.StreamChunk, 1)
-	ch <- chunk
-	close(ch)
-	return ch, nil
+	close(stream)
+	return stream, nil
 }
-
 func (completionFunc) Provider() constants.Provider { return constants.ProviderCustom }
+
+type decisionStreamFunc func(context.Context, *llm.CompletionRequest) (<-chan *llm.StreamChunk, error)
+
+func (f decisionStreamFunc) CompleteStream(ctx context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
+	return f(ctx, req)
+}
+func (decisionStreamFunc) Provider() constants.Provider { return constants.ProviderCustom }
+
+// 完整 JSON 也不能使缺少成功终态或带终态错误的流触发业务副作用。
+func TestModelDecisionRequiresSuccessfulStreamTermination(t *testing.T) {
+	const answer = `{"decision":"reply","reason":"FAQ match","source":"demo-faq-v1/hours"}`
+	for _, mode := range []string{"success", "missing_done", "terminal_error"} {
+		t.Run(mode, func(t *testing.T) {
+			store, b := testStores(t)
+			b.model = &modelJudge{provider: "fake", model: "stream", client: decisionStreamFunc(func(ctx context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
+				require.Equal(t, "stream", req.Model)
+				require.Len(t, req.Messages, 2)
+				require.Equal(t, "system", req.Messages[0].Role)
+				require.Equal(t, "user", req.Messages[1].Role)
+				chunks := make(chan *llm.StreamChunk, 3)
+				chunks <- &llm.StreamChunk{Delta: answer[:20]}
+				chunks <- &llm.StreamChunk{Delta: answer[20:]}
+				if mode != "missing_done" {
+					final := &llm.StreamChunk{Done: true, FinishReason: "stop", Usage: &llm.Usage{PromptTokens: 10, CompletionTokens: 20, TotalTokens: 30}}
+					if mode == "terminal_error" {
+						final.Error = errors.New("终态失败")
+					}
+					chunks <- final
+				}
+				close(chunks)
+				return chunks, nil
+			})}
+			g, err := replyGraph(context.Background(), store, b)
+			require.NoError(t, err)
+			snap, err := g.Run(context.Background(), "stream", replyState{MessageID: "stream", Recipient: "demo-user", Message: "几点营业？"}, "")
+			if mode == "success" {
+				require.NoError(t, err)
+				require.True(t, snap.Done)
+				require.Equal(t, "reply", snap.State.ModelReview.Decision)
+				require.Equal(t, 30, snap.State.ModelReview.Usage.TotalTokens)
+				require.Equal(t, "demo-faq-v1/hours", snap.State.Source)
+			} else {
+				require.Error(t, err)
+				noEffect(t, b, "send_reply", "stream")
+			}
+			require.EqualValues(t, 1, b.model.calls.Load())
+		})
+	}
+}
 
 func fakeJudge(content string) *modelJudge {
 	return &modelJudge{provider: "fake", model: "test-model", client: completionFunc(func(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error) {

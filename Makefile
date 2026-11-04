@@ -2,7 +2,8 @@
 
 # 建立本地工作区，与同级目录的 goagent 联动编译
 work:
-	test -f go.work || (go work init . ../goagent && go work edit -go=1.26.0)
+	test -f go.work || go work init . ../goagent
+	go work edit -go=1.26.0
 
 # 使用 go.work（存在时）运行全部离线测试
 test:
