@@ -23,10 +23,6 @@ const modelPromptVersion = "business-judge-v2"
 const modelMaxTokens = 2048
 const modelTimeout = 90 * time.Second
 
-type completionClient interface {
-	Complete(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error)
-}
-
 type modelDecision struct {
 	Decision string `json:"decision"`
 	Reason   string `json:"reason"`
@@ -46,7 +42,7 @@ type modelEvidence struct {
 }
 
 type modelJudge struct {
-	client          completionClient
+	client          llm.Client
 	provider, model string
 	calls           atomic.Int32
 	last            atomic.Pointer[modelEvidence]
@@ -72,7 +68,7 @@ func newModelJudge(provider, model string) (*modelJudge, error) {
 		return nil, fmt.Errorf("%s_API_KEY is required", strings.ToUpper(provider))
 	}
 	opts := []llm.ClientOption{llm.WithAPIKey(key), llm.WithModel(model), llm.WithMaxTokens(modelMaxTokens), llm.WithTemperature(0.2), llm.WithTimeout(modelTimeout)}
-	var client completionClient
+	var client llm.Client
 	var err error
 	if provider == "gemini" {
 		client, err = providers.NewGeminiWithOptions(opts...)
@@ -137,7 +133,7 @@ func (m *modelJudge) judge(ctx context.Context, scenario string, input any) (*mo
 		defer cancel()
 		start := time.Now()
 		evidence := &modelEvidence{Provider: m.provider, Model: m.model, PromptVersion: modelPromptVersion, Status: "needs_attention"}
-		response, callErr := m.client.Complete(callCtx, &llm.CompletionRequest{Model: m.model, MaxTokens: modelMaxTokens, Temperature: 0.2, Messages: []llm.Message{{Role: "system", Content: judgeSystem + policy}, {Role: "user", Content: string(data)}}})
+		response, callErr := llm.Complete(callCtx, m.client, &llm.CompletionRequest{Model: m.model, MaxTokens: modelMaxTokens, Temperature: 0.2, Messages: []llm.Message{{Role: "system", Content: judgeSystem + policy}, {Role: "user", Content: string(data)}}})
 		evidence.DurationMS = time.Since(start).Milliseconds()
 		if response != nil {
 			evidence.Usage = response.Usage

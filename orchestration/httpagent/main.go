@@ -187,16 +187,6 @@ func main() {
 type demoModel struct{}
 
 func (*demoModel) Provider() constants.Provider { return constants.Provider("offline-demo") }
-func (*demoModel) IsAvailable() bool            { return true }
-func (*demoModel) Complete(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error) {
-	return &llm.CompletionResponse{Content: "离线演示"}, nil
-}
-func (m *demoModel) Chat(ctx context.Context, msg []llm.Message) (*llm.CompletionResponse, error) {
-	return m.Complete(ctx, &llm.CompletionRequest{Messages: msg})
-}
-func (m *demoModel) ChatStream(ctx context.Context, msg []llm.Message) (<-chan *llm.StreamChunk, error) {
-	return m.CompleteStream(ctx, &llm.CompletionRequest{Messages: msg})
-}
 func (m *demoModel) CompleteStream(ctx context.Context, r *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return m.CompleteToolsStream(ctx, r, nil)
 }

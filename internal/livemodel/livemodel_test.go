@@ -64,13 +64,6 @@ type recordingClient struct {
 }
 
 func (r *recordingClient) Provider() constants.Provider { return "fake" }
-func (r *recordingClient) IsAvailable() bool            { return true }
-func (r *recordingClient) Complete(context.Context, *llm.CompletionRequest) (*llm.CompletionResponse, error) {
-	return &llm.CompletionResponse{}, nil
-}
-func (r *recordingClient) Chat(context.Context, []llm.Message) (*llm.CompletionResponse, error) {
-	return &llm.CompletionResponse{}, nil
-}
 func (r *recordingClient) CompleteStream(_ context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	r.calls.Add(1)
 	r.seen = append(r.seen, req)
@@ -78,9 +71,6 @@ func (r *recordingClient) CompleteStream(_ context.Context, req *llm.CompletionR
 	ch <- &llm.StreamChunk{Content: "ok", Done: true}
 	close(ch)
 	return ch, nil
-}
-func (r *recordingClient) ChatStream(ctx context.Context, ms []llm.Message) (<-chan *llm.StreamChunk, error) {
-	return r.CompleteStream(ctx, &llm.CompletionRequest{Messages: ms})
 }
 func (r *recordingClient) CompleteToolsStream(ctx context.Context, req *llm.CompletionRequest, _ []interfaces.Tool) (<-chan *llm.StreamChunk, error) {
 	return r.CompleteStream(ctx, req)
@@ -94,15 +84,14 @@ func TestWrapCountsAndFillsModel(t *testing.T) {
 	for _, call := range []func() (<-chan *llm.StreamChunk, error){
 		func() (<-chan *llm.StreamChunk, error) { return c.CompleteStream(context.Background(), req) },
 		func() (<-chan *llm.StreamChunk, error) { return c.CompleteToolsStream(context.Background(), req, nil) },
-		func() (<-chan *llm.StreamChunk, error) { return c.ChatStream(context.Background(), req.Messages) },
 	} {
 		ch, err := call()
 		require.NoError(t, err)
 		for range ch {
 		}
 	}
-	require.Equal(t, int64(3), c.Calls())
-	require.Equal(t, int64(3), inner.calls.Load())
+	require.Equal(t, int64(2), c.Calls())
+	require.Equal(t, int64(2), inner.calls.Load())
 	for _, r := range inner.seen {
 		require.Equal(t, "m1", r.Model)
 		require.Equal(t, MaxTokens, r.MaxTokens)

@@ -40,9 +40,6 @@ func (m *chunkedModel) CompleteStream(ctx context.Context, _ *llm.CompletionRequ
 func (m *chunkedModel) CompleteToolsStream(ctx context.Context, r *llm.CompletionRequest, _ []interfaces.Tool) (<-chan *llm.StreamChunk, error) {
 	return m.CompleteStream(ctx, r)
 }
-func (m *chunkedModel) ChatStream(ctx context.Context, ms []llm.Message) (<-chan *llm.StreamChunk, error) {
-	return m.CompleteStream(ctx, &llm.CompletionRequest{Messages: ms})
-}
 
 func fakeClient(respond string, delay time.Duration) *livemodel.Client {
 	var calls atomic.Int64
