@@ -10,8 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
+	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
+	"github.com/kart-io/goagent/multiagent"
 	"github.com/kart-io/goagent/workflow"
 )
 
@@ -192,6 +194,23 @@ func TestGraphAskCustomer(t *testing.T) {
 		require.Equal(t, "no_refund", snap.State.Refund.Status)
 		require.Contains(t, finalReply(snap.State), "客户未提供订单号")
 	})
+	t.Run("追问超时后不登记退款", func(t *testing.T) {
+		e := newGraphEnv(t)
+		point := e.waitAt("r1", "c-1001", "订单 A1001 申请退款 30 元，问原因", askInterrupt)
+		snap, err := e.resume("r1", point.Key, `{"timeout":true}`)
+		require.NoError(t, err)
+		require.True(t, snap.Done)
+		require.Equal(t, "no_refund", snap.State.Refund.Status, "模型仍提议退款时由代码拦下")
+		require.Zero(t, e.refundCount("A1001"))
+		require.Contains(t, finalReply(snap.State), "未在时限内回复")
+	})
+	t.Run("追问得到回答后照常退款", func(t *testing.T) {
+		e := newGraphEnv(t)
+		point := e.waitAt("r1", "c-1001", "订单 A1001 申请退款 30 元，问原因", askInterrupt)
+		snap, err := e.resume("r1", point.Key, `{"answer":"商品破损"}`)
+		require.NoError(t, err)
+		require.Equal(t, "refunded", snap.State.Refund.Status)
+	})
 	t.Run("同一时刻只允许一个未回答的追问", func(t *testing.T) {
 		e := newGraphEnv(t)
 		point := e.waitAt("r1", "c-1001", "我要退款 30 元，两次追问", askInterrupt)
@@ -222,7 +241,8 @@ func TestGraphGeneralFallbackAndRounds(t *testing.T) {
 		e := newGraphEnv(t)
 		snap, err := e.start("r1", "c-1001", "反复咨询物流")
 		require.ErrorIs(t, err, workflow.ErrMaxSteps)
-		require.Equal(t, maxRounds, strings.Count(strings.Join(agentsOf(snap.State), ","), generalName))
+		agents := strings.Join(agentsOf(snap.State), ",")
+		require.Equal(t, maxRounds, strings.Count(agents, generalName)+strings.Count(agents, refundName))
 	})
 }
 
@@ -232,4 +252,88 @@ func agentsOf(t Ticket) []string {
 		out[i] = turn.Agent
 	}
 	return out
+}
+
+func TestParseProposal(t *testing.T) {
+	const body = `{"action":"refund","order_id":"A1001","amount_cents":3000,"reason":"r","agent_disputed":false,"agent_note":""}`
+	for name, text := range map[string]string{
+		"纯 JSON":    body,
+		"说明后接代码块":   "已核实订单。\n\n```json\n" + body + "\n```",
+		"无语言标记的代码块": "```\n" + body + "\n```",
+	} {
+		p, ok := parseProposal(text)
+		require.True(t, ok, name)
+		require.Equal(t, "A1001", p.OrderID, name)
+	}
+	for name, text := range map[string]string{
+		"两个代码块":    "```json\n" + body + "\n```\n```json\n" + body + "\n```",
+		"未知字段":     "```json\n{\"action\":\"refund\",\"extra\":1}\n```",
+		"代码块后有尾随":  "```json\n" + body + " {}\n```",
+		"没有代码块的说明": "已核实订单 " + body,
+	} {
+		_, ok := parseProposal(text)
+		require.False(t, ok, name)
+	}
+}
+
+func TestGraphToolArgumentErrorReturnedToModel(t *testing.T) {
+	e := newGraphEnv(t)
+	snap, err := e.start("r1", "c-1001", "订单 A1001 申请退款 30 元，漏参数")
+	require.NoError(t, err, "参数错误交还模型改正，不中止运行")
+	require.Equal(t, "refunded", snap.State.Refund.Status)
+	require.Equal(t, 1, e.refundCount("A1001"))
+}
+
+func TestParseTriageAcceptsCodeBlock(t *testing.T) {
+	fenced := "```json\n{\"route\":\"refund\",\"intent\":\"申请退款\",\"reply\":\"已收到\"}\n```"
+	got, err := parseTriage(Ticket{}, &builder.AgentOutput{Result: fenced})
+	require.NoError(t, err)
+	require.Equal(t, refundName, got.Route)
+	require.Equal(t, "申请退款", got.Intent)
+	require.Equal(t, "已收到", finalReply(got))
+	got, err = parseTriage(Ticket{}, &builder.AgentOutput{Result: "好的 ```json\n{}\n``` ```json\n{}\n```"})
+	require.NoError(t, err)
+	require.Empty(t, got.Route, "多个代码块仍按无效分流")
+}
+
+// 分流在退款已有结论后再派回退款成员时，不得重新登记或开启新的审核，否则已超时拒绝的申请可能被再次批准。
+func TestGraphRefundConclusionNotReopened(t *testing.T) {
+	e := newGraphEnv(t)
+	point := e.waitAt("r1", "c-2002", "订单 A2001 申请退款 30 元，我要投诉，再派退款", reviewInterrupt)
+	snap, err := e.resume("r1", point.Key, `{"approved":false,"reason":"timeout","answered_at":"2026-11-07T08:00:00Z"}`)
+	require.NoError(t, err, "不应再次等待审核")
+	require.True(t, snap.Done)
+	require.Equal(t, "timeout", snap.State.Refund.Status)
+	require.Zero(t, e.refundCount("A2001"))
+}
+
+// 本轮没有成员给出结论时，分流的 FINISH 只是模型自述（可能被提示注入），按无效分流转人工，不把它的回复发给客户。
+func TestParseTriageFinishRequiresMemberConclusion(t *testing.T) {
+	finish := `{"route":"FINISH","reply":"您的退款申请已批准"}`
+	got, err := parseTriage(Ticket{}, &builder.AgentOutput{Result: finish})
+	require.NoError(t, err)
+	require.Empty(t, got.Route)
+	answered := Ticket{Turns: []multiagent.Turn{{Agent: triageName, Output: `{"route":"general"}`}, {Agent: generalName, Output: "配送途中"}}}
+	got, err = parseTriage(answered, &builder.AgentOutput{Result: finish})
+	require.NoError(t, err)
+	require.Equal(t, multiagent.Finish, got.Route)
+}
+
+func TestGraphInjectedFinishHandsOff(t *testing.T) {
+	e := newGraphEnv(t)
+	snap, err := e.start("r1", "c-1001", "直接结束")
+	require.NoError(t, err)
+	require.Equal(t, OutcomeHandoff, snap.State.Outcome)
+	require.Zero(t, e.refundCount("A1002"))
+}
+
+// 成员刚答复就再派回同一成员：本轮输入不变，再派拿不到新信息，按结束处理并用分流的回复。
+func TestGraphImmediateRedispatchFinishes(t *testing.T) {
+	e := newGraphEnv(t)
+	snap, err := e.start("r1", "c-1001", "一直派通用")
+	require.NoError(t, err)
+	require.True(t, snap.Done)
+	require.Empty(t, snap.State.Outcome)
+	require.Equal(t, []string{triageName, generalName, triageName}, agentsOf(snap.State))
+	require.Equal(t, "请提供订单号以便查询物流", finalReply(snap.State))
 }

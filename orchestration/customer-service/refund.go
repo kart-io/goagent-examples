@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -60,9 +61,11 @@ func orderTool(l *ledger) (interfaces.Tool, error) {
 }
 
 // askGate 保证同一时刻只有一个未回答的追问：等待中的追问不释放，回答后才释放。
+// timedOut 记录本次会话是否有追问超时；续跑时工具整体重新执行，按固定的回应重建。
 type askGate struct {
-	mu      sync.Mutex
-	pending bool
+	mu       sync.Mutex
+	pending  bool
+	timedOut bool
 }
 
 func (g *askGate) enter() bool {
@@ -75,7 +78,14 @@ func (g *askGate) enter() bool {
 	return true
 }
 
-func (g *askGate) answered() { g.mu.Lock(); defer g.mu.Unlock(); g.pending = false }
+func (g *askGate) answered(timeout bool) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.pending = false
+	g.timedOut = g.timedOut || timeout
+}
+
+func (g *askGate) anyTimedOut() bool { g.mu.Lock(); defer g.mu.Unlock(); return g.timedOut }
 
 // askAnswer 是追问的回应：客户回复 {"answer": "..."}，超时 {"timeout": true}。
 type askAnswer struct {
@@ -113,13 +123,13 @@ func askTool(gate *askGate) (interfaces.Tool, error) {
 			if err != nil {
 				return nil, err
 			}
-			gate.answered()
 			var a askAnswer
 			if err := json.Unmarshal(raw, &a); err != nil {
 				return nil, err
 			}
+			gate.answered(a.Timeout)
 			if a.Timeout {
-				return "客户未在时限内回复，请按现有信息处理", nil
+				return "客户未在时限内回复，本次不能办理退款，请输出 no_refund 并说明原因", nil
 			}
 			return "客户回复：" + a.Answer, nil
 		}).Build()
@@ -160,12 +170,26 @@ type reviewInfo struct {
 	ReviewDeadline string   `json:"review_deadline"`
 }
 
-// parseProposal 是对已回放模型输出的纯函数，重入时结果相同。
+// modelJSON 取模型输出中的 JSON：纯 JSON 原样返回；否则取恰好一个 Markdown 代码块的内容
+// （部分模型会把 JSON 放进代码块，或先写说明再给代码块）。是纯函数，重入时结果相同。
+func modelJSON(text string) string {
+	body := strings.TrimSpace(text)
+	if strings.HasPrefix(body, "{") {
+		return body
+	}
+	parts := strings.Split(body, "```")
+	if len(parts) != 3 {
+		return ""
+	}
+	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(parts[1]), "json"))
+}
+
+// parseProposal 是对已回放模型输出的纯函数，重入时结果相同；内容严格校验，不接受未知字段或尾随内容。
 func parseProposal(text string) (proposal, bool) {
-	dec := json.NewDecoder(strings.NewReader(text))
+	dec := json.NewDecoder(strings.NewReader(modelJSON(text)))
 	dec.DisallowUnknownFields()
 	var p proposal
-	if err := dec.Decode(&p); err != nil || (p.Action != "refund" && p.Action != "no_refund") {
+	if err := dec.Decode(&p); err != nil || dec.Decode(&struct{}{}) != io.EOF || (p.Action != "refund" && p.Action != "no_refund") {
 		return proposal{}, false
 	}
 	return p, true
@@ -179,6 +203,9 @@ func refundMember(desk *refundDesk, client *livemodel.Client) multiagent.Step[Ti
 			t = appendTurn(t, refundName, text)
 			t.Refund = &rc
 			return addSolution(t, s), nil
+		}
+		if t.Refund != nil { // 本轮已有结论时分流又派回退款：不重新登记或审核，否则已超时拒绝的申请可能被再次批准
+			return appendTurn(t, refundName, "本工单的退款已有结论（"+t.Refund.Status+"），不再重复处理"), nil
 		}
 		ctx = withCustomer(ctx, t.CustomerID)
 		gate := &askGate{}
@@ -216,6 +243,9 @@ func refundMember(desk *refundDesk, client *livemodel.Client) multiagent.Step[Ti
 		switch {
 		case !ok:
 			return done("退款提议无法解析，未登记", RefundCase{Status: "no_refund"}, support.Solution{Title: "人工核实退款诉求", Detail: "系统无法理解本次退款诉求，建议由人工客服核实"})
+		case p.Action == "refund" && gate.anyTimedOut(): // 客户没回答追问时不凭不完整的信息退款，不依赖模型遵守提示
+			return done("客户未在时限内回复追问，未登记退款", RefundCase{Status: "no_refund", OrderID: p.OrderID},
+				support.Solution{Title: "人工跟进退款诉求", Detail: "客户未在时限内回复追问，本次未办理退款，可由人工客服联系客户核实"})
 		case p.Action == "no_refund" || p.OrderID == "" || p.AmountCents <= 0:
 			return done("未登记退款："+p.Reason, RefundCase{Status: "no_refund", OrderID: p.OrderID}, support.Solution{Title: "无需退款", Detail: p.Reason})
 		}

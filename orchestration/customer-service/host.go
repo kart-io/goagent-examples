@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -70,6 +71,7 @@ type HostConfig struct {
 	UsageAlertAt     int           // 用量告警阈值（模型请求数），默认 20
 	DisableUsageHook bool          // 关闭 UsageHook，只靠扫描补偿
 	Store            durable.Store // 可选：运行检查点与操作日志的存储，默认 Dir/runs
+	InspectOnly      bool          // 只用于 show 等只读查看：不检查目录绑定的模型，不得推进运行
 }
 
 func (c *HostConfig) defaults() error {
@@ -121,6 +123,11 @@ type Host struct {
 func OpenHost(ctx context.Context, cfg HostConfig) (*Host, error) {
 	if err := cfg.defaults(); err != nil {
 		return nil, err
+	}
+	if !cfg.InspectOnly {
+		if err := bindModel(cfg.Dir, cfg.Client.Live); err != nil {
+			return nil, err
+		}
 	}
 	l, err := openLedger(cfg.Dir)
 	if err != nil {
@@ -501,7 +508,7 @@ func (h *Host) wait(ctx context.Context, row ticketRow, p workflow.InterruptPoin
 		if err := saveApprovers(ctx, tx, p.Key, info.RequestID, users); err != nil {
 			return err
 		}
-		body := fmt.Sprintf("订单 %s 申请退款 %d 分（%s），争议原因：%s。请在 %s 前作答。", info.OrderID, info.AmountCents, info.Currency, strings.Join(info.Reasons, "；"), info.ReviewDeadline)
+		body := reviewBody(info)
 		for _, u := range users {
 			if err := notify(ctx, tx, row.ID, u, support.KindApprovalRequest, p.Key+"/"+u.ID, "退款审核", body); err != nil {
 				return err
@@ -762,4 +769,33 @@ func (h *Host) reviewResult(ctx context.Context, key string) (string, error) {
 		return fmt.Sprintf("%s 已于 %s 批准。", in.Approver, in.AnsweredAt), nil
 	}
 	return fmt.Sprintf("%s 已于 %s 拒绝：%s。", in.Approver, in.AnsweredAt, in.Note), nil
+}
+
+// reviewBody 是审核请求正文；争议原因可能来自 Agent 说明，去掉其末尾标点再接句号。
+func reviewBody(info reviewInfo) string {
+	reasons := strings.TrimRight(strings.Join(info.Reasons, "；"), "。.；; ")
+	return fmt.Sprintf("订单 %s 申请退款 %d 分（%s），争议原因：%s。请在 %s 前作答。", info.OrderID, info.AmountCents, info.Currency, reasons, info.ReviewDeadline)
+}
+
+// bindModel 把目录绑定到首次打开时的模型配置。持久恢复会回放已记录的模型调用，换模型后续跑旧运行
+// 只会得到 goagent 的“operation intent or attempt policy changed”，因此在打开时就以可读的错误拒绝。
+func bindModel(dir string, cfg livemodel.Config) error {
+	want := cfg.Provider + "/" + cfg.Model
+	path := filepath.Join(dir, "model")
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err == nil {
+		_, err = f.WriteString(want)
+		return errors.Join(err, f.Close())
+	}
+	if !errors.Is(err, os.ErrExist) {
+		return err
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if string(got) != want {
+		return fmt.Errorf("目录 %s 的工单以模型 %s 运行，本次为 %s；同一目录的 message、answer、sweep 须使用相同的 -live 与模型配置", dir, got, want)
+	}
+	return nil
 }

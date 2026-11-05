@@ -58,10 +58,20 @@ func triageTurn(v ticketView) llm.StreamChunk {
 		last = v.Turns[n-1].Agent
 	}
 	switch {
+	case strings.Contains(v.Input, "直接结束"): // 与实测的真实模型一样：被注入后不派成员就以 FINISH 自行答复
+		return jsonText(triageDecision{Route: "FINISH", Reply: "您的退款申请已批准"})
 	case strings.Contains(v.Input, "乱码"):
 		return text("抱歉我没看懂")
-	case strings.Contains(v.Input, "反复咨询"):
-		return jsonText(triageDecision{Route: generalName, Intent: "反复咨询物流"})
+	case strings.Contains(v.Input, "反复咨询"): // 在两个成员之间来回派，由 MaxRounds 兜底
+		route := generalName
+		if last == generalName {
+			route = refundName
+		}
+		return jsonText(triageDecision{Route: route, Intent: "反复咨询物流"})
+	case strings.Contains(v.Input, "一直派通用"): // 与实测的真实模型一样：成员已答复仍紧接着派回同一成员
+		return jsonText(triageDecision{Route: generalName, Intent: "咨询物流", Reply: "请提供订单号以便查询物流"})
+	case last == refundName && strings.Contains(v.Input, "再派退款") && len(v.Turns) < 4: // 与实测的真实模型一样：成员已有结论仍派回一次退款
+		return jsonText(triageDecision{Route: refundName, Intent: "申请退款"})
 	case last == refundName || last == generalName:
 		return jsonText(triageDecision{Route: "FINISH", Reply: v.Turns[len(v.Turns)-1].Output})
 	case strings.Contains(v.Input, "退款"):
@@ -75,7 +85,7 @@ func refundTurn(v ticketView, msgs []llm.Message) llm.StreamChunk {
 	switch {
 	case strings.Contains(input, "胡乱提议"):
 		return text("这不是 JSON")
-	case strings.Contains(input, "不用退"):
+	case strings.Contains(input, "不用退") || strings.Contains(input, "反复咨询"):
 		return jsonText(proposal{Action: "no_refund", Reason: "客户表示不需要退款"})
 	}
 	var results []llm.Message
@@ -83,6 +93,9 @@ func refundTurn(v ticketView, msgs []llm.Message) llm.StreamChunk {
 		results = append(results, msgs[i])
 	}
 	if len(results) == 0 {
+		if strings.Contains(input, "漏参数") { // 与实测的真实模型一样：第一次调用漏掉必填参数
+			return llm.StreamChunk{ToolCalls: []llm.ToolCall{demomodel.CallWith("order-0", "get_order", `{}`)}}
+		}
 		if order := orderPattern.FindString(input); order != "" {
 			return llm.StreamChunk{ToolCalls: []llm.ToolCall{demomodel.CallWith("order-1", "get_order", fmt.Sprintf(`{"order_id":%q}`, order))}}
 		}
@@ -91,6 +104,17 @@ func refundTurn(v ticketView, msgs []llm.Message) llm.StreamChunk {
 			return llm.StreamChunk{ToolCalls: []llm.ToolCall{ask, demomodel.CallWith("ask-2", askInterrupt, `{"question":"请问退款原因是什么"}`)}}
 		}
 		return llm.StreamChunk{ToolCalls: []llm.ToolCall{ask}}
+	}
+	if results[0].ToolCallID == "order-0" {
+		return llm.StreamChunk{ToolCalls: []llm.ToolCall{demomodel.CallWith("order-1", "get_order", fmt.Sprintf(`{"order_id":%q}`, orderPattern.FindString(input)))}}
+	}
+	if strings.Contains(input, "问原因") {
+		switch results[0].ToolCallID {
+		case "order-1":
+			return llm.StreamChunk{ToolCalls: []llm.ToolCall{demomodel.CallWith("reason-1", askInterrupt, `{"question":"请问退款原因是什么"}`)}}
+		case "reason-1": // 与实测的真实模型一样：追问超时后仍提议退款，由退款成员拦下
+			return jsonText(proposal{Action: "refund", OrderID: orderPattern.FindString(input), AmountCents: yuanCents(input), Reason: "客户申请退款"})
+		}
 	}
 	asked := false
 	for _, r := range results {
@@ -115,13 +139,22 @@ func refundTurn(v ticketView, msgs []llm.Message) llm.StreamChunk {
 	}
 	_ = json.Unmarshal([]byte(last.Content), &o)
 	amount := o.PaidCents
-	if m := amountPattern.FindStringSubmatch(input); m != nil {
-		yuan, _ := strconv.ParseInt(m[1], 10, 64)
-		amount = yuan * 100
+	if c := yuanCents(input); c > 0 {
+		amount = c
 	}
 	p := proposal{Action: "refund", OrderID: o.OrderID, AmountCents: amount, Reason: "客户申请退款"}
 	if strings.Contains(input, "投诉") {
 		p.AgentDisputed, p.AgentNote = true, "客户表示要投诉"
 	}
 	return jsonText(p)
+}
+
+// yuanCents 取说法中的“N 元”并换算为分，没有时返回 0。
+func yuanCents(input string) int64 {
+	m := amountPattern.FindStringSubmatch(input)
+	if m == nil {
+		return 0
+	}
+	yuan, _ := strconv.ParseInt(m[1], 10, 64)
+	return yuan * 100
 }

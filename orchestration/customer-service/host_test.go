@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent/core/durable"
 )
@@ -41,18 +42,31 @@ func newHostEnv(t *testing.T, mutate func(*HostConfig)) *hostEnv {
 // open 以同一目录打开宿主；重复调用模拟进程重启，运行存储换成新的故障包装。
 func (e *hostEnv) open() {
 	e.t.Helper()
+	require.NoError(e.t, e.tryOpen())
+}
+
+// tryOpen 与 open 相同但返回打开错误；失败时保留原宿主。
+func (e *hostEnv) tryOpen() error {
 	inner, err := durable.NewFileStore(filepath.Join(e.dir, "runs"))
-	require.NoError(e.t, err)
-	e.store = &faultStore{Store: inner}
+	if err != nil {
+		return err
+	}
+	store := &faultStore{Store: inner}
 	cfg, err := support.ParseApproverConfig([]byte(support.DefaultApproverConfig))
-	require.NoError(e.t, err)
+	if err != nil {
+		return err
+	}
 	hc := HostConfig{Dir: e.dir, Clock: e.clock, Resolver: support.RuleResolver{Directory: e.directory, Config: cfg},
-		Notifier: e.notifier, Handoff: e.handoff, Operator: support.User{ID: "ops-1"}, Store: e.store}
+		Notifier: e.notifier, Handoff: e.handoff, Operator: support.User{ID: "ops-1"}, Store: store}
 	if e.mutate != nil {
 		e.mutate(&hc)
 	}
-	e.host, err = OpenHost(context.Background(), hc)
-	require.NoError(e.t, err)
+	h, err := OpenHost(context.Background(), hc)
+	if err != nil {
+		return err
+	}
+	e.store, e.host = store, h
+	return nil
 }
 
 func (e *hostEnv) message(id, customer, text string) MessageResult {
@@ -240,4 +254,34 @@ func TestHostAnswerWhileReviewNotReady(t *testing.T) {
 	require.False(t, a.Late)
 	require.Equal(t, statusDelivered, a.Status)
 	require.Equal(t, 1, e.refunds("A1002"))
+}
+
+func TestHostBindsModel(t *testing.T) {
+	e := newHostEnv(t, nil)
+	e.message("m1", "c-1001", "订单 A1002 申请退款 800 元")
+	require.NoError(t, e.host.Close())
+	e.mutate = func(c *HostConfig) {
+		c.Client = livemodel.Wrap(offlineModel().ToolStreamClient, livemodel.Config{Provider: "deepseek", Model: "deepseek-flash"})
+	}
+	err := e.tryOpen()
+	require.ErrorContains(t, err, "scripted/customer-service-transcript")
+	require.ErrorContains(t, err, "deepseek/deepseek-flash")
+	e.mutate = func(c *HostConfig) {
+		c.Client = livemodel.Wrap(offlineModel().ToolStreamClient, livemodel.Config{Provider: "deepseek", Model: "deepseek-flash"})
+		c.InspectOnly = true
+	}
+	require.NoError(t, e.tryOpen(), "只读查看不检查模型")
+	v, err := e.host.Show(context.Background(), "tk-m1")
+	require.NoError(t, err)
+	require.Equal(t, statusWaitingReview, v.Status)
+	require.NoError(t, e.host.Close())
+	e.mutate = nil
+	e.open()
+	require.Equal(t, statusWaitingReview, e.row("tk-m1").Status, "相同模型配置可继续处理")
+}
+
+func TestReviewBodyTrimsReasonPunctuation(t *testing.T) {
+	body := reviewBody(reviewInfo{OrderID: "A2001", AmountCents: 3000, Currency: "CNY", ReviewDeadline: "2026-11-07T11:00:00Z",
+		Reasons: []string{"Agent 标记有争议：客户要求退款并投诉。"}})
+	require.Equal(t, "订单 A2001 申请退款 3000 分（CNY），争议原因：Agent 标记有争议：客户要求退款并投诉。请在 2026-11-07T11:00:00Z 前作答。", body)
 }

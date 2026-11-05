@@ -81,7 +81,7 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 	if err := os.MkdirAll(*dir, 0o700); err != nil {
 		return err
 	}
-	cfg := HostConfig{Dir: *dir, Notifier: printer{w}, Handoff: printer{w}, Operator: support.User{ID: "ops-1"}}
+	cfg := HostConfig{Dir: *dir, Notifier: printer{w}, Handoff: printer{w}, Operator: support.User{ID: "ops-1"}, InspectOnly: cmd == "show"}
 	if *at != "" {
 		now, err := time.Parse(time.RFC3339, *at)
 		if err != nil {
