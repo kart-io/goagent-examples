@@ -4,17 +4,17 @@ $ cs message -dir $DIR -live -now 2026-11-05T08:00:00Z -id m1 -customer c-1001 -
     notify approval_request -> fin-2 | 订单 A1002 申请退款 80000 分（CNY），争议原因：金额 80000 分超过自动退款上限 50000 分。请在 2026-11-07T08:00:00Z 前作答。
     结果: {"ticket_id": "tk-m1", "status": "waiting_review", "action": "started"}
 $ cs answer -dir $DIR -live -now 2026-11-05T09:00:00Z -ticket tk-m1 -approver fin-1 -approve -note 核实无误
-    notify customer_reply -> c-1001 | 您好，订单 A1002 的 800 元退款已成功提交，款项将原路退回，回执号 demo-refund-14e8f15f1559f65b728b52a36e4965594949723
+    notify customer_reply -> c-1001 | 订单 A1002 的 800 元退款已完成，款项将原路退回。退款回执：demo-refund-14e8f15f1559f65b728b52a36e49655949497231a7d33206932b3b9e359a65ed。
     结果: {"ticket_id": "tk-m1", "status": "delivered"}
 $ cs message -dir $DIR -live -now 2026-11-05T10:00:00Z -id m2 -customer c-1001 -text 我要退款 30 元
-    notify customer_question -> c-1001 | 请问您要退款的订单号是多少？
+    notify customer_question -> c-1001 | 请问您要申请退款的订单号是多少？
     结果: {"ticket_id": "tk-m2", "status": "waiting_customer", "action": "started"}
 $ cs message -dir $DIR -live -now 2026-11-05T10:01:00Z -id m3 -customer c-1001 -text 订单号 A1001
-    notify customer_reply -> c-1001 | 您的退款已处理完成：30 元（3000 分）已原路退回。回执号：demo-refund-2cec2e172a045d0aa978ab7443363477cc1b092fbbfd98
+    notify customer_reply -> c-1001 | 您的 30 元退款已成功办理，款项将原路退回，请留意到账通知。
     结果: {"ticket_id": "tk-m2", "status": "delivered", "action": "answered"}
 $ cs message -dir $DIR -live -now 2026-11-05T11:00:00Z -id m4 -customer c-2002 -text 订单 A2001 申请退款 30 元，我要投诉
-    notify approval_request -> lead-1 | 订单 A2001 申请退款 3000 分（CNY），争议原因：Agent 标记有争议：仅提议，未批准、未执行退款。客户已提出投诉，情绪较激烈；订单查询显示实付 9900 分、1 天
+    notify approval_request -> lead-1 | 订单 A2001 申请退款 3000 分（CNY），争议原因：Agent 标记有争议：客户提出投诉并要求部分退款，但未说明具体投诉事项和退款依据，需审核人进一步核实。请在 2026-11-07T11:00:00Z 前作答。
     结果: {"ticket_id": "tk-m4", "status": "waiting_review", "action": "started"}
 $ cs sweep -dir $DIR -live -now 2026-11-07T11:00:00Z
-    notify customer_reply -> c-2002 | 您的订单 A2001 退款申请因审核超时未获通过，目前退款尚未办理，相关投诉也已记录并转交人工跟进。您可补充订单问题的照片或说明，由人工客服重新核实处理。
+    notify customer_reply -> c-2002 | 您对订单 A2001 的 30 元退款申请因审核超时已按未通过处理，未产生退款。您可补充问题照片或具体说明后由人工客服重新提交审核，投诉也会一并记录跟进。
     结果: {"advanced": 0, "resolved": 0, "reminded": 0, "timed_out": 1}

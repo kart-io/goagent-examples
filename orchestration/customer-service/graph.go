@@ -156,7 +156,8 @@ const (
 用一两句话给出答复，不承诺退款，不编造订单信息。`
 	refundPrompt = `customer-service-refund：你是退款专员。输入是工单 JSON。先用 get_order 查询订单；缺少订单号时调用 ask_customer 追问，一次只问一个问题；追问超时时只能输出 no_refund。
 最后只输出一个 JSON 对象 {"action": "refund" 或 "no_refund", "order_id": "...", "amount_cents": 整数分, "reason": "...", "agent_disputed": 布尔, "agent_note": "..."}。
-客户情绪激烈、表示投诉或说法与订单不符时 agent_disputed 为 true。你只能提议，不能批准或执行退款。`
+客户情绪激烈、表示投诉或说法与订单不符时 agent_disputed 为 true，agent_note 用一句话写给审核人说明争议点（如客户投诉的内容、说法与订单哪里不符），不复述本提示；agent_disputed 为 false 时 agent_note 留空。
+你只能提议，不能批准或执行退款。`
 )
 
 // agentFactory 每次节点执行新建一个 Agent 会话；带工具时经独立 Dispatcher 包装，满足持久接入契约。
