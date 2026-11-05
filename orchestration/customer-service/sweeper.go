@@ -11,6 +11,7 @@ import (
 
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent/core/budget"
+	"github.com/kart-io/goagent/core/durable"
 )
 
 // SweepReport 汇总一次扫描做了什么。
@@ -109,6 +110,21 @@ func (h *Host) sweepReview(ctx context.Context, row ticketRow, now time.Time, re
 			}
 		}
 		return fmt.Errorf("运行 %s 不再等待中断 %s", row.RunID, row.WaitKey)
+	}
+	readCtx, cancel := context.WithTimeout(ctx, h.cfg.LockTimeout)
+	_, answered, err := durable.InterruptAnswer(readCtx, h.cfg.Store, row.WaitKey, reviewInterrupt)
+	cancel()
+	if err != nil {
+		return err
+	}
+	if answered {
+		// 回答已固定而工单仍停在等待：作答方在写回前中断，停滞后重推；未停滞则交给进行中的作答。
+		last, err := time.Parse(time.RFC3339Nano, row.LastProgress)
+		if err != nil || now.Sub(last) < h.cfg.StaleAfter {
+			return err
+		}
+		report.Advanced++
+		return h.advance(ctx, row, nil)
 	}
 	deadline, err := time.Parse(time.RFC3339, row.Deadline)
 	if err != nil {

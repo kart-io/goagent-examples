@@ -284,3 +284,29 @@ func TestLateAnswerNotifiesCurrentResult(t *testing.T) {
 		require.Empty(t, e.sent(support.KindReviewResult))
 	})
 }
+
+func TestSweepRecoversFixedAnswerStuckInWaitingReview(t *testing.T) {
+	e := newHostEnv(t, nil)
+	r := e.message("m1", "c-1001", "订单 A1002 申请退款 800 元")
+	e.store.arm(operationSaved("refund/execute", "pending"))
+	_, err := e.host.Answer(context.Background(), r.TicketID, "fin-1", true, "核实无误")
+	require.ErrorIs(t, err, errInjected)
+	remindersBefore := len(e.sent(support.KindReminder))
+	_, err = e.host.ledger.db.Exec("UPDATE tickets SET status = ? WHERE ticket_id = ?", statusWaitingReview, r.TicketID) // 回答已固定，宿主在写回工单前崩溃
+	require.NoError(t, err)
+
+	e.restart()
+	e.clock.Advance(time.Minute)
+	rep := e.sweep()
+	require.Zero(t, rep.Advanced+rep.Reminded+rep.TimedOut, "回答已固定但未停滞：既不提醒也不超时")
+	e.clock.Advance(2 * time.Minute)
+	require.Equal(t, 1, e.sweep().Advanced)
+	e.clock.Advance(24 * time.Hour)
+	rep = e.sweep()
+	require.Zero(t, rep.Reminded+rep.TimedOut)
+
+	require.Equal(t, statusDelivered, e.row(r.TicketID).Status)
+	require.Equal(t, 1, e.refunds("A1002"))
+	require.Len(t, e.sent(support.KindCustomerReply), 1)
+	require.Len(t, e.sent(support.KindReminder), remindersBefore, "回答固定后不再提醒")
+}
