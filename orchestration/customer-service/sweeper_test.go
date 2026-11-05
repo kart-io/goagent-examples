@@ -352,3 +352,59 @@ func TestSweepRetriesFailedRegisterWithoutHandoff(t *testing.T) {
 	require.Len(t, e.sent(support.KindApprovalRequest), 3)
 	require.Empty(t, e.handoff.Transfers(), "不因登记失败按 run_failed 转人工")
 }
+
+func TestCustomerAnswerSurvivesResumeFailure(t *testing.T) {
+	setup := func(t *testing.T) (*hostEnv, string) {
+		e := newHostEnv(t, nil)
+		r := e.message("m1", "c-1001", "我要退款 30 元")
+		require.Equal(t, statusWaitingCustomer, r.Status)
+		e.store.arm(func(s *durable.Snapshot) bool { return s != nil }) // 续跑的第一次保存失败
+		_, err := e.host.Message(context.Background(), "c-1001", "agent-1", "m2", "订单号是 A1001")
+		require.ErrorIs(t, err, errInjected)
+		require.Zero(t, e.refunds("A1001"))
+		return e, r.TicketID
+	}
+	finished := func(t *testing.T, e *hostEnv, ticketID string) {
+		require.Equal(t, statusDelivered, e.row(ticketID).Status)
+		require.Equal(t, 1, e.refunds("A1001"), "回答没有丢失，退款恰好一次")
+		replies := e.sent(support.KindCustomerReply)
+		require.Len(t, replies, 1)
+		require.Contains(t, replies[0].Message.Body, "已退款")
+		require.Len(t, e.sent(support.KindCustomerQuestion), 1, "不重复追问")
+
+		again := e.message("m2", "c-1001", "订单号是 A1001")
+		require.Equal(t, "duplicate", again.Action, "回答已处理后重投不再生效")
+		require.Equal(t, 1, e.refunds("A1001"))
+		e.clock.Advance(3 * time.Minute)
+		e.sweep()
+		require.Len(t, e.sent(support.KindCustomerReply), 1, "回答不会被当作新一轮咨询")
+	}
+	t.Run("扫描以未处理的回答续跑", func(t *testing.T) {
+		e, id := setup(t)
+		e.clock.Advance(3 * time.Minute)
+		e.sweep() // 停滞的 running 重新推进，回到等待追问
+		e.sweep() // 等待追问且有未处理的回答：以它续跑
+		finished(t, e, id)
+	})
+	t.Run("回答已固定后续跑失败", func(t *testing.T) {
+		e := newHostEnv(t, nil)
+		r := e.message("m1", "c-1001", "我要退款 30 元")
+		e.store.arm(operationSaved("model/turn/1", "pending")) // 追问已记下回答，之后的模型调用记录保存失败
+		_, err := e.host.Message(context.Background(), "c-1001", "agent-1", "m2", "订单号是 A1001")
+		require.ErrorIs(t, err, errInjected)
+		var handled int
+		require.NoError(t, e.host.ledger.db.QueryRow("SELECT handled FROM ticket_messages WHERE message_id = 'm2'").Scan(&handled))
+		require.Equal(t, 1, handled, "中断已记下回答，消息记为已处理")
+		e.clock.Advance(3 * time.Minute)
+		e.sweep() // 以 Run 续跑已固定的回答
+		finished(t, e, r.TicketID)
+	})
+	t.Run("重投同一消息续跑", func(t *testing.T) {
+		e, id := setup(t)
+		e.clock.Advance(3 * time.Minute)
+		e.sweep()
+		r := e.message("m2", "c-1001", "订单号是 A1001")
+		require.Equal(t, "answered", r.Action, "未处理的回答重投时再次续跑")
+		finished(t, e, id)
+	})
+}

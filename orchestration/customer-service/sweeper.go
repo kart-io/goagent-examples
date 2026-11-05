@@ -16,7 +16,7 @@ import (
 
 // SweepReport 汇总一次扫描做了什么。
 type SweepReport struct {
-	Advanced int `json:"advanced"`  // 重新推进的 running 工单
+	Advanced int `json:"advanced"`  // 重新推进的工单：停滞的 running，或以待确认回答续跑的追问
 	Resolved int `json:"resolved"`  // 重新解析审核人的工单
 	Reminded int `json:"reminded"`  // 发出提醒的工单
 	TimedOut int `json:"timed_out"` // 以超时输入回应的工单
@@ -77,6 +77,13 @@ func (h *Host) sweepTicket(ctx context.Context, row ticketRow, now time.Time, re
 		report.Advanced++
 		return h.advance(ctx, row, nil)
 	case statusWaitingCustomer:
+		answered, err := h.answerCustomer(ctx, row) // 客户已回答但上次续跑失败：先以回答续跑，再看超时
+		if answered {
+			report.Advanced++
+		}
+		if answered || err != nil {
+			return err
+		}
 		deadline, err := time.Parse(time.RFC3339, row.Deadline)
 		if err != nil || now.Before(deadline) {
 			return err

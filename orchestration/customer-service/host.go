@@ -38,6 +38,10 @@ const (
 // maxFailures 是同一运行连续推进失败的上限，达到后按运行失败转人工。
 const maxFailures = 3
 
+// answerPending 是 ticket_messages.handled 的取值之一：追问的回答已收到、尚未固定到中断。
+// 0 为排队（本轮结束后作为新一轮咨询），1 为已处理。
+const answerPending = 2
+
 // ErrNotApprover 表示作答人不在该审核中断持久化的审核人名单中；运行保持等待。
 var ErrNotApprover = errors.New("作答人不是该工单的审核人")
 
@@ -235,10 +239,14 @@ func (h *Host) Message(ctx context.Context, customerID, submitter, messageID, te
 	var action string
 	err := h.write(ctx, func(tx *sql.Tx) error {
 		var ticketID string
-		err := tx.QueryRowContext(ctx, "SELECT ticket_id FROM ticket_messages WHERE message_id = ?", messageID).Scan(&ticketID)
+		var prev int
+		err := tx.QueryRowContext(ctx, "SELECT ticket_id, handled FROM ticket_messages WHERE message_id = ?", messageID).Scan(&ticketID, &prev)
 		if err == nil {
 			action = "duplicate"
 			row, err = h.ticket(ctx, tx, ticketID)
+			if err == nil && prev == answerPending && row.Status == statusWaitingCustomer {
+				action = "answered" // 上次续跑失败、回答未固定：重投时再次续跑
+			}
 			return err
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -268,7 +276,7 @@ func (h *Host) Message(ctx context.Context, customerID, submitter, messageID, te
 				return err
 			}
 		case row.Status == statusWaitingCustomer:
-			action = "answered"
+			action, handled = "answered", answerPending
 		default:
 			action, handled = "queued", 0
 		}
@@ -282,11 +290,7 @@ func (h *Host) Message(ctx context.Context, customerID, submitter, messageID, te
 	case "started":
 		err = h.advance(ctx, row, nil)
 	case "answered":
-		input, e := json.Marshal(askAnswer{Answer: text})
-		if e != nil {
-			return MessageResult{}, e
-		}
-		_, err = h.resume(ctx, row, input)
+		_, err = h.answerCustomer(ctx, row)
 	}
 	h.deliver(ctx)
 	out, e := h.ticket(ctx, h.ledger.db, row.ID)
@@ -353,6 +357,40 @@ func (h *Host) resume(ctx context.Context, row ticketRow, input json.RawMessage)
 		return true, nil
 	}
 	return false, h.observe(ctx, row, snap, err)
+}
+
+// answerCustomer 以最早一条待确认的回答回应追问；没有待确认的回答时返回 false。
+// 回答固定（续跑成功、本次后到，或续跑失败但中断已记下回答）后，该工单的待确认回答都记为已处理：
+// 中断只采用第一个被接受的回答，与后到的回答一样不再生效。回答未固定时保持待确认，供重投或扫描重试。
+func (h *Host) answerCustomer(ctx context.Context, row ticketRow) (bool, error) {
+	var text string
+	err := h.ledger.db.QueryRowContext(ctx, "SELECT text FROM ticket_messages WHERE ticket_id = ? AND handled = ? ORDER BY seq LIMIT 1",
+		row.ID, answerPending).Scan(&text)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	input, err := json.Marshal(askAnswer{Answer: text})
+	if err != nil {
+		return true, err
+	}
+	late, runErr := h.resume(ctx, row, input)
+	fixed := late || runErr == nil
+	if !fixed {
+		readCtx, cancel := context.WithTimeout(ctx, h.cfg.LockTimeout)
+		_, answered, e := durable.InterruptAnswer(readCtx, h.cfg.Store, row.WaitKey, askInterrupt)
+		cancel()
+		if e != nil {
+			return true, errors.Join(runErr, e)
+		}
+		fixed = answered
+	}
+	if fixed {
+		_, err = h.ledger.db.ExecContext(ctx, "UPDATE ticket_messages SET handled = 1 WHERE ticket_id = ? AND handled = ?", row.ID, answerPending)
+	}
+	return true, errors.Join(runErr, err)
 }
 
 // observe 把一次推进的结果写回工单表：等待、结束、超限转人工或计入失败。
