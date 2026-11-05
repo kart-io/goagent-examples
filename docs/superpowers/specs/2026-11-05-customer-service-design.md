@@ -57,6 +57,8 @@ flowchart TD
     H --> Y
 ```
 
+实现后的流程（含实测补充的分流与退款防护）、系统架构、框架分层与工单状态见案例 [README 的“架构”一节](../../../orchestration/customer-service/README.md#架构)。
+
 - 图用 `multiagent.RouterSupervisor` 构造：Supervisor 是分流 Agent，成员是退款成员与通用咨询成员（第一期把物流、技术、账单合成一个通用成员），Fallback 是交接 Step。`MaxRounds` 默认 4。
 - 状态是案例自定义的 `Ticket`：
 

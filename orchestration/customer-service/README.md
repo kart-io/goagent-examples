@@ -26,6 +26,120 @@ goagent 发版后执行 `GOWORK=off go get github.com/kart-io/goagent@<版本>`�
 | 宿主（`host.go`、`sweeper.go`） | 一切对外投递、超时与作答认证；节点只做决定与等待，因为持久恢复时节点会重入 |
 | 业务接口（`support/`） | 争议规则、组织架构、审核人解析、通知、转人工与时钟；`support/feishu` 是飞书实现 |
 
+## 架构
+
+### 系统架构
+
+宿主是唯一对外的边界：客户消息、审核作答与定时扫描都进入宿主；对外消息先写入账本中的发件箱，再由宿主按幂等键投递。
+
+```mermaid
+flowchart TB
+    C[客户渠道] -->|消息| H
+    A[审核人] -->|作答| H
+    CRON[定时任务] -->|扫描| H
+    H["宿主 Host<br/>Message / Answer / Sweep / Show"]
+    H -->|推进与续跑| G
+    subgraph 编排["编排图"]
+        G["RouterSupervisor<br/>分流 · 退款成员 · 通用成员 · 转人工"]
+        G --> DESK[退款台：归属校验、争议判定、授权]
+    end
+    G <-->|模型调用| LLM["模型提供方<br/>DeepSeek / MiniMax / Gemini"]
+    H -.审核人解析.-> DIR["组织架构<br/>内存演示 / 飞书通讯录"]
+    subgraph 存储["持久目录 -dir"]
+        DB[("SQLite 账本<br/>订单、退款、工单、消息、发件箱")]
+        RUNS[("runs/ 检查点与操作日志")]
+        BUD[("budget/ 模型请求预算")]
+    end
+    DESK --> DB
+    G --> RUNS
+    G --> BUD
+    H -->|工单与发件箱| DB
+    DB -->|发件箱投递| OUT
+    subgraph OUT["接收方"]
+        direction LR
+        C2[客户：回复、追问、进度]
+        A2[审核人：审核请求、提醒、后到结果]
+        O2[运营：用量与解析告警]
+        HU[人工客服：交接上下文]
+    end
+```
+
+### 框架
+
+案例只写业务与宿主，编排、Agent、持久化、预算与退款状态机都用 goagent 的组件。
+
+```mermaid
+%%{init: {"flowchart": {"wrappingWidth": 520}}}%%
+flowchart TB
+    L0["<b>本案例</b><br/>宿主：工单、发件箱、超时、作答认证<br/>图装配：分流解析、退款成员、Fallback<br/>退款台：归属校验、争议判定、授权<br/>support：争议规则、组织架构、通知、转人工"]
+    L1["<b>goagent 编排层</b><br/>multiagent：RouterSupervisor、AgentStep<br/>workflow：DurableGraph、中断与续跑"]
+    L2["<b>goagent Agent 层</b><br/>builder：Agent、WithDurableScope<br/>tools：Dispatcher<br/>llm/providers：经 internal/livemodel 接入"]
+    L3["<b>goagent 持久化层</b><br/>core/durable：Do、AwaitInput、FileStore<br/>core/budget：持久根预算<br/>workflow/refund：Service、Store、OnRegister"]
+    L0 --> L1 --> L2 --> L3
+```
+
+| 本案例 | 使用的 goagent 组件 |
+|---|---|
+| 宿主 | `workflow.DurableGraph` 推进与续跑，`durable.InterruptAnswer` 读取已固定的回答，`budget` 持久根预算（RootKey 即运行 ID） |
+| 图装配 | `multiagent.RouterSupervisor`、`AgentStep`、`ErrInvalidRoute` 进入 Fallback |
+| 成员 Agent | `builder` 带 `WithDurableScope` 回放模型调用；`tools.Dispatcher` 开启 `ReturnArgumentErrors`，工具参数错误交还模型 |
+| 退款成员 | `durable.Do` 固定登记与执行，`durable.AwaitInput` 等待审核与追问 |
+| 退款台 | `refund.Service` 申请状态机，`OnRegister` 同事务写入判定，SQLite 实现 `refund.Store` |
+
+### 一条消息的处理流程
+
+```mermaid
+flowchart TD
+    M[客户消息] --> D{消息 ID 已处理过?}
+    D -->|是| DUP[返回原工单，不重复处理]
+    D -->|否| R{该客户有未结束工单?}
+    R -->|等待审核| P[回复审核进度]
+    R -->|等待追问| Q[作为追问回答续跑]
+    R -->|运行中| QU[排队，本轮以回复结束后作为新一轮]
+    R -->|没有| T[分流 Agent]
+    Q --> T
+    T --> TP{解析分流结论}
+    TP -->|无法解析，或本轮无成员结论就 FINISH| HO[Fallback：转人工 invalid_route]
+    TP -->|紧接着重复派同一成员| FIN
+    TP -->|general| GEN[通用咨询成员] --> T
+    TP -->|refund| RM{本轮退款已有结论?}
+    RM -->|是| T
+    RM -->|否| AG[退款 Agent：get_order 查订单<br/>缺信息时 ask_customer 追问]
+    AG -->|追问| WC[等待客户，超时按未回复]
+    WC --> AG
+    AG --> PP{提议}
+    PP -->|无法解析、no_refund、追问超时| T
+    PP -->|refund| REG[登记：校验归属，固定争议判定]
+    REG -->|业务拒绝| T
+    REG -->|无争议| EX[执行退款，先查回执]
+    REG -->|有争议| WR[等待审核 refund-review]
+    WR -->|批准| EX
+    WR -->|拒绝或超时| T
+    EX --> T
+    TP -->|FINISH| FIN[回复客户]
+    T -.轮数或请求上限.-> HM[转人工 max_rounds / max_requests]
+```
+
+### 工单状态
+
+```mermaid
+flowchart LR
+    S((开始)) -->|新消息| R[running]
+    R -->|有争议| WR[waiting_review]
+    WR -->|作答或超时| R
+    R -->|追问| WC[waiting_customer]
+    WC -->|回答或超时| R
+    R -->|回复客户| D[done]
+    D -->|有排队消息，下一轮| R
+    R -->|转人工| HO[handoff]
+    R -->|连续失败| F[failed]
+    D -->|投递完毕| DL[delivered]
+    HO --> DL
+    F --> DL
+```
+
+`running` 超过 `StaleAfter` 没有进展时由扫描重推；连续失败按 `run_failed` 转人工，状态记为 `failed`。
+
 ## 运行
 
 ```bash
