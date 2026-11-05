@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/kart-io/goagent/core"
+	"github.com/kart-io/goagent/core/usage"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
 	"github.com/kart-io/goagent/llm/providers"
@@ -20,6 +21,8 @@ import (
 const (
 	MaxTokens      = 2048
 	RequestTimeout = 90 * time.Second
+	// GeminiThinkingBudget 限制 Gemini 的思考 token：它计入 MaxTokens，不限制时输出会以 MAX_TOKENS 截断。
+	GeminiThinkingBudget = 1024
 )
 
 // Config 由环境变量提供，避免把密钥写进命令行历史。
@@ -68,7 +71,8 @@ func New(cfg Config) (*Client, error) {
 		}
 		return Wrap(m, cfg), nil
 	case "gemini":
-		p, err := providers.NewGeminiWithOptions(llm.WithModel(cfg.Model), llm.WithMaxTokens(MaxTokens), llm.WithTemperature(0.2), llm.WithTimeout(RequestTimeout))
+		p, err := providers.NewGeminiWithOptions(llm.WithModel(cfg.Model), llm.WithMaxTokens(MaxTokens), llm.WithTemperature(0.2), llm.WithTimeout(RequestTimeout),
+			llm.WithReasoning(usage.ReasoningConfig{BudgetTokens: GeminiThinkingBudget, BudgetSet: true}))
 		if err != nil {
 			return nil, fmt.Errorf("创建 Gemini 客户端：%s", Redact(err.Error()))
 		}

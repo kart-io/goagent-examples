@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/kart-io/goagent/core"
+	"github.com/kart-io/goagent/core/usage"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
 	"github.com/kart-io/goagent/llm/constants"
@@ -110,4 +111,19 @@ func TestWrapCountsAndFillsModel(t *testing.T) {
 func TestWrapKeepsDeclaredStreamMode(t *testing.T) {
 	m := &minimax{}
 	require.Equal(t, core.StreamModeFinal, Wrap(m, Config{}).StreamMode())
+}
+
+// Gemini 的思考 token 计入输出上限；不限制思考预算时，输出会以 MAX_TOKENS 截断。
+func TestGeminiCapsThinkingBudget(t *testing.T) {
+	t.Setenv("GEMINI_API_KEY", "test-key")
+	c, err := New(Config{Provider: "gemini", Model: "gemini-2.5-flash"})
+	require.NoError(t, err)
+	p, ok := c.ToolStreamClient.(interface {
+		ResolveReasoning(*llm.CompletionRequest) *usage.ReasoningConfig
+	})
+	require.True(t, ok)
+	r := p.ResolveReasoning(&llm.CompletionRequest{})
+	require.NotNil(t, r)
+	require.Equal(t, usage.ReasoningConfig{BudgetTokens: GeminiThinkingBudget, BudgetSet: true}, *r)
+	require.Less(t, GeminiThinkingBudget, MaxTokens)
 }
