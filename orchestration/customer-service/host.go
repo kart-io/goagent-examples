@@ -44,6 +44,9 @@ var ErrNotApprover = errors.New("作答人不是该工单的审核人")
 // ErrNotWaitingReview 表示工单从未进入过退款审核，没有可作答或可告知结果的审核。
 var ErrNotWaitingReview = errors.New("工单没有退款审核")
 
+// ErrReviewNotReady 表示审核回答尚未固定而工单暂不在等待审核（如推进失败后记为 running）；可稍后重试，不通知、不占用幂等键。
+var ErrReviewNotReady = errors.New("审核暂不可作答，请稍后重试")
+
 // HostConfig 是宿主配置；零值字段使用默认值。
 type HostConfig struct {
 	Dir              string
@@ -650,6 +653,17 @@ func (h *Host) late(ctx context.Context, row ticketRow, approver string) (Answer
 	}
 	if approver != "" && !containsUser(users, approver) {
 		return AnswerResult{TicketID: row.ID, Status: row.Status}, ErrNotApprover
+	}
+	if row.Status == statusRunning || row.Status == statusWaitingCustomer {
+		readCtx, cancel := context.WithTimeout(ctx, h.cfg.LockTimeout)
+		_, answered, e := durable.InterruptAnswer(readCtx, h.cfg.Store, key, reviewInterrupt)
+		cancel()
+		if e != nil {
+			return AnswerResult{}, e
+		}
+		if !answered {
+			return AnswerResult{TicketID: row.ID, Status: row.Status}, ErrReviewNotReady
+		}
 	}
 	result, err := h.reviewResult(ctx, key)
 	if err != nil {

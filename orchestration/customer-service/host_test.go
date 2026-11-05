@@ -219,3 +219,25 @@ func TestHostOutboxRetriedAfterNotifierFailure(t *testing.T) {
 	require.True(t, strings.HasSuffix(replies[0].Message.IdempotencyKey, "/final"))
 	require.Equal(t, statusDelivered, e.row(r.TicketID).Status)
 }
+
+func TestHostAnswerWhileReviewNotReady(t *testing.T) {
+	e := newHostEnv(t, nil)
+	r := e.message("m1", "c-1001", "订单 A1002 申请退款 800 元")
+	require.Equal(t, statusWaitingReview, r.Status)
+	setStatus := func(s string) {
+		_, err := e.host.ledger.db.Exec("UPDATE tickets SET status = ? WHERE ticket_id = ?", s, r.TicketID)
+		require.NoError(t, err)
+	}
+	setStatus(statusRunning) // 模拟推进失败后记为 running，审核中断尚未被回答
+
+	_, err := e.host.Answer(context.Background(), r.TicketID, "fin-1", true, "")
+	require.ErrorIs(t, err, ErrReviewNotReady)
+	require.Empty(t, e.sent(support.KindReviewResult), "不通知、不占用幂等键")
+
+	setStatus(statusWaitingReview)
+	a, err := e.host.Answer(context.Background(), r.TicketID, "fin-1", true, "核实无误")
+	require.NoError(t, err)
+	require.False(t, a.Late)
+	require.Equal(t, statusDelivered, a.Status)
+	require.Equal(t, 1, e.refunds("A1002"))
+}
