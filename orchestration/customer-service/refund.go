@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
@@ -19,6 +20,9 @@ import (
 	"github.com/kart-io/goagent/workflow"
 	"github.com/kart-io/goagent/workflow/refund"
 )
+
+// sessionCleanupTimeout 是关闭退款 Agent 会话的上限，与 goagent multiagent 的会话清理时限一致。
+const sessionCleanupTimeout = 5 * time.Second
 
 // 中断 ID：退款审核与向客户追问。
 const (
@@ -170,7 +174,7 @@ func parseProposal(text string) (proposal, bool) {
 // refundMember 是退款成员：提议 → 登记（固定判定）→ 有争议时等待审核 → 执行（先查回执）。
 // 资金相关的每段都由持久操作固定，节点重入时回放。
 func refundMember(desk *refundDesk, client *livemodel.Client) multiagent.Step[Ticket] {
-	return multiagent.Step[Ticket]{Name: refundName, Run: core.NewRunnableFunc(func(ctx context.Context, t Ticket) (Ticket, error) {
+	return multiagent.Step[Ticket]{Name: refundName, Run: core.NewRunnableFunc(func(ctx context.Context, t Ticket) (_ Ticket, err error) {
 		done := func(text string, rc RefundCase, s support.Solution) (Ticket, error) {
 			t = appendTurn(t, refundName, text)
 			t.Refund = &rc
@@ -193,7 +197,13 @@ func refundMember(desk *refundDesk, client *livemodel.Client) multiagent.Step[Ti
 		if err != nil {
 			return t, err
 		}
-		defer func() { _ = owned.Close(context.WithoutCancel(ctx)) }()
+		defer func() {
+			cleanCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), sessionCleanupTimeout)
+			defer cancel()
+			if cerr := owned.Close(cleanCtx); cerr != nil { // 只在关闭出错时合并，不改变等待错误的原样返回
+				err = errors.Join(err, cerr)
+			}
+		}()
 		input, err := render(t)
 		if err != nil {
 			return t, err

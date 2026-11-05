@@ -138,17 +138,17 @@ func TestRegisterRejectsForeignOrder(t *testing.T) {
 func TestConcurrentSplitOnlyFirstMayAutoApprove(t *testing.T) {
 	e := newDeskEnv(t)
 	results := make([]registration, 2)
+	errs := make([]error, 2)
 	var wg sync.WaitGroup
 	for i, cents := range []int64{3000, 2000} {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			reg, err := e.desk.registerOnce(e.ctx("split-"+string(rune('a'+i))), "t-1", "c-1001", refundOf("A1001", cents))
-			require.NoError(t, err)
-			results[i] = reg
+			results[i], errs[i] = e.desk.registerOnce(e.ctx("split-"+string(rune('a'+i))), "t-1", "c-1001", refundOf("A1001", cents))
 		}()
 	}
 	wg.Wait()
+	require.NoError(t, errors.Join(errs...))
 	first, second := results[0], results[1]
 	if first.Sequence > second.Sequence {
 		first, second = second, first

@@ -479,8 +479,9 @@ func (h *Host) wait(ctx context.Context, row ticketRow, p workflow.InterruptPoin
 			alert := fmt.Sprintf("工单 %s 的退款审核无法解析审核人：%v。运行保持等待，下次扫描重试。", row.ID, resolveErr)
 			return notify(ctx, tx, row.ID, h.cfg.Operator, support.KindOpsAlert, p.Key+"/no-approver", "审核人解析失败", alert)
 		}
-		if _, err := claim(ctx, tx, p.Key, row.ID); err != nil {
-			return err
+		first, err := claim(ctx, tx, p.Key, row.ID)
+		if err != nil || !first {
+			return err // 并发时另一方已登记名单并发出消息，不再通知未持久化名单里的人
 		}
 		if p.ID != reviewInterrupt {
 			var q struct {

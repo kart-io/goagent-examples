@@ -5460,3 +5460,4 @@ GOWORK=off go vet ./orchestration/customer-service/... ; echo "exit=$?"
 11. **中断输入格式**：规格只定义了追问超时输入 `{"timeout": true}`，代码规定客户回答为 `{"answer": "..."}`，validate 两者必居其一。审核输入在规格字段外增加可选的 `answered_at`（宿主构造输入时写入，超时输入为 `{"approved": false, "reason": "timeout", "answered_at": ...}`），随中断输入一起固定，后到通知据此写“何时”，不另建表、不怕崩溃丢失。
 12. **文件拆分**：规格只列 `host.go`、`refund.go`、`ledger.go`，代码另有 `sweeper.go`、`desk.go`、`model.go`、`cli_test.go`、`live_test.go`；命令行采用“子命令在前”（`customer-service message -dir ...`），`-now` 对所有子命令可用。
 13. **飞书错误码**：令牌无效按 99991661、99991663 处理（清缓存重试一次），其他非零 `code` 以 `*APIError` 返回。99991663 有来源对应“tenant access token 无效”，99991661 未找到官方定义，接真实飞书前对照官方文档核对。
+14. **客户意图只由分流更新**：规格写 `Ticket.Intent`“成员持续更新”，第一期只有分流在 `triage` 节点写入意图（输出非空时），退款与物流成员不改写；交接上下文中的意图即分流给出的意图。
