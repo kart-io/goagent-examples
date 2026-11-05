@@ -318,10 +318,9 @@ func TestRegisterRetriesAfterNonCanceledFailure(t *testing.T) {
 			return err
 		}},
 		{"上限时间到期", "deadline", func(e *deskEnv) error {
-			ctx, cancel := context.WithTimeout(e.ctx("v-1"), 50*time.Millisecond)
-			defer cancel()
-			e.ledger.beforeCommit = func() error { e.ledger.beforeCommit = nil; <-ctx.Done(); return ctx.Err() }
-			_, err := e.desk.registerOnce(ctx, "t-1", "c-1001", refundOf("A1002", 80000))
+			// 此处验证 deadline 分类的重试；在提交点注入，避免墙钟期限先于钩子到期。
+			e.ledger.beforeCommit = func() error { e.ledger.beforeCommit = nil; return context.DeadlineExceeded }
+			_, err := e.desk.registerOnce(e.ctx("v-1"), "t-1", "c-1001", refundOf("A1002", 80000))
 			return err
 		}},
 	}
@@ -329,6 +328,7 @@ func TestRegisterRetriesAfterNonCanceledFailure(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			e := newDeskEnv(t)
 			require.Error(t, c.run(e))
+			require.Nil(t, e.ledger.beforeCommit, "故障应在第一次调用的提交点消费")
 			r, err := durable.InspectOperation(e.ctx("v-1"), "refund/register")
 			require.NoError(t, err)
 			require.Equal(t, "failed", r.Status)
