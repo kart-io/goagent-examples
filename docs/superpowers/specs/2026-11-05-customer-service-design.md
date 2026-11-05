@@ -88,7 +88,7 @@ type Ticket struct {
    - 校验订单属于 `Ticket.CustomerID`（案例订单仓储的 `Owner(orderID)`），不属于则返回业务拒绝写入状态，不登记；
    - 生成业务申请 ID：`sha256(TicketID + "/" + OrderID + "/" + AmountCents)` 截断。同一工单内的重复申请（含重复咨询、并行工具调用）落到同一 ID，由 `refund.Service.Register` 去重；新工单算新申请，会命中“同单多申请”规则进入审核，累计额度仍由 `refund.Service.Refund` 把关；
    - 审核截止时间 `ReviewDeadline` 与 `ValidUntil` 都由宿主时钟在登记时生成：`ReviewDeadline` = 登记时间 + 审核时限，`ValidUntil` = `ReviewDeadline` + 1 小时；
-   - 调用 `Register` 固定订单事实与版本，并在**同一事务**内写入争议判定（`refund_verdicts`，以申请 ID 为主键）与登记序号（`refund_sequence`，单调递增整数）。`refund.Service.Register` 不提供附加写入，案例的 `Store.Transaction` 从 ctx 取待写的判定并在同一事务内提交；
+   - 调用 `Register` 固定订单事实与版本，并在**同一事务**内写入争议判定（`refund_verdicts`，以申请 ID 为主键）与登记序号（`refund_sequence`，单调递增整数）。写入经 goagent 为 `refund.Service` 新增的 `OnRegister` 钩子完成：仅在新插入申请时、同一事务内调用，出错整体回滚，重复登记不调用；
    - 操作意图只含申请 ID 与提议，不含规则阈值或时间；`policy` 为 `{MaxAttempts: 3, RetryInterrupted: true, Reconcile}`，`Reconcile` 只有在申请与判定都存在时才补记完成，否则不补记，交给重跑（`Register` 按申请 ID 幂等）。
    判定随操作记录固定，等待期间订单事实或规则变化不会改变它。
 3. **审核**（仅有争议）：`durable.AwaitInput(ctx, "refund-review", info, validate)`。`info` 为 `{request_id, order_id, amount_cents, currency, submitter, reasons, review_deadline}`；输入为 `{"approved": bool, "note": string, "approver": string}` 或超时输入 `{"approved": false, "reason": "timeout"}`。输入由宿主在认证作答人之后构造（见“宿主”），`approver` 是宿主认证出的主体 ID，不是作答人自填。validate 校验格式，并要求批准时 `approver` 非空且不是系统主体 `system:auto-policy`。
