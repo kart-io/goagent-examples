@@ -91,12 +91,29 @@ func (h *Host) sweepTicket(ctx context.Context, row ticketRow, now time.Time, re
 }
 
 // sweepReview 处理审核等待：审核人未解析时重试，临近截止提醒审核人，到期以超时输入回应。
+// 截止时间不受解析失败影响：审核人始终未解析时到期同样按超时处理，超时输入不需要审核人名单。
 func (h *Host) sweepReview(ctx context.Context, row ticketRow, now time.Time, report *SweepReport) error {
+	deadline, err := time.Parse(time.RFC3339, row.Deadline)
+	if err != nil {
+		return err
+	}
+	timeout := func() error {
+		report.TimedOut++
+		input, err := json.Marshal(reviewInput{Reason: "timeout", AnsweredAt: now.Format(time.RFC3339)})
+		if err != nil {
+			return err
+		}
+		_, err = h.respondReview(ctx, row, "", input)
+		return err
+	}
 	done, err := claimed(ctx, h.ledger.db, row.WaitKey)
 	if err != nil {
 		return err
 	}
 	if !done {
+		if !now.Before(deadline) {
+			return timeout()
+		}
 		report.Resolved++
 		readCtx, cancel := context.WithTimeout(ctx, h.cfg.LockTimeout)
 		defer cancel()
@@ -126,18 +143,8 @@ func (h *Host) sweepReview(ctx context.Context, row ticketRow, now time.Time, re
 		report.Advanced++
 		return h.advance(ctx, row, nil)
 	}
-	deadline, err := time.Parse(time.RFC3339, row.Deadline)
-	if err != nil {
-		return err
-	}
 	if !now.Before(deadline) {
-		report.TimedOut++
-		input, err := json.Marshal(reviewInput{Reason: "timeout", AnsweredAt: now.Format(time.RFC3339)})
-		if err != nil {
-			return err
-		}
-		_, err = h.respondReview(ctx, row, "", input)
-		return err
+		return timeout()
 	}
 	if now.Before(deadline.Add(-h.cfg.RemindBefore)) {
 		return nil

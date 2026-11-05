@@ -200,14 +200,13 @@ func TestSweepRetriesApproverResolution(t *testing.T) {
 	e := newHostEnv(t, nil)
 	e.directory.Fail(errors.New("通讯录超时"))
 	_, err := e.host.Message(context.Background(), "c-1001", "agent-1", "m1", "订单 A1002 申请退款 800 元")
-	require.ErrorContains(t, err, "通讯录超时")
+	require.NoError(t, err, "解析失败以运营告警为信号，不作为错误返回")
 	row := e.row("tk-m1")
 	require.Equal(t, statusWaitingReview, row.Status, "运行保持等待")
 	require.Empty(t, e.sent(support.KindApprovalRequest))
 	require.Len(t, e.sent(support.KindOpsAlert), 1, "告警运营")
 
-	_, err = e.host.Sweep(context.Background())
-	require.ErrorContains(t, err, "通讯录超时")
+	require.Equal(t, 1, e.sweep().Resolved, "解析仍失败时继续等待")
 	require.Len(t, e.sent(support.KindOpsAlert), 1, "同一中断只告警一次")
 
 	e.directory.Fail(nil)
@@ -309,4 +308,33 @@ func TestSweepRecoversFixedAnswerStuckInWaitingReview(t *testing.T) {
 	require.Equal(t, 1, e.refunds("A1002"))
 	require.Len(t, e.sent(support.KindCustomerReply), 1)
 	require.Len(t, e.sent(support.KindReminder), remindersBefore, "回答固定后不再提醒")
+}
+
+func TestSweepReviewTimesOutWhileApproverUnresolved(t *testing.T) {
+	e := newHostEnv(t, nil)
+	e.directory.Fail(errors.New("通讯录超时"))
+	r, err := e.host.Message(context.Background(), "c-1001", "agent-1", "m1", "订单 A1002 申请退款 800 元")
+	require.NoError(t, err, "工单已正确进入等待审核并告警运营，解析失败不作为错误返回给消息调用方")
+	require.Equal(t, statusWaitingReview, r.Status)
+	require.Len(t, e.sent(support.KindOpsAlert), 1)
+
+	e.clock.Advance(47 * time.Hour)
+	rep := e.sweep()
+	require.Equal(t, 1, rep.Resolved, "截止前继续重试解析")
+	require.Zero(t, rep.TimedOut)
+
+	e.clock.Advance(time.Hour)
+	rep = e.sweep()
+	require.Equal(t, 1, rep.TimedOut, "审核截止时间不受解析失败影响，到期按超时拒绝")
+	require.Zero(t, rep.Resolved)
+	require.Equal(t, statusDelivered, e.row(r.TicketID).Status)
+	require.Zero(t, e.refunds("A1002"))
+	replies := e.sent(support.KindCustomerReply)
+	require.Len(t, replies, 1)
+	require.Contains(t, replies[0].Message.Body, "审核超时")
+	require.Empty(t, e.sent(support.KindApprovalRequest))
+
+	e.clock.Advance(time.Hour)
+	require.Equal(t, SweepReport{}, e.sweep())
+	require.Len(t, e.sent(support.KindCustomerReply), 1, "超时回复只发一次")
 }

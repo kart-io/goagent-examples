@@ -407,6 +407,7 @@ func (h *Host) observe(ctx context.Context, row ticketRow, snap *workflow.GraphS
 
 // wait 登记等待：首次观察到中断时解析审核人并发审核消息，或把问题发给客户。
 // 审核人解析失败时告警运营、运行保持等待，事件不记录，下次扫描重试；截止时间仍取中断 Info。
+// 解析失败不作为错误返回：工单已正确进入等待审核，运营告警即是信号。
 func (h *Host) wait(ctx context.Context, row ticketRow, p workflow.InterruptPoint) error {
 	status, deadline := statusWaitingCustomer, h.now().Add(h.cfg.AskTTL).Format(time.RFC3339)
 	var info reviewInfo
@@ -463,7 +464,7 @@ func (h *Host) wait(ctx context.Context, row ticketRow, p workflow.InterruptPoin
 		}
 		return nil
 	})
-	return errors.Join(resolveErr, err)
+	return err
 }
 
 // finish 结束本轮：按 Outcome 只发一条最终消息（reply 回复客户；handoff 转人工并告知客户）。
