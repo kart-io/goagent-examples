@@ -193,7 +193,7 @@ GOAGENT_LIVE=1 DEEPSEEK_API_KEY=... go test -run TestLiveRefundTriage -v ./orche
 cs message -dir $DIR -live -customer c-1001 -text "订单 A1001 申请退款 30 元"
 ```
 
-`-live` 与 `GOAGENT_LIVE=1` 都会产生费用，业务仍为模拟；提供方与模型见 `internal/livemodel`。
+`-live` 与 `GOAGENT_LIVE=1` 都会产生费用，业务仍为模拟；提供方与模型见 `internal/livemodel`。离线回归、命令行演练与 7 个模型的实测结果及据此修复的问题见[验证报告](../../docs/evaluation/2026-11-05-customer-service/REPORT.md)。
 
 目录首次打开时绑定所用模型（离线脚本或 `提供方/模型`），记录在 `$DIR/model`。持久恢复会回放已记录的模型调用，换模型后旧工单无法续跑，因此同一目录的 `message`、`answer`、`sweep` 须使用相同的 `-live` 与模型配置，否则命令直接报错；要换模型请换用新目录。`show` 只读，不检查模型。
 

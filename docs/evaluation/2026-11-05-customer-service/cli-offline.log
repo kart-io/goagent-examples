@@ -1,0 +1,96 @@
+$ cs message -dir $DIR -now 2026-11-05T08:00:00Z -id m1 -customer c-1001 -text 订单 A1002 申请退款 800 元
+{"body":"订单 A1002 申请退款 80000 分（CNY），争议原因：金额 80000 分超过自动退款上限 50000 分。请在 2026-11-07T08:00:00Z 前作答。","event":"notify","key":"9cea5d04d065a03f12af023c06d7344caaabb30070f4961cde2e1e40ec8d8d39/lead-1","kind":"approval_request","title":"退款审核","to":"lead-1"}
+{"body":"订单 A1002 申请退款 80000 分（CNY），争议原因：金额 80000 分超过自动退款上限 50000 分。请在 2026-11-07T08:00:00Z 前作答。","event":"notify","key":"9cea5d04d065a03f12af023c06d7344caaabb30070f4961cde2e1e40ec8d8d39/fin-1","kind":"approval_request","title":"退款审核","to":"fin-1"}
+{"body":"订单 A1002 申请退款 80000 分（CNY），争议原因：金额 80000 分超过自动退款上限 50000 分。请在 2026-11-07T08:00:00Z 前作答。","event":"notify","key":"9cea5d04d065a03f12af023c06d7344caaabb30070f4961cde2e1e40ec8d8d39/fin-2","kind":"approval_request","title":"退款审核","to":"fin-2"}
+{
+  "ticket_id": "tk-m1",
+  "status": "waiting_review",
+  "action": "started"
+}
+
+$ cs show -dir $DIR -ticket tk-m1
+{
+  "ticket_id": "tk-m1",
+  "customer_id": "c-1001",
+  "status": "waiting_review",
+  "run_id": "tk-m1#1",
+  "round": 1,
+  "wait_id": "refund-review",
+  "wait_key": "9cea5d04d065a03f12af023c06d7344caaabb30070f4961cde2e1e40ec8d8d39",
+  "deadline": "2026-11-07T08:00:00Z",
+  "approvers": [
+    {
+      "ID": "lead-1",
+      "Name": "客服组长"
+    },
+    {
+      "ID": "fin-1",
+      "Name": "财务一"
+    },
+    {
+      "ID": "fin-2",
+      "Name": "财务二"
+    }
+  ],
+  "outbox": [
+    {
+      "key": "9cea5d04d065a03f12af023c06d7344caaabb30070f4961cde2e1e40ec8d8d39/lead-1",
+      "channel": "notify",
+      "status": "sent",
+      "attempts": 1
+    },
+    {
+      "key": "9cea5d04d065a03f12af023c06d7344caaabb30070f4961cde2e1e40ec8d8d39/fin-1",
+      "channel": "notify",
+      "status": "sent",
+      "attempts": 1
+    },
+    {
+      "key": "9cea5d04d065a03f12af023c06d7344caaabb30070f4961cde2e1e40ec8d8d39/fin-2",
+      "channel": "notify",
+      "status": "sent",
+      "attempts": 1
+    }
+  ]
+}
+
+$ cs answer -dir $DIR -now 2026-11-05T09:00:00Z -ticket tk-m1 -approver fin-1 -approve -note 核实无误
+{"body":"已退款 80000 分，回执 demo-refund-14e8f15f1559f65b728b52a36e49655949497231a7d33206932b3b9e359a65ed","event":"notify","key":"tk-m1#1/final","kind":"customer_reply","title":"客服回复","to":"c-1001"}
+{
+  "ticket_id": "tk-m1",
+  "status": "delivered"
+}
+
+$ cs message -dir $DIR -now 2026-11-05T10:00:00Z -id m2 -customer c-1001 -text 我要退款 30 元
+{"body":"请提供需要退款的订单号","event":"notify","key":"09854d51d48469c965391f9c248f2b6fb720695da914b1d2bf2209139554bd60","kind":"customer_question","title":"需要您补充信息","to":"c-1001"}
+{
+  "ticket_id": "tk-m2",
+  "status": "waiting_customer",
+  "action": "started"
+}
+
+$ cs message -dir $DIR -now 2026-11-05T10:01:00Z -id m3 -customer c-1001 -text 订单号 A1001
+{"body":"已退款 3000 分，回执 demo-refund-2cec2e172a045d0aa978ab7443363477cc1b092fbbfd98beb1bfed297ecf1965","event":"notify","key":"tk-m2#1/final","kind":"customer_reply","title":"客服回复","to":"c-1001"}
+{
+  "ticket_id": "tk-m2",
+  "status": "delivered",
+  "action": "answered"
+}
+
+$ cs message -dir $DIR -now 2026-11-05T11:00:00Z -id m4 -customer c-2002 -text 订单 A2001 申请退款 30 元，我要投诉
+{"body":"订单 A2001 申请退款 3000 分（CNY），争议原因：Agent 标记有争议：客户表示要投诉。请在 2026-11-07T11:00:00Z 前作答。","event":"notify","key":"141e89c9451d807f1e4d6a43dd5bc7a80a2cfc2852bdb536905af4b6612862d5/lead-1","kind":"approval_request","title":"退款审核","to":"lead-1"}
+{
+  "ticket_id": "tk-m4",
+  "status": "waiting_review",
+  "action": "started"
+}
+
+$ cs sweep -dir $DIR -now 2026-11-07T11:00:00Z
+{"body":"审核超时，按拒绝处理，未退款","event":"notify","key":"tk-m4#1/final","kind":"customer_reply","title":"客服回复","to":"c-2002"}
+{
+  "advanced": 0,
+  "resolved": 0,
+  "reminded": 0,
+  "timed_out": 1
+}
+
