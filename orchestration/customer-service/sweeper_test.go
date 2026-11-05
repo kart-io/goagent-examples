@@ -408,3 +408,51 @@ func TestCustomerAnswerSurvivesResumeFailure(t *testing.T) {
 		finished(t, e, id)
 	})
 }
+
+func TestPendingAnswerBoundToItsAsk(t *testing.T) {
+	pending := func(t *testing.T, e *hostEnv, id, ticketID, text string) {
+		_, err := e.host.ledger.db.Exec("INSERT INTO ticket_messages VALUES (?, ?, (SELECT COALESCE(MAX(seq),0)+1 FROM ticket_messages), ?, ?)",
+			id, ticketID, text, answerPending)
+		require.NoError(t, err)
+	}
+	handled := func(t *testing.T, e *hostEnv, id string) int {
+		var n int
+		require.NoError(t, e.host.ledger.db.QueryRow("SELECT handled FROM ticket_messages WHERE message_id = ?", id).Scan(&n))
+		return n
+	}
+	t.Run("遗留的待确认回答不用于新追问", func(t *testing.T) {
+		e := newHostEnv(t, nil)
+		r := e.message("m1", "c-1001", "我要退款 30 元")
+		row := e.row(r.TicketID)
+		snap, err := e.host.graph.Snapshot(context.Background(), row.RunID)
+		require.NoError(t, err)
+		require.Len(t, snap.Interrupts, 1)
+		// 构造：上一个追问已续跑成功但没来得及记为已处理，留下待确认回答；运行随后发起的追问被首次观察到。
+		_, err = e.host.ledger.db.Exec("DELETE FROM events WHERE event_key = ?", row.WaitKey)
+		require.NoError(t, err)
+		pending(t, e, "old", r.TicketID, "订单号是 A1003")
+		require.NoError(t, e.host.wait(context.Background(), row, snap.Interrupts[0]))
+		require.Equal(t, 1, handled(t, e, "old"), "首次登记新追问时，此前的待确认回答记为已处理")
+
+		e.message("m2", "c-1001", "订单号是 A1001")
+		require.Zero(t, e.refunds("A1003"), "旧回答不被用于新追问")
+		require.Equal(t, 1, e.refunds("A1001"))
+	})
+	t.Run("续跑期间到达的新回答不被吞掉", func(t *testing.T) {
+		e := newHostEnv(t, nil)
+		r := e.message("m1", "c-1001", "我要退款 30 元")
+		var once sync.Once
+		var insertErr error
+		e.store.arm(func(*durable.Snapshot) bool { // 续跑的第一次保存时插入一条更晚的待确认回答
+			once.Do(func() {
+				_, insertErr = e.host.ledger.db.Exec("INSERT INTO ticket_messages VALUES ('fresh', ?, (SELECT COALESCE(MAX(seq),0)+1 FROM ticket_messages), '订单号是 A1003', ?)",
+					r.TicketID, answerPending)
+			})
+			return false
+		})
+		e.message("m2", "c-1001", "订单号是 A1001")
+		require.NoError(t, insertErr)
+		require.Equal(t, 1, handled(t, e, "m2"))
+		require.Equal(t, answerPending, handled(t, e, "fresh"), "只把序号不晚于所用回答的待确认消息记为已处理")
+	})
+}

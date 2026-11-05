@@ -360,12 +360,14 @@ func (h *Host) resume(ctx context.Context, row ticketRow, input json.RawMessage)
 }
 
 // answerCustomer 以最早一条待确认的回答回应追问；没有待确认的回答时返回 false。
-// 回答固定（续跑成功、本次后到，或续跑失败但中断已记下回答）后，该工单的待确认回答都记为已处理：
-// 中断只采用第一个被接受的回答，与后到的回答一样不再生效。回答未固定时保持待确认，供重投或扫描重试。
+// 回答固定（续跑成功、本次后到，或续跑失败但中断已记下回答）后，序号不晚于它的待确认回答都记为已处理：
+// 中断只采用第一个被接受的回答，与后到的回答一样不再生效；续跑期间为新追问到达的回答不受影响。
+// 回答未固定时保持待确认，供重投或扫描重试。
 func (h *Host) answerCustomer(ctx context.Context, row ticketRow) (bool, error) {
 	var text string
-	err := h.ledger.db.QueryRowContext(ctx, "SELECT text FROM ticket_messages WHERE ticket_id = ? AND handled = ? ORDER BY seq LIMIT 1",
-		row.ID, answerPending).Scan(&text)
+	var seq int64
+	err := h.ledger.db.QueryRowContext(ctx, "SELECT text, seq FROM ticket_messages WHERE ticket_id = ? AND handled = ? ORDER BY seq LIMIT 1",
+		row.ID, answerPending).Scan(&text, &seq)
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
 	}
@@ -388,7 +390,7 @@ func (h *Host) answerCustomer(ctx context.Context, row ticketRow) (bool, error) 
 		fixed = answered
 	}
 	if fixed {
-		_, err = h.ledger.db.ExecContext(ctx, "UPDATE ticket_messages SET handled = 1 WHERE ticket_id = ? AND handled = ?", row.ID, answerPending)
+		_, err = h.ledger.db.ExecContext(ctx, "UPDATE ticket_messages SET handled = 1 WHERE ticket_id = ? AND handled = ? AND seq <= ?", row.ID, answerPending, seq)
 	}
 	return true, errors.Join(runErr, err)
 }
@@ -484,6 +486,10 @@ func (h *Host) wait(ctx context.Context, row ticketRow, p workflow.InterruptPoin
 			return err // 并发时另一方已登记名单并发出消息，不再通知未持久化名单里的人
 		}
 		if p.ID != reviewInterrupt {
+			// 待确认回答只会在工单等待追问时写入，此刻还在的都属于更早的追问（续跑成功但未记为已处理），不能用于新追问。
+			if _, err := tx.ExecContext(ctx, "UPDATE ticket_messages SET handled = 1 WHERE ticket_id = ? AND handled = ?", row.ID, answerPending); err != nil {
+				return err
+			}
 			var q struct {
 				Question string `json:"question"`
 			}
