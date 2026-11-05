@@ -338,3 +338,17 @@ func TestSweepReviewTimesOutWhileApproverUnresolved(t *testing.T) {
 	require.Equal(t, SweepReport{}, e.sweep())
 	require.Len(t, e.sent(support.KindCustomerReply), 1, "超时回复只发一次")
 }
+
+func TestSweepRetriesFailedRegisterWithoutHandoff(t *testing.T) {
+	e := newHostEnv(t, nil)
+	e.host.ledger.beforeCommit = func() error { e.host.ledger.beforeCommit = nil; return errors.New("database is locked") }
+	_, err := e.host.Message(context.Background(), "c-1001", "agent-1", "m1", "订单 A1002 申请退款 800 元")
+	require.ErrorContains(t, err, "database is locked")
+	require.Equal(t, statusRunning, e.row("tk-m1").Status)
+
+	e.clock.Advance(3 * time.Minute)
+	require.Equal(t, 1, e.sweep().Advanced)
+	require.Equal(t, statusWaitingReview, e.row("tk-m1").Status, "登记重跑成功，照常进入审核")
+	require.Len(t, e.sent(support.KindApprovalRequest), 3)
+	require.Empty(t, e.handoff.Transfers(), "不因登记失败按 run_failed 转人工")
+}

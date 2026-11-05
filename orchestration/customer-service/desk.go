@@ -247,8 +247,8 @@ func (d *refundDesk) reconcileExecute(id string) func(context.Context) (json.Raw
 	}
 }
 
-// registerOnce 以持久操作登记：意图只含申请 ID 与提议，不含规则阈值或时间。登记按申请 ID 幂等，
-// 中断（pending 未核对到、或被取消）后可安全重跑。
+// registerOnce 以持久操作登记：意图只含申请 ID 与提议，不含规则阈值或时间。登记按申请 ID 幂等、
+// 重跑从账本读回已固定的判定，因此 pending、取消、上限时间到期与执行失败后都可在尝试次数内安全重跑。
 func (d *refundDesk) registerOnce(ctx context.Context, ticketID, customerID string, p proposal) (registration, error) {
 	id := requestID(ticketID, p.OrderID, p.AmountCents)
 	intent, err := json.Marshal(struct {
@@ -258,7 +258,7 @@ func (d *refundDesk) registerOnce(ctx context.Context, ticketID, customerID stri
 	if err != nil {
 		return registration{}, err
 	}
-	policy := durable.OperationPolicy{MaxAttempts: 3, RetryInterrupted: true, Reconcile: d.reconcileRegister(id)}
+	policy := durable.OperationPolicy{MaxAttempts: 3, RetryFailed: true, Reconcile: d.reconcileRegister(id)}
 	record, err := durable.Do(ctx, "refund/register", intent, policy, func(ctx context.Context) (json.RawMessage, error) {
 		return d.register(ctx, ticketID, customerID, p)
 	})

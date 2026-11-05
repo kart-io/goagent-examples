@@ -302,3 +302,37 @@ func TestExecutePendingReconcileAndOrderChange(t *testing.T) {
 	require.NoError(t, err)
 	require.Zero(t, count)
 }
+
+func TestRegisterRetriesAfterNonCanceledFailure(t *testing.T) {
+	cases := []struct {
+		name, kind string
+		run        func(e *deskEnv) error
+	}{
+		{"执行失败", "execution", func(e *deskEnv) error {
+			e.ledger.beforeCommit = func() error { e.ledger.beforeCommit = nil; return errors.New("database is locked") }
+			_, err := e.desk.registerOnce(e.ctx("v-1"), "t-1", "c-1001", refundOf("A1002", 80000))
+			return err
+		}},
+		{"上限时间到期", "deadline", func(e *deskEnv) error {
+			ctx, cancel := context.WithTimeout(e.ctx("v-1"), 50*time.Millisecond)
+			defer cancel()
+			e.ledger.beforeCommit = func() error { e.ledger.beforeCommit = nil; <-ctx.Done(); return ctx.Err() }
+			_, err := e.desk.registerOnce(ctx, "t-1", "c-1001", refundOf("A1002", 80000))
+			return err
+		}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			e := newDeskEnv(t)
+			require.Error(t, c.run(e))
+			r, err := durable.InspectOperation(e.ctx("v-1"), "refund/register")
+			require.NoError(t, err)
+			require.Equal(t, "failed", r.Status)
+			require.Equal(t, c.kind, r.FailureKind)
+
+			reg := e.register("v-1", "t-1", "c-1001", refundOf("A1002", 80000))
+			require.True(t, reg.Verdict.Disputed, "重跑登记得到真实判定")
+			require.EqualValues(t, 2, e.desk.registers.Load(), "非取消类失败同样在尝试次数内重跑")
+		})
+	}
+}

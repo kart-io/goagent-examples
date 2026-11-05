@@ -18,7 +18,7 @@
 - 飞书消息只经 `httptest` 验证，不接真实发送；命令行用打印型通知。没有真实支付接口，退款写入模拟账本，不转移资金。
 - 默认离线：脚本化模型 `demomodel`；真实模型只经 `-live` 或 `GOAGENT_LIVE=1` 显式开启（沿用 flight-booking 的开关），不进入默认测试。
 - 持久运行 ID 必须等于根预算 `RootKey`（goagent `builder/agent_usage.go:57-61`），同一运行的预算配置在生命周期内不变，预算存储与图存储一起持久化。
-- 执行操作 `refund/execute` 用 `durable.OperationPolicy{MaxAttempts: 3, RetryFailed: true, Reconcile}`，run 先按申请 ID 查回执；登记操作 `refund/register` 用 `{MaxAttempts: 3, RetryInterrupted: true, Reconcile}`，`Reconcile` 只在申请与判定都存在时补记；重跑时找到申请却没有判定必须报错，绝不当作“无争议”。参考实现：goagent `multiagent/refund_fixture_test.go`、`multiagent/scenario_test.go` 的 S5 与 `examples/multi-agent-patterns/main.go`。
+- 执行操作 `refund/execute` 用 `durable.OperationPolicy{MaxAttempts: 3, RetryFailed: true, Reconcile}`，run 先按申请 ID 查回执；登记操作 `refund/register` 同样用 `{MaxAttempts: 3, RetryFailed: true, Reconcile}`（登记按申请 ID 幂等，重跑读回已固定的判定），`Reconcile` 只在申请与判定都存在时补记；重跑时找到申请却没有判定必须报错，绝不当作“无争议”。参考实现：goagent `multiagent/refund_fixture_test.go`、`multiagent/scenario_test.go` 的 S5 与 `examples/multi-agent-patterns/main.go`。
 - Agent 只能把“无争议”升级为“有争议”，不能降级；判定在登记事务内计算一次并固定。
 - 账本是单连接即时写事务：遍历查询结果时不得在同一连接上写；`Authorizer` 只能经当前 refund 事务查询。
 - 语言：文档、注释、测试描述、提交信息、错误文本用简体中文；标识符用英文。错误字符串不得以大写英文单词开头（staticcheck ST1005）。
@@ -2392,8 +2392,8 @@ func (d *refundDesk) reconcileExecute(id string) func(context.Context) (json.Raw
 	}
 }
 
-// registerOnce 以持久操作登记：意图只含申请 ID 与提议，不含规则阈值或时间。登记按申请 ID 幂等，
-// 中断（pending 未核对到、或被取消）后可安全重跑。
+// registerOnce 以持久操作登记：意图只含申请 ID 与提议，不含规则阈值或时间。登记按申请 ID 幂等、
+// 重跑从账本读回已固定的判定，因此 pending、取消、上限时间到期与执行失败后都可在尝试次数内安全重跑。
 func (d *refundDesk) registerOnce(ctx context.Context, ticketID, customerID string, p proposal) (registration, error) {
 	id := requestID(ticketID, p.OrderID, p.AmountCents)
 	intent, err := json.Marshal(struct {
@@ -2403,7 +2403,7 @@ func (d *refundDesk) registerOnce(ctx context.Context, ticketID, customerID stri
 	if err != nil {
 		return registration{}, err
 	}
-	policy := durable.OperationPolicy{MaxAttempts: 3, RetryInterrupted: true, Reconcile: d.reconcileRegister(id)}
+	policy := durable.OperationPolicy{MaxAttempts: 3, RetryFailed: true, Reconcile: d.reconcileRegister(id)}
 	record, err := durable.Do(ctx, "refund/register", intent, policy, func(ctx context.Context) (json.RawMessage, error) {
 		return d.register(ctx, ticketID, customerID, p)
 	})
@@ -5447,7 +5447,7 @@ GOWORK=off go vet ./orchestration/customer-service/... ; echo "exit=$?"
 
 以代码为准；每条都已在草稿仓库中按本计划验证。
 
-1. **执行操作的策略**：规格写 `{MaxAttempts: 3, RetryInterrupted: true, Reconcile}`，代码用 `{MaxAttempts: 3, RetryFailed: true, Reconcile}`。退款事务已提交而调用返回错误（或提交后 ctx 被取消）时记录为 failed，`RetryInterrupted` 只重跑 pending 与 canceled，不重跑 execution 类失败，续跑会卡在操作错误；`RetryFailed` 在尝试次数内重跑全部失败与 pending，由 run 先查回执保证不重复退款。与 goagent 提交 `72a550db`（S5 执行操作启用 RetryFailed）一致。
+1. **执行操作的策略**：规格写 `{MaxAttempts: 3, RetryInterrupted: true, Reconcile}`，代码用 `{MaxAttempts: 3, RetryFailed: true, Reconcile}`。退款事务已提交而调用返回错误（或提交后 ctx 被取消）时记录为 failed，`RetryInterrupted` 只重跑 pending 与 canceled，不重跑 execution 类失败，续跑会卡在操作错误；`RetryFailed` 在尝试次数内重跑全部失败与 pending，由 run 先查回执保证不重复退款。与 goagent 提交 `72a550db`（S5 执行操作启用 RetryFailed）一致。登记操作同样改用 `RetryFailed`：宿主的上限时间（`LockTimeout`）覆盖整个 Run/Resume，登记期间或之后到期（记为 failed/deadline）、或 SQLite 忙超过 5 秒（failed/execution）时，`RetryInterrupted` 不会重跑，下一次续跑返回 `OperationError` 而按 `run_failed` 转人工，尽管申请与判定可能已完整写入；登记按申请 ID 幂等、重跑读回已有判定（缺失时报错），重跑不会重复登记或改变判定。
 2. **Authorizer 的事务**：规格写“`Store.Transaction` 把事务放进 ctx 供其读取”，但 `refund.Service` 调用 `Authorizer.Authorize` 时传入的是自己的 ctx（`workflow/refund/service.go` 的 `Approve` 与 `Refund`），Store 无法注入。代码改为账本在 `Transaction` 内持互斥锁并记下当前事务（`ledger.activeTx()`），Authorizer 经它查询，同样保证同一事务、不另开连接。
 3. **飞书消息 uuid**：规格写“`uuid` 取 `Message.IdempotencyKey`”。中断键是 64 位十六进制，加后缀后超过开放平台 `uuid` 的 50 字符上限，代码在超长时取 `h-` 加摘要（`MessageUUID`），不超过 50 字符时原样使用。上限与约 1 小时去重窗口目前只有第三方教程佐证，接真实飞书前对照官方文档核对。
 4. **新增消息类型 `ops_alert` 与 `review_result`**：规格的 `MessageKind` 只有七种。“审核人解析为空或目录出错时告警运营”需要一种不是用量告警的类型，代码新增 `KindOpsAlert`；告知后到的审核人当前结果新增 `KindReviewResult`（见第 9 条）。
