@@ -6,14 +6,13 @@
 
 ## 依赖
 
-本案例使用 goagent 的 `multiagent` 包与 `refund.Service.OnRegister`，它们尚未包含在 `go.mod` 固定的 goagent 版本中。在仓库根目录用本地工作区联调：
+本案例使用 goagent 的 `multiagent` 包与 `refund.Service.OnRegister`（v0.48.0 起），以及 Gemini 3 工具调用回放修复（v0.48.1）；`go.mod` 固定为 v0.48.1。按 `go.mod` 运行：
 
 ```bash
-make work   # 生成 go.work，指向 ../goagent（已被 .gitignore 忽略）
-go test -race ./orchestration/customer-service/...
+make test-remote   # GOWORK=off go test -race ./...
 ```
 
-goagent 发版后执行 `GOWORK=off go get github.com/kart-io/goagent@<版本>`，`make test-remote` 通过后才能合入 `main`。
+与本地 goagent 联调时用 `make work` 生成 `go.work`（指向 `../goagent`，已被 `.gitignore` 忽略）。
 
 ## 职责划分
 
