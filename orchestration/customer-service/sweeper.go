@@ -84,6 +84,21 @@ func (h *Host) sweepTicket(ctx context.Context, row ticketRow, now time.Time, re
 		if answered || err != nil {
 			return err
 		}
+		readCtx, cancel := context.WithTimeout(ctx, h.cfg.LockTimeout)
+		_, fixed, err := durable.InterruptAnswer(readCtx, h.cfg.Store, row.WaitKey, askInterrupt)
+		cancel()
+		if err != nil {
+			return err
+		}
+		if fixed {
+			// 回答已固定而工单仍停在等待追问（推进到上限时间或被取消，未写回）：停滞后重推，不按超时处理。
+			last, err := time.Parse(time.RFC3339Nano, row.LastProgress)
+			if err != nil || now.Sub(last) < h.cfg.StaleAfter {
+				return err
+			}
+			report.Advanced++
+			return h.advance(ctx, row, nil)
+		}
 		deadline, err := time.Parse(time.RFC3339, row.Deadline)
 		if err != nil || now.Before(deadline) {
 			return err

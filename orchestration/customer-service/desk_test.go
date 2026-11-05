@@ -22,6 +22,7 @@ type faultStore struct {
 	durable.Store
 	mu    sync.Mutex
 	match func(*durable.Snapshot) bool
+	errv  error // 非空时以它代替 errInjected 返回，如模拟上限时间到期
 }
 
 func (s *faultStore) arm(match func(*durable.Snapshot) bool) {
@@ -37,6 +38,9 @@ func (s *faultStore) Save(ctx context.Context, id string, snap *durable.Snapshot
 		s.match = nil
 	}
 	s.mu.Unlock()
+	if hit && s.errv != nil {
+		return s.errv
+	}
 	if hit {
 		return errInjected
 	}

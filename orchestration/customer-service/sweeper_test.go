@@ -456,3 +456,25 @@ func TestPendingAnswerBoundToItsAsk(t *testing.T) {
 		require.Equal(t, answerPending, handled(t, e, "fresh"), "只把序号不晚于所用回答的待确认消息记为已处理")
 	})
 }
+
+func TestSweepRecoversFixedAskAnswerStuckInWaitingCustomer(t *testing.T) {
+	e := newHostEnv(t, nil)
+	r := e.message("m1", "c-1001", "我要退款 30 元")
+	e.store.errv = context.DeadlineExceeded // 回答已固定后推进到上限时间：observe 不改写工单
+	e.store.arm(operationSaved("model/turn/1", "pending"))
+	_, err := e.host.Message(context.Background(), "c-1001", "agent-1", "m2", "订单号是 A1001")
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	require.Equal(t, statusWaitingCustomer, e.row(r.TicketID).Status)
+
+	e.clock.Advance(time.Minute)
+	require.Equal(t, SweepReport{}, e.sweep(), "回答已固定但未停滞：交给进行中的推进")
+	e.clock.Advance(2 * time.Minute)
+	require.Equal(t, 1, e.sweep().Advanced, "停滞后以 Run 续跑已固定的回答")
+	require.Equal(t, statusDelivered, e.row(r.TicketID).Status)
+	require.Equal(t, 1, e.refunds("A1001"))
+	require.Len(t, e.sent(support.KindCustomerReply), 1)
+
+	e.clock.Advance(48 * time.Hour)
+	require.Equal(t, SweepReport{}, e.sweep(), "不再超时或重推")
+	require.Len(t, e.sent(support.KindCustomerReply), 1)
+}
