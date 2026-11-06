@@ -133,17 +133,26 @@ func nextRoute(_ context.Context, t Ticket) (string, error) {
 	return t.Route, nil
 }
 
-// finalReply 取分流最后一轮输出中的回复，供 Outcome 为空或 reply 时回复客户。
+// finalReply 取分流最后一轮输出中的回复，供 Outcome 为空或 reply 时回复客户。再派按结束处理时分流
+// 通常只给 route，此时用最近一次成员结论，避免客户已退款却只收到兜底话术。
 func finalReply(t Ticket) string {
+	triageSeen := false
 	for i := len(t.Turns) - 1; i >= 0; i-- {
-		if t.Turns[i].Agent != triageName {
+		turn := t.Turns[i]
+		if turn.Agent != triageName {
+			if triageSeen && turn.Output != "" {
+				return turn.Output
+			}
 			continue
 		}
+		if triageSeen {
+			break
+		}
+		triageSeen = true
 		var d triageDecision
-		if json.Unmarshal([]byte(modelJSON(t.Turns[i].Output)), &d) == nil && d.Reply != "" {
+		if json.Unmarshal([]byte(modelJSON(turn.Output)), &d) == nil && d.Reply != "" {
 			return d.Reply
 		}
-		break
 	}
 	return "您的问题已处理。"
 }

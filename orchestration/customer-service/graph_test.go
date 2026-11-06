@@ -337,3 +337,13 @@ func TestGraphImmediateRedispatchFinishes(t *testing.T) {
 	require.Equal(t, []string{triageName, generalName, triageName}, agentsOf(snap.State))
 	require.Equal(t, "请提供订单号以便查询物流", finalReply(snap.State))
 }
+
+// 分流再派时通常只给 route、不写 reply；按结束处理后应以成员结论回复客户，而不是兜底话术。
+func TestGraphRedispatchWithoutReplyUsesMemberConclusion(t *testing.T) {
+	e := newGraphEnv(t)
+	snap, err := e.start("r1", "c-1001", "订单 A1001 申请退款 30 元，再派退款")
+	require.NoError(t, err)
+	require.True(t, snap.Done)
+	require.Equal(t, 1, e.refundCount("A1001"))
+	require.Contains(t, finalReply(snap.State), "已退款 3000 分")
+}
