@@ -6,7 +6,7 @@
 
 ## 依赖
 
-本案例使用 goagent 的 `multiagent` 包与 `refund.Service.OnRegister`（v0.48.0 起），以及 Gemini 3 工具调用回放修复（v0.48.1）；`go.mod` 固定为 v0.48.1。按 `go.mod` 运行：
+本案例使用 goagent 的 `multiagent` 包与 `refund.Service.OnRegister`（v0.48.0 起），以及 Gemini 3 工具调用回放修复（v0.48.1）；`go.mod` 固定为 v0.49.0。按 `go.mod` 运行：
 
 ```bash
 make test-remote   # GOWORK=off go test -race ./...
