@@ -25,6 +25,7 @@ import (
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/core/observe"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/workflow"
 )
 
@@ -415,7 +416,7 @@ func withSession(ctx context.Context, client *livemodel.Client, dir string, fn f
 			}
 		}
 		switch {
-		case errors.Is(err, durable.ErrApprovalRequired):
+		case errors.Is(err, agentErrors.ErrApprovalRequired):
 			return o, nil
 		case err == nil && (snap == nil || !snap.Done):
 			return o, errors.New("流程没有结束")

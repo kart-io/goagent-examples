@@ -12,6 +12,7 @@ import (
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/multiagent"
 	"github.com/kart-io/goagent/tools"
@@ -128,7 +129,7 @@ func parseTriage(t Ticket, o *builder.AgentOutput) (Ticket, error) {
 // nextRoute 是纯函数；Route 为空时返回包装 ErrInvalidRoute 的错误，经 GuardRoute 进入 Fallback。
 func nextRoute(_ context.Context, t Ticket) (string, error) {
 	if t.Route == "" {
-		return "", fmt.Errorf("%w：分流输出无法解析", multiagent.ErrInvalidRoute)
+		return "", fmt.Errorf("%w：分流输出无法解析", agentErrors.ErrInvalidRoute)
 	}
 	return t.Route, nil
 }

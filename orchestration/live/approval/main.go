@@ -18,6 +18,7 @@ import (
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/workflow"
 )
 
@@ -201,7 +202,7 @@ func Run(ctx context.Context, client *livemodel.Client, dir, requestID, approval
 		out.Decision, out.Receipt = snap.State.Decision, snap.State.Receipt
 	}
 	switch {
-	case errors.Is(runErr, durable.ErrApprovalRequired):
+	case errors.Is(runErr, agentErrors.ErrApprovalRequired):
 		out.Status, out.ApprovalKey = "waiting", snap.Key
 		return out, nil
 	case runErr != nil:

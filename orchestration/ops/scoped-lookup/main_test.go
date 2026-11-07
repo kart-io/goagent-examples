@@ -18,6 +18,7 @@ import (
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase/livecasetest"
 	"github.com/kart-io/goagent-examples/orchestration/ops/internal/opscase"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/llm"
 	"github.com/kart-io/goagent/tools"
 	"github.com/stretchr/testify/require"
@@ -302,7 +303,7 @@ func TestScriptedUnofferedTool(t *testing.T) {
 func TestScriptedNestedRejected(t *testing.T) {
 	s := &scripted{parent: []llm.StreamChunk{delegateAll}, mode: "nest"}
 	out, err := run(context.Background(), s.client(), t.TempDir(), options{nest: true})
-	require.ErrorIs(t, err, tools.ErrNestedExecutionLimit)
+	require.ErrorIs(t, err, agentErrors.ErrNestedExecutionLimit)
 	require.Equal(t, [2]int{3, 3}, [2]int{out.LookupsCreated, out.LookupsDone}, "没有创建第 2 层子会话，出错时第 1 层也被清理")
 	require.Equal(t, int64(6), out.NewModelCalls, "主 1 次 + metrics 1 次 + logs、traces 各 2 次")
 	require.Empty(t, s.parentSeen, "错误不交给模型")

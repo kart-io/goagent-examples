@@ -8,11 +8,11 @@ import (
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
+	shared "github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/core/usage"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/llm/constants"
 )
 
 func jsonUnmarshal(b []byte, v any) error { return json.Unmarshal(b, v) }
@@ -177,8 +177,8 @@ func (c *limitedClient) ValidateReasoning(r *llm.CompletionRequest) error {
 // builds the real history, emits usage and applies the same host acceptance as live mode.
 type scriptedModel struct{ role string }
 
-func (*scriptedModel) Provider() constants.Provider { return constants.ProviderOpenAI }
-func (*scriptedModel) ModelName() string            { return "offline-agent-context" }
+func (*scriptedModel) Provider() shared.Provider { return shared.ProviderOpenAI }
+func (*scriptedModel) ModelName() string         { return "offline-agent-context" }
 func (m *scriptedModel) CompleteStream(ctx context.Context, r *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return m.CompleteToolsStream(ctx, r, nil)
 }

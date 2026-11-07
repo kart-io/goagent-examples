@@ -15,6 +15,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/workflow/refund"
 )
 
@@ -153,7 +154,7 @@ type rowQuerier interface {
 
 func notFound(err error) error {
 	if errors.Is(err, sql.ErrNoRows) {
-		return refund.ErrNotFound
+		return agentErrors.ErrRefundNotFound
 	}
 	return err
 }

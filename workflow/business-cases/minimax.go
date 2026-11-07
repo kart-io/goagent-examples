@@ -11,10 +11,10 @@ import (
 	"os"
 	"strings"
 
+	shared "github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/llm/constants"
 )
 
 // This example adapter supports native tools with buffered, final-only output.
@@ -160,8 +160,8 @@ func (m *minimaxCompletion) completeTurn(ctx context.Context, req *llm.Completio
 	return out, nil
 }
 
-func (m *minimaxCompletion) Provider() constants.Provider { return constants.Provider("minimax") }
-func (m *minimaxCompletion) StreamMode() core.StreamMode  { return core.StreamModeFinal }
+func (m *minimaxCompletion) Provider() shared.Provider   { return shared.Provider("minimax") }
+func (m *minimaxCompletion) StreamMode() core.StreamMode { return core.StreamModeFinal }
 func (m *minimaxCompletion) CompleteStream(ctx context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return m.CompleteToolsStream(ctx, req, nil)
 }

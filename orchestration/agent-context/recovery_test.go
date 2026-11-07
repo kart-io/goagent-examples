@@ -7,18 +7,19 @@ import (
 	"reflect"
 	"testing"
 
+	shared "github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/usage"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/llm/constants"
 )
 
 // The network double returns the same late error frame as the native provider;
 // real Builder, budget, tools, read registry and host acceptance still execute.
 type geminiTransport struct{ *transportFunc }
 
-func (*geminiTransport) Provider() constants.Provider { return constants.ProviderGemini }
+func (*geminiTransport) Provider() shared.Provider { return shared.ProviderGemini }
 
 func malformedFrames(err error, emitted bool) <-chan *llm.StreamChunk {
 	ch := make(chan *llm.StreamChunk, 3)
@@ -113,7 +114,7 @@ func TestGeminiMalformedRecoveryCannotBypassRootBudget(t *testing.T) {
 		return malformedFrames(errors.New(`gemini: incomplete or blocked response (finish="MALFORMED_FUNCTION_CALL")`), false), nil
 	}}}
 	result, err := Run(context.Background(), Config{Mode: "pipeline", Dir: t.TempDir(), Client: client, MaxRequests: 1}, DefaultTask())
-	if !errors.Is(err, budget.ErrBudgetExceeded) || calls != 1 || result.Requests != 1 || result.Usage.Root.ReservedRequests != 1 || result.Usage.Root.KnownTokens.TotalTokens != 7 {
+	if !errors.Is(err, agentErrors.ErrModelBudgetExceeded) || calls != 1 || result.Requests != 1 || result.Usage.Root.ReservedRequests != 1 || result.Usage.Root.KnownTokens.TotalTokens != 7 {
 		t.Fatalf("recovery bypassed root budget or lost failure usage: calls=%d requests=%d tokens=%d err=%v", calls, result.Requests, result.Usage.Root.KnownTokens.TotalTokens, err)
 	}
 }

@@ -1,11 +1,11 @@
 module github.com/kart-io/goagent-examples/orchestration/httpagent
 
-go 1.26.0
+go 1.27.0
 
 require (
 	github.com/gorilla/websocket v1.5.3
-	github.com/kart-io/goagent v0.47.0
-	github.com/kart-io/goagent-contrib/httpagent v0.2.0
+	github.com/kart-io/goagent v0.49.3-0.20261107151110-dae60f4779d4
+	github.com/kart-io/goagent-contrib/httpagent v0.2.1-0.20261107151427-7637a02d2a30
 	github.com/stretchr/testify v1.12.1
 )
 

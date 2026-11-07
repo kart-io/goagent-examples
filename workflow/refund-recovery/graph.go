@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/tools"
 	"github.com/kart-io/goagent/workflow"
@@ -147,7 +148,7 @@ func runGraphCLI(ctx context.Context, store durable.Store, ledger *refundLedger,
 	}
 	snapshot, err := run.Run(ctx, id, initial, key)
 	status := "completed"
-	if errors.Is(err, durable.ErrApprovalRequired) {
+	if errors.Is(err, agentErrors.ErrApprovalRequired) {
 		status = "approval_required"
 	} else if err != nil {
 		return err

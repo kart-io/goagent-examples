@@ -11,10 +11,10 @@ import (
 	"os"
 	"strings"
 
+	shared "github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/llm/constants"
 )
 
 // minimax 支持原生工具调用，但只返回一次性完整结果。
@@ -142,7 +142,7 @@ func (m *minimax) completeTurn(ctx context.Context, req *llm.CompletionRequest, 
 	return out, nil
 }
 
-func (m *minimax) Provider() constants.Provider { return constants.Provider("minimax") }
+func (m *minimax) Provider() shared.Provider { return shared.Provider("minimax") }
 func (m *minimax) CompleteStream(ctx context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return m.CompleteToolsStream(ctx, req, nil)
 }

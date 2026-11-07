@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/workflow"
 )
 
@@ -174,7 +174,7 @@ func (s *service) advance(ctx context.Context, o *booking) error {
 	}
 	id := supplierKey(o)
 	snap, err := g.Run(ctx, id, graphState{Revision: o.Revision}, "")
-	if errors.Is(err, durable.ErrApprovalRequired) {
+	if errors.Is(err, agentErrors.ErrApprovalRequired) {
 		key := ""
 		if snap.Node == "choose" && o.SelectionAccepted || snap.Node == "pay" && o.FinalAccepted {
 			key = snap.Key
@@ -183,7 +183,7 @@ func (s *service) advance(ctx context.Context, o *booking) error {
 			_, err = g.Run(ctx, id, graphState{Revision: o.Revision}, key)
 		}
 	}
-	if errors.Is(err, durable.ErrApprovalRequired) || errors.Is(err, errUnknown) {
+	if errors.Is(err, agentErrors.ErrApprovalRequired) || errors.Is(err, errUnknown) {
 		return nil
 	}
 	return err

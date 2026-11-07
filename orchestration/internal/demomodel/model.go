@@ -5,9 +5,9 @@ import (
 	"context"
 	"sync/atomic"
 
+	shared "github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/llm/constants"
 )
 
 // Model counts actual transport entries; replay never enters it.
@@ -16,7 +16,7 @@ type Model struct {
 	Respond func(*llm.CompletionRequest) llm.StreamChunk
 }
 
-func (m *Model) Provider() constants.Provider { return constants.ProviderOpenAI }
+func (m *Model) Provider() shared.Provider { return shared.ProviderOpenAI }
 func (m *Model) CompleteStream(ctx context.Context, r *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
