@@ -16,8 +16,10 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/workflow"
 )
 
@@ -150,23 +152,23 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, p
 		if err := g.AddNode(n, payNode); err != nil {
 			return nil, err
 		}
-		if err := g.AddEdge(n, workflow.END); err != nil {
+		if err := g.AddEdge(n, constants.WorkflowEnd); err != nil {
 			return nil, err
 		}
 	}
-	if err := g.AddEdge(workflow.START, "assess"); err != nil {
+	if err := g.AddEdge(constants.WorkflowStart, "assess"); err != nil {
 		return nil, err
 	}
 	if err := g.AddBranch("assess", func(_ context.Context, r Refund) (string, error) {
 		switch {
 		case r.Decision != "退款":
-			return workflow.END, nil
+			return constants.WorkflowEnd, nil
 		case r.Amount > LargeAmount:
 			return "pay_large", nil
 		default:
 			return "pay_small", nil
 		}
-	}, "pay_small", "pay_large", workflow.END); err != nil {
+	}, "pay_small", "pay_large", constants.WorkflowEnd); err != nil {
 		return nil, err
 	}
 	return g.CompileDurable(ctx, workflow.DurableConfig{Store: store, Version: "approval-v1/" + client.Live.Provider + "/" + client.Live.Model, ApprovalNodes: []string{"pay_large"}})
@@ -201,7 +203,7 @@ func Run(ctx context.Context, client *livemodel.Client, dir, requestID, approval
 		out.Decision, out.Receipt = snap.State.Decision, snap.State.Receipt
 	}
 	switch {
-	case errors.Is(runErr, durable.ErrApprovalRequired):
+	case errors.Is(runErr, agentErrors.ErrApprovalRequired):
 		out.Status, out.ApprovalKey = "waiting", snap.Key
 		return out, nil
 	case runErr != nil:

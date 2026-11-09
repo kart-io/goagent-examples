@@ -11,8 +11,10 @@ import (
 
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/multiagent"
 	"github.com/kart-io/goagent/workflow"
 )
@@ -55,7 +57,7 @@ func (e *graphEnv) resume(runID, key, input string) (*workflow.GraphSnapshot[Tic
 func (e *graphEnv) waitAt(runID, customer, input, id string) workflow.InterruptPoint {
 	e.t.Helper()
 	snap, err := e.start(runID, customer, input)
-	require.ErrorIs(e.t, err, durable.ErrApprovalRequired)
+	require.ErrorIs(e.t, err, agentErrors.ErrApprovalRequired)
 	require.Len(e.t, snap.Interrupts, 1)
 	require.Equal(e.t, id, snap.Interrupts[0].ID)
 	return snap.Interrupts[0]
@@ -240,7 +242,7 @@ func TestGraphGeneralFallbackAndRounds(t *testing.T) {
 	t.Run("轮数超限返回 ErrMaxSteps", func(t *testing.T) {
 		e := newGraphEnv(t)
 		snap, err := e.start("r1", "c-1001", "反复咨询物流")
-		require.ErrorIs(t, err, workflow.ErrMaxSteps)
+		require.ErrorIs(t, err, agentErrors.ErrWorkflowMaxSteps)
 		agents := strings.Join(agentsOf(snap.State), ",")
 		require.Equal(t, maxRounds, strings.Count(agents, generalName)+strings.Count(agents, refundName))
 	})
@@ -316,7 +318,7 @@ func TestParseTriageFinishRequiresMemberConclusion(t *testing.T) {
 	answered := Ticket{Turns: []multiagent.Turn{{Agent: triageName, Output: `{"route":"general"}`}, {Agent: generalName, Output: "配送途中"}}}
 	got, err = parseTriage(answered, &builder.AgentOutput{Result: finish})
 	require.NoError(t, err)
-	require.Equal(t, multiagent.Finish, got.Route)
+	require.Equal(t, constants.MultiagentFinish, got.Route)
 }
 
 func TestGraphInjectedFinishHandsOff(t *testing.T) {

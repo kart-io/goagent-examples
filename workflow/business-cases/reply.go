@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/workflow"
 )
@@ -66,11 +67,11 @@ func replyGraph(ctx context.Context, store durable.Store, backend *demoBackend) 
 		if s.Outcome == "ready" {
 			return "send", nil
 		}
-		return workflow.END, nil
-	}, "send", workflow.END); err != nil {
+		return constants.WorkflowEnd, nil
+	}, "send", constants.WorkflowEnd); err != nil {
 		return nil, err
 	}
-	if err = edges(g, [2]string{workflow.START, "retrieve"}, [2]string{"send", workflow.END}); err != nil {
+	if err = edges(g, [2]string{constants.WorkflowStart, "retrieve"}, [2]string{"send", constants.WorkflowEnd}); err != nil {
 		return nil, err
 	}
 	return g.CompileDurable(ctx, workflow.DurableConfig{Store: store, Version: backend.version("reply-demo-v1")})

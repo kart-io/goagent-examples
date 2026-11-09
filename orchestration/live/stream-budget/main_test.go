@@ -13,7 +13,8 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
 	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
 	"github.com/kart-io/goagent/core"
-	"github.com/kart-io/goagent/core/budget"
+
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
 	"github.com/stretchr/testify/require"
@@ -99,7 +100,7 @@ func TestContendOffline(t *testing.T) {
 			require.Equal(t, tc.children-want, out.Rejected)
 			require.Len(t, out.Errors, tc.children-want)
 			for _, e := range out.Errors {
-				require.ErrorIs(t, e, budget.ErrBudgetExceeded, "失败只能来自预算拒绝")
+				require.ErrorIs(t, e, agentErrors.ErrModelBudgetExceeded, "失败只能来自预算拒绝")
 			}
 			require.Equal(t, int64(want), out.NewModelCalls, "被拒绝的请求不得发出")
 			require.Equal(t, want, out.Budget.ReservedRequests)
@@ -143,7 +144,7 @@ func TestLiveContend(t *testing.T) {
 	require.Equal(t, 2, out.Succeeded)
 	require.Equal(t, 1, out.Rejected)
 	for _, e := range out.Errors {
-		require.True(t, errors.Is(e, budget.ErrBudgetExceeded), e)
+		require.True(t, errors.Is(e, agentErrors.ErrModelBudgetExceeded), e)
 	}
 	require.Equal(t, int64(2), out.NewModelCalls)
 	require.Equal(t, 2, out.Budget.ReservedRequests)

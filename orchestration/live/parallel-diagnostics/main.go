@@ -17,6 +17,7 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/observe"
 	"github.com/kart-io/goagent/devtools"
@@ -114,7 +115,7 @@ func build(client *livemodel.Client) (*workflow.Graph[Incident], error) {
 	}); err != nil {
 		return nil, err
 	}
-	for _, e := range [][2]string{{workflow.START, "diagnose"}, {"diagnose", "summarize"}, {"summarize", workflow.END}} {
+	for _, e := range [][2]string{{constants.WorkflowStart, "diagnose"}, {"diagnose", "summarize"}, {"summarize", constants.WorkflowEnd}} {
 		if err = g.AddEdge(e[0], e[1]); err != nil {
 			return nil, err
 		}

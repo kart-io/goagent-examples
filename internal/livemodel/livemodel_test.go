@@ -9,7 +9,8 @@ import (
 	"github.com/kart-io/goagent/core/usage"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/llm/constants"
+
+	shared "github.com/kart-io/goagent/constants"
 	"github.com/stretchr/testify/require"
 )
 
@@ -64,7 +65,7 @@ type recordingClient struct {
 	seen  []*llm.CompletionRequest
 }
 
-func (r *recordingClient) Provider() constants.Provider { return "fake" }
+func (r *recordingClient) Provider() shared.Provider { return "fake" }
 func (r *recordingClient) CompleteStream(_ context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	r.calls.Add(1)
 	r.seen = append(r.seen, req)

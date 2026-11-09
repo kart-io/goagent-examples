@@ -22,7 +22,8 @@ import (
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/llm/constants"
+
+	shared "github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/llm/providers"
 	"github.com/kart-io/goagent/plugin"
 	"github.com/kart-io/goagent/tools"
@@ -186,7 +187,7 @@ func main() {
 // demoModel 仅脚本化模型响应；Agent、Plugin、工具和传输使用正式实现。
 type demoModel struct{}
 
-func (*demoModel) Provider() constants.Provider { return constants.Provider("offline-demo") }
+func (*demoModel) Provider() shared.Provider { return shared.Provider("offline-demo") }
 func (m *demoModel) CompleteStream(ctx context.Context, r *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return m.CompleteToolsStream(ctx, r, nil)
 }

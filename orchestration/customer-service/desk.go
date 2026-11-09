@@ -13,6 +13,7 @@ import (
 
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/workflow"
 	"github.com/kart-io/goagent/workflow/refund"
 )
@@ -140,7 +141,7 @@ func (d *refundDesk) authorize(ctx context.Context, actor string, req refund.Req
 func (d *refundDesk) register(ctx context.Context, ticketID, customerID string, p proposal) (json.RawMessage, error) {
 	d.registers.Add(1)
 	o, err := d.ledger.order(ctx, p.OrderID)
-	if errors.Is(err, refund.ErrNotFound) || (err == nil && o.CustomerID != customerID) {
+	if errors.Is(err, agentErrors.ErrRefundNotFound) || (err == nil && o.CustomerID != customerID) {
 		return json.Marshal(registration{Rejected: "未找到该订单，请核对订单号"})
 	}
 	if err != nil {

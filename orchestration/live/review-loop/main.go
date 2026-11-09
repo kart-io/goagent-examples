@@ -15,6 +15,7 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/workflow"
@@ -118,7 +119,7 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, w
 	}); err != nil {
 		return nil, err
 	}
-	if err := g.AddEdge(workflow.START, "write"); err != nil {
+	if err := g.AddEdge(constants.WorkflowStart, "write"); err != nil {
 		return nil, err
 	}
 	if err := g.AddEdge("write", "review"); err != nil {
@@ -126,10 +127,10 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, w
 	}
 	if err := g.AddBranch("review", func(_ context.Context, d Doc) (string, error) {
 		if d.Verdict == "通过" || d.Round >= MaxRounds {
-			return workflow.END, nil
+			return constants.WorkflowEnd, nil
 		}
 		return "write", nil
-	}, "write", workflow.END); err != nil {
+	}, "write", constants.WorkflowEnd); err != nil {
 		return nil, err
 	}
 	return g.CompileDurable(ctx, workflow.DurableConfig{Store: store, Version: "review-loop-v1/" + client.Live.Provider + "/" + client.Live.Model})

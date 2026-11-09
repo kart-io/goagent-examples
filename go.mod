@@ -1,13 +1,13 @@
 module github.com/kart-io/goagent-examples
 
-go 1.26.0
+go 1.27.0
 
 require (
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
-	github.com/kart-io/goagent v0.49.0
-	github.com/kart-io/goagent-contrib/acp v0.3.0
+	github.com/kart-io/goagent v0.49.3-0.20261107151110-dae60f4779d4
+	github.com/kart-io/goagent-contrib/acp v0.3.1-0.20261107151427-7637a02d2a30
 	github.com/mattn/go-sqlite3 v1.14.32
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel/sdk v1.47.0

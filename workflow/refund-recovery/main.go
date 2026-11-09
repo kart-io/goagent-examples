@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 )
 
 const crashExitCode = 86
@@ -96,7 +97,7 @@ func runCLI(ctx context.Context, args []string, output io.Writer, crash func()) 
 	}
 	snapshot, err := runner.Run(ctx, *id, initial, *approval)
 	status := "completed"
-	if errors.Is(err, durable.ErrApprovalRequired) {
+	if errors.Is(err, agentErrors.ErrApprovalRequired) {
 		status = "approval_required"
 	} else if err != nil {
 		return err

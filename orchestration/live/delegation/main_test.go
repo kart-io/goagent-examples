@@ -12,7 +12,8 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
 	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/tools"
+
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -106,7 +107,7 @@ func TestScriptedDepthLimit(t *testing.T) {
 	// finance_expert 占第 1 层；限制为 1 后，第 2 层的 fx_convert 必须在执行前被拒。
 	s := &scripted{}
 	out, err := run(context.Background(), s.client(), t.TempDir(), options{expertMaxDepth: 1})
-	require.ErrorIs(t, err, tools.ErrNestedExecutionLimit)
+	require.ErrorIs(t, err, agentErrors.ErrNestedExecutionLimit)
 	require.Zero(t, out.ConvertRuns+out.TaxRuns, "超过深度的工具不得执行")
 	require.Empty(t, s.toolResults(), "错误不交给模型")
 	require.Equal(t, int64(2), out.NewModelCalls, "经理与专家各 1 次后停止")
@@ -117,7 +118,7 @@ func TestScriptedDispatcherReentry(t *testing.T) {
 	// 专家复用经理正在占用的 Dispatcher，会在排队等待槽位之前被拒，而不是死锁。
 	s := &scripted{}
 	out, err := run(context.Background(), s.client(), t.TempDir(), options{shareDispatcher: true})
-	require.ErrorIs(t, err, tools.ErrDispatcherReentry)
+	require.ErrorIs(t, err, agentErrors.ErrDispatcherReentry)
 	require.Zero(t, out.ConvertRuns+out.TaxRuns)
 	require.Empty(t, s.toolResults())
 	require.Equal(t, int64(2), out.NewModelCalls)

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/workflow"
 	"maps"
@@ -40,10 +41,10 @@ func build(ctx context.Context) (core.Runnable[diagnostics, diagnostics], error)
 	}}); err != nil {
 		return nil, err
 	}
-	if err := g.AddEdge(workflow.START, "diagnose"); err != nil {
+	if err := g.AddEdge(constants.WorkflowStart, "diagnose"); err != nil {
 		return nil, err
 	}
-	if err := g.AddEdge("diagnose", workflow.END); err != nil {
+	if err := g.AddEdge("diagnose", constants.WorkflowEnd); err != nil {
 		return nil, err
 	}
 	return g.Compile(ctx)

@@ -16,6 +16,7 @@ import (
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/workflow"
 )
 
@@ -360,7 +361,7 @@ func (h *Host) step(ctx context.Context, row ticketRow, resume *workflow.ResumeR
 // resume 回应工单当前等待的中断。另一方（作答或超时）先到时返回 late 为真，不计为失败，也不改写工单。
 func (h *Host) resume(ctx context.Context, row ticketRow, input json.RawMessage) (late bool, err error) {
 	snap, err := h.step(ctx, row, &workflow.ResumeRequest{Key: row.WaitKey, Input: input})
-	if errors.Is(err, workflow.ErrApprovalMismatch) || errors.Is(err, workflow.ErrInterruptAnswered) {
+	if errors.Is(err, agentErrors.ErrApprovalMismatch) || errors.Is(err, agentErrors.ErrInterruptAnswered) {
 		return true, nil
 	}
 	return false, h.observe(ctx, row, snap, err)
@@ -426,13 +427,13 @@ func (h *Host) observe(ctx context.Context, row ticketRow, snap *workflow.GraphS
 	switch {
 	case runErr == nil && snap != nil && snap.Done:
 		return h.finish(ctx, row, snap.State, "", "")
-	case errors.Is(runErr, durable.ErrApprovalRequired) && snap != nil && len(snap.Interrupts) > 0:
+	case errors.Is(runErr, agentErrors.ErrApprovalRequired) && snap != nil && len(snap.Interrupts) > 0:
 		return h.wait(ctx, row, snap.Interrupts[0])
-	case errors.Is(runErr, workflow.ErrMaxSteps):
+	case errors.Is(runErr, agentErrors.ErrWorkflowMaxSteps):
 		return finishWith(support.ReasonMaxRounds, statusHandoff)
-	case errors.Is(runErr, budget.ErrBudgetExceeded):
+	case errors.Is(runErr, agentErrors.ErrModelBudgetExceeded):
 		return finishWith(support.ReasonMaxRequests, statusHandoff)
-	case errors.Is(runErr, durable.ErrOperationAttention):
+	case errors.Is(runErr, agentErrors.ErrOperationAttention):
 		return finishWith(support.ReasonRunFailed, statusFailed)
 	case errors.Is(runErr, context.DeadlineExceeded) || errors.Is(runErr, context.Canceled):
 		return runErr

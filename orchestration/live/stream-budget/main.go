@@ -19,6 +19,7 @@ import (
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/flow"
+	agentErrors "github.com/kart-io/goagent/errors"
 )
 
 // Report 是需要摘要的合成故障复盘材料。
@@ -163,7 +164,7 @@ func Contend(ctx context.Context, client *livemodel.Client, children, limit int)
 			defer mu.Unlock()
 			if err != nil {
 				out.Errors = append(out.Errors, err)
-				if errors.Is(err, budget.ErrBudgetExceeded) {
+				if errors.Is(err, agentErrors.ErrModelBudgetExceeded) {
 					out.Rejected++
 				}
 				return

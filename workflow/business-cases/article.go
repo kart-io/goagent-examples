@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/workflow"
 )
@@ -97,16 +98,16 @@ func articleGraph(ctx context.Context, store durable.Store, backend *demoBackend
 	if err = g.AddBranch("review", func(_ context.Context, s articleState) (string, error) {
 		switch s.Decision {
 		case "rejected":
-			return workflow.END, nil
+			return constants.WorkflowEnd, nil
 		case "manual_review":
 			return "publish_reviewed", nil
 		default:
 			return "publish", nil
 		}
-	}, workflow.END, "publish_reviewed", "publish"); err != nil {
+	}, constants.WorkflowEnd, "publish_reviewed", "publish"); err != nil {
 		return nil, err
 	}
-	if err = edges(g, [2]string{workflow.START, "review"}, [2]string{"publish", workflow.END}, [2]string{"publish_reviewed", workflow.END}); err != nil {
+	if err = edges(g, [2]string{constants.WorkflowStart, "review"}, [2]string{"publish", constants.WorkflowEnd}, [2]string{"publish_reviewed", constants.WorkflowEnd}); err != nil {
 		return nil, err
 	}
 	return g.CompileDurable(ctx, workflow.DurableConfig{Store: store, Version: backend.version("article-demo-v1"), ApprovalNodes: []string{"publish_reviewed"}})

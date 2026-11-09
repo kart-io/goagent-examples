@@ -10,8 +10,10 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/multiagent"
 	"github.com/kart-io/goagent/tools"
@@ -111,13 +113,13 @@ func parseTriage(t Ticket, o *builder.AgentOutput) (Ticket, error) {
 	}
 	t = appendTurn(t, triageName, text)
 	var d triageDecision
-	if err := json.Unmarshal([]byte(modelJSON(text)), &d); err != nil || d.Route == "" || (d.Route == multiagent.Finish && !concluded) {
+	if err := json.Unmarshal([]byte(modelJSON(text)), &d); err != nil || d.Route == "" || (d.Route == constants.MultiagentFinish && !concluded) {
 		t.Route = ""
 		return t, nil
 	}
 	t.Route = d.Route
 	if d.Route == last {
-		t.Route = multiagent.Finish
+		t.Route = constants.MultiagentFinish
 	}
 	if d.Intent != "" {
 		t.Intent = d.Intent
@@ -128,7 +130,7 @@ func parseTriage(t Ticket, o *builder.AgentOutput) (Ticket, error) {
 // nextRoute 是纯函数；Route 为空时返回包装 ErrInvalidRoute 的错误，经 GuardRoute 进入 Fallback。
 func nextRoute(_ context.Context, t Ticket) (string, error) {
 	if t.Route == "" {
-		return "", fmt.Errorf("%w：分流输出无法解析", multiagent.ErrInvalidRoute)
+		return "", fmt.Errorf("%w：分流输出无法解析", agentErrors.ErrInvalidRoute)
 	}
 	return t.Route, nil
 }

@@ -22,9 +22,11 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/ops/internal/opscase"
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/core/observe"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/workflow"
 )
 
@@ -296,7 +298,7 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, a
 	router := func(_ context.Context, r Review) (string, error) {
 		switch {
 		case r.Status == "rejected":
-			return workflow.END, nil
+			return constants.WorkflowEnd, nil
 		case r.Verdict == nil:
 			return "review", nil
 		case r.Ticket.Env == "test" && r.RuleVerdict == "pass" && r.Verdict.Decision == "approve" && r.Verdict.RiskLevel == "low":
@@ -307,10 +309,10 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, a
 	g := workflow.NewGraph[Review]()
 	if err := errors.Join(
 		g.AddNode("gate", gate), g.AddNode("review", review), g.AddNode("apply", apply), g.AddNode("apply_approved", apply),
-		g.AddEdge(workflow.START, "gate"),
-		g.AddBranch("gate", router, "review", workflow.END),
-		g.AddBranch("review", router, "apply", "apply_approved", workflow.END),
-		g.AddEdge("apply", workflow.END), g.AddEdge("apply_approved", workflow.END),
+		g.AddEdge(constants.WorkflowStart, "gate"),
+		g.AddBranch("gate", router, "review", constants.WorkflowEnd),
+		g.AddBranch("review", router, "apply", "apply_approved", constants.WorkflowEnd),
+		g.AddEdge("apply", constants.WorkflowEnd), g.AddEdge("apply_approved", constants.WorkflowEnd),
 	); err != nil {
 		return nil, err
 	}
@@ -415,7 +417,7 @@ func withSession(ctx context.Context, client *livemodel.Client, dir string, fn f
 			}
 		}
 		switch {
-		case errors.Is(err, durable.ErrApprovalRequired):
+		case errors.Is(err, agentErrors.ErrApprovalRequired):
 			return o, nil
 		case err == nil && (snap == nil || !snap.Done):
 			return o, errors.New("流程没有结束")

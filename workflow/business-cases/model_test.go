@@ -6,10 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/llm/constants"
+
+	shared "github.com/kart-io/goagent/constants"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,14 +32,14 @@ func (f completionFunc) CompleteStream(ctx context.Context, req *llm.CompletionR
 	close(stream)
 	return stream, nil
 }
-func (completionFunc) Provider() constants.Provider { return constants.ProviderCustom }
+func (completionFunc) Provider() shared.Provider { return shared.ProviderCustom }
 
 type decisionStreamFunc func(context.Context, *llm.CompletionRequest) (<-chan *llm.StreamChunk, error)
 
 func (f decisionStreamFunc) CompleteStream(ctx context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return f(ctx, req)
 }
-func (decisionStreamFunc) Provider() constants.Provider { return constants.ProviderCustom }
+func (decisionStreamFunc) Provider() shared.Provider { return shared.ProviderCustom }
 
 // 完整 JSON 也不能使缺少成功终态或带终态错误的流触发业务副作用。
 func TestModelDecisionRequiresSuccessfulStreamTermination(t *testing.T) {
@@ -218,7 +219,7 @@ func TestFailedDecisionPersistsUsageAndStopsPaidReplay(t *testing.T) {
 	graph, err = replyGraph(ctx, store, b)
 	require.NoError(t, err)
 	_, err = graph.Run(ctx, "failed", replyState{}, "")
-	require.ErrorIs(t, err, durable.ErrOperationAttention)
+	require.ErrorIs(t, err, agentErrors.ErrOperationAttention)
 	require.Zero(t, b.model.calls.Load())
 	require.Equal(t, 73, b.model.last.Load().Usage.TotalTokens)
 	noEffect(t, b, "send_reply", "failed")

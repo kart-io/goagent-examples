@@ -9,6 +9,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/session"
@@ -93,10 +94,10 @@ func (h *host) graph(ctx context.Context, parallel bool) ([]Accepted, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err = g.AddEdge(workflow.START, "experts"); err != nil {
+		if err = g.AddEdge(constants.WorkflowStart, "experts"); err != nil {
 			return nil, err
 		}
-		if err = g.AddEdge("experts", workflow.END); err != nil {
+		if err = g.AddEdge("experts", constants.WorkflowEnd); err != nil {
 			return nil, err
 		}
 	} else {
@@ -119,13 +120,13 @@ func (h *host) graph(ctx context.Context, parallel bool) ([]Accepted, error) {
 				return "", fmt.Errorf("no eligible itinerary")
 			}
 			if s.Reports[0].Report.Conclusion != "feasible" {
-				return workflow.END, nil
+				return constants.WorkflowEnd, nil
 			}
 			return "budget", nil
-		}, "budget", workflow.END); err != nil {
+		}, "budget", constants.WorkflowEnd); err != nil {
 			return nil, err
 		}
-		for _, edge := range [][2]string{{workflow.START, "itinerary"}, {"budget", workflow.END}} {
+		for _, edge := range [][2]string{{constants.WorkflowStart, "itinerary"}, {"budget", constants.WorkflowEnd}} {
 			if err = g.AddEdge(edge[0], edge[1]); err != nil {
 				return nil, err
 			}

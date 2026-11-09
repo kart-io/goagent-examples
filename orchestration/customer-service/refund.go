@@ -15,11 +15,11 @@ import (
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/multiagent"
 	"github.com/kart-io/goagent/tools"
 	"github.com/kart-io/goagent/workflow"
-	"github.com/kart-io/goagent/workflow/refund"
 )
 
 // sessionCleanupTimeout 是关闭退款 Agent 会话的上限，与 goagent multiagent 的会话清理时限一致。
@@ -50,7 +50,7 @@ func orderTool(l *ledger) (interfaces.Tool, error) {
 		WithFunction(func(ctx context.Context, args map[string]any) (any, error) {
 			id, _ := args["order_id"].(string)
 			o, err := l.order(ctx, id)
-			if errors.Is(err, refund.ErrNotFound) || (err == nil && o.CustomerID != customerFrom(ctx)) {
+			if errors.Is(err, agentErrors.ErrRefundNotFound) || (err == nil && o.CustomerID != customerFrom(ctx)) {
 				return "未找到该订单", nil
 			}
 			if err != nil {
