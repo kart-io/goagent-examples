@@ -1,0 +1,4 @@
+运行案例：cross
+远端 Agent 请求：任务需要补充输入：{"prompt":"请补充发布说明"}
+请输入审批决定 approve 或 reject：
+[{"case":"cross","task_id":"cda71843-4123-4e6a-967b-0f95c239d76f","state":"succeeded","result":{"decision":"reject","message":"示例发布请求","reply":"先不发布","result":"用户拒绝，未执行模拟发布","scenario":"review"}}]

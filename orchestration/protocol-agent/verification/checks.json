@@ -1,0 +1,12 @@
+{
+  "verified_at": "2026-11-09T06:21:17.500082+00:00",
+  "race_exit": 0,
+  "build_exit": 0,
+  "vet_exit": 0,
+  "lint_exit": 0,
+  "coverage_percent": 76.5,
+  "independent_review": "passed_static",
+  "existing_modified_files_preserved": 84,
+  "source_dependency": "../../../goagent",
+  "committed": false
+}

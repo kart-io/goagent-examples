@@ -1,0 +1,1 @@
+ok  	github.com/kart-io/goagent-examples/orchestration/protocol-agent	1.915s	coverage: 76.5% of statements

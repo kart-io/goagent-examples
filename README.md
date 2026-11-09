@@ -20,6 +20,7 @@
 | [orchestration/plugin](orchestration/plugin/basic/README.md) | Agent 能力包：组合与冲突、循环钩子、资源与依赖、持久运行的客服端到端 |
 | [orchestration/acp](orchestration/acp/README.md) | 以 ACP Agent 身份在 Zed 等编辑器中运行：工具通知、执行命令前审批、文件与终端经编辑器 |
 | [orchestration/httpagent](orchestration/httpagent/SCENARIOS.md) | 独立模块：Web页面、JSON/SSE/WS客户端、取消、双向Webhook与Hooks；固定已推送扩展提交，可独立运行 |
+| [orchestration/protocol-agent](orchestration/protocol-agent/README.md) | 独立模块：A2A/MCP/HTTP 共用任务，跨入口输入与审批、检查点换连接续接、远端 Agent 工具与流式取消；使用同级 goagent 工作树 |
 | `orchestration/` 其余目录 | 子 Agent 工具化、组合订单、上下文恢复、字段适配、并行诊断、Runnable 工具、流式管道 |
 | [agent-usage](agent-usage/README.md) | Token 统计：单 Agent、父子协作、多平台同任务、推理明细、失败／取消与持久回放；含真实调用与完整验证报告 |
 | `internal/livemodel` | 真实模型客户端的构造与用量记录，供各案例共用 |

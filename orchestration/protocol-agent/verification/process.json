@@ -1,0 +1,7 @@
+{
+  "separate_process_cases": 4,
+  "approve": "passed",
+  "reject": "passed",
+  "unauthorized_exit": 1,
+  "server_signal_exit": 0
+}

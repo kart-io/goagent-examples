@@ -1,0 +1,10 @@
+运行案例：cross
+远端 Agent 请求：任务需要补充输入：{"prompt":"请补充发布说明"}
+合成案例预设决定：approve（仅模拟，不执行外部发布）
+运行案例：mcp
+远端 Agent 请求：任务需要补充输入：{"prompt":"请补充发布说明"}
+合成案例预设决定：approve（仅模拟，不执行外部发布）
+运行案例：remote
+运行案例：cancel
+收到流式首事件：task_id=011b0e72-92ac-4e07-a538-1e623beccaeb state=TASK_STATE_SUBMITTED
+[{"case":"cross","task_id":"f40bc0d1-9e12-4df0-b332-e528b66c77b1","state":"succeeded","result":{"decision":"approve","message":"示例发布请求","reply":"离线合成发布说明","result":"模拟发布完成：示例发布请求；说明：离线合成发布说明","scenario":"review"}},{"case":"mcp","task_id":"b5a0bdc4-2d16-4fc1-ba7e-c9f92af88baa","state":"succeeded","result":{"decision":"approve","message":"MCP发布请求","reply":"离线合成发布说明","result":"模拟发布完成：MCP发布请求；说明：离线合成发布说明","scenario":"review"}},{"case":"remote","task_id":"edc47873-b548-4671-a2d1-3d5ffe75d0fa","state":"succeeded","result":{"message":"来自调用方的业务请求","result":"远端 Agent 已处理：来自调用方的业务请求","scenario":"echo"}},{"case":"cancel","task_id":"011b0e72-92ac-4e07-a538-1e623beccaeb","state":"canceled"}]
