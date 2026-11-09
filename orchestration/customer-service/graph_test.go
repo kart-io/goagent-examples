@@ -11,6 +11,7 @@ import (
 
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	agentErrors "github.com/kart-io/goagent/errors"
@@ -317,7 +318,7 @@ func TestParseTriageFinishRequiresMemberConclusion(t *testing.T) {
 	answered := Ticket{Turns: []multiagent.Turn{{Agent: triageName, Output: `{"route":"general"}`}, {Agent: generalName, Output: "配送途中"}}}
 	got, err = parseTriage(answered, &builder.AgentOutput{Result: finish})
 	require.NoError(t, err)
-	require.Equal(t, multiagent.Finish, got.Route)
+	require.Equal(t, constants.MultiagentFinish, got.Route)
 }
 
 func TestGraphInjectedFinishHandsOff(t *testing.T) {

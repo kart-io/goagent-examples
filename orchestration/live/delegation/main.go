@@ -19,6 +19,7 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/interfaces"
@@ -86,7 +87,7 @@ func convertTool(c *counters) (interfaces.Tool, error) {
 	if err := g.AddNode("multiply", func(_ context.Context, v conv) (conv, error) { v.CNY = round2(v.Amount * v.Rate); return v, nil }); err != nil {
 		return nil, err
 	}
-	for _, e := range [][2]string{{workflow.START, "rate"}, {"rate", "multiply"}, {"multiply", workflow.END}} {
+	for _, e := range [][2]string{{constants.WorkflowStart, "rate"}, {"rate", "multiply"}, {"multiply", constants.WorkflowEnd}} {
 		if err := g.AddEdge(e[0], e[1]); err != nil {
 			return nil, err
 		}

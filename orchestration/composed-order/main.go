@@ -13,6 +13,7 @@ import (
 	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/builder/contextpolicy"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/core/observe"
@@ -73,10 +74,10 @@ func run(ctx context.Context, dir string) (result, error) {
 	if err = rules.AddNode("refund_rule", func(_ context.Context, n int) (int, error) { return n + 30, nil }); err != nil {
 		return out, err
 	}
-	if err = rules.AddEdge(workflow.START, "refund_rule"); err != nil {
+	if err = rules.AddEdge(constants.WorkflowStart, "refund_rule"); err != nil {
 		return out, err
 	}
-	if err = rules.AddEdge("refund_rule", workflow.END); err != nil {
+	if err = rules.AddEdge("refund_rule", constants.WorkflowEnd); err != nil {
 		return out, err
 	}
 	ruleRun, err := rules.Compile(ctx)

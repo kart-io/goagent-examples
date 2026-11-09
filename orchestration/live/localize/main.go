@@ -19,6 +19,7 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/interfaces"
@@ -202,10 +203,10 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, g
 	}); err != nil {
 		return nil, err
 	}
-	if err = g.AddEdge(workflow.START, "localize"); err != nil {
+	if err = g.AddEdge(constants.WorkflowStart, "localize"); err != nil {
 		return nil, err
 	}
-	if err = g.AddEdge("localize", workflow.END); err != nil {
+	if err = g.AddEdge("localize", constants.WorkflowEnd); err != nil {
 		return nil, err
 	}
 	return g.CompileDurable(ctx, workflow.DurableConfig{Store: store, Version: "localize-v1/" + client.Live.Provider + "/" + client.Live.Model})

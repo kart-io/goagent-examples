@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/workflow"
 )
@@ -101,11 +102,11 @@ func devopsGraph(ctx context.Context, store durable.Store, backend *demoBackend)
 		if s.Outcome == "restart_required" {
 			return "restart", nil
 		}
-		return workflow.END, nil
-	}, "restart", workflow.END); err != nil {
+		return constants.WorkflowEnd, nil
+	}, "restart", constants.WorkflowEnd); err != nil {
 		return nil, err
 	}
-	if err = edges(g, [2]string{workflow.START, "inspect"}, [2]string{"inspect", "diagnose"}, [2]string{"restart", "verify"}, [2]string{"verify", workflow.END}); err != nil {
+	if err = edges(g, [2]string{constants.WorkflowStart, "inspect"}, [2]string{"inspect", "diagnose"}, [2]string{"restart", "verify"}, [2]string{"verify", constants.WorkflowEnd}); err != nil {
 		return nil, err
 	}
 	return g.CompileDurable(ctx, workflow.DurableConfig{Store: store, Version: backend.version("devops-demo-v1"), ApprovalNodes: []string{"restart"}})

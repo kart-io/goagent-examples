@@ -8,6 +8,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/durable"
 	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
@@ -121,7 +122,7 @@ func newRefundGraph(ctx context.Context, store durable.Store, ledger *refundLedg
 	}, "issue_refund", "prepare"); err != nil {
 		return nil, err
 	}
-	for _, edge := range [][2]string{{workflow.START, "restore_request"}, {"prepare", "register_refund"}, {"register_refund", "issue_refund"}, {"issue_refund", workflow.END}} {
+	for _, edge := range [][2]string{{constants.WorkflowStart, "restore_request"}, {"prepare", "register_refund"}, {"register_refund", "issue_refund"}, {"issue_refund", constants.WorkflowEnd}} {
 		if err = g.AddEdge(edge[0], edge[1]); err != nil {
 			return nil, err
 		}

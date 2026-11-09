@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/kart-io/goagent/builder"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
@@ -57,10 +58,10 @@ func nativeLoopGraph(ctx context.Context, store durable.Store, b *demoBackend, c
 	if err = graph.AddRunnable("agent", node); err != nil {
 		return nil, err
 	}
-	if err = graph.AddEdge(workflow.START, "agent"); err != nil {
+	if err = graph.AddEdge(constants.WorkflowStart, "agent"); err != nil {
 		return nil, err
 	}
-	if err = graph.AddEdge("agent", workflow.END); err != nil {
+	if err = graph.AddEdge("agent", constants.WorkflowEnd); err != nil {
 		return nil, err
 	}
 	return graph.CompileDurable(ctx, workflow.DurableConfig{Store: store, Version: "native-loop-v3/" + version})

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/workflow"
 	"github.com/kart-io/goagent/workflow/refund"
@@ -37,7 +38,7 @@ func newRunner(ctx context.Context, store durable.Store, ledger *refundLedger, a
 	}); err != nil {
 		return nil, err
 	}
-	for _, edge := range [][2]string{{workflow.START, "lookup_order"}, {"lookup_order", "check_policy"}, {"check_policy", workflow.END}} {
+	for _, edge := range [][2]string{{constants.WorkflowStart, "lookup_order"}, {"lookup_order", "check_policy"}, {"check_policy", constants.WorkflowEnd}} {
 		if err := g.AddEdge(edge[0], edge[1]); err != nil {
 			return nil, err
 		}
