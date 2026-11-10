@@ -87,7 +87,7 @@ func (w *watch) CompleteToolsStream(ctx context.Context, req *llm.CompletionRequ
 	return w.ToolStreamClient.CompleteToolsStream(ctx, req, ts)
 }
 
-func newAgent(client llm.ToolStreamClient, log session.Store, tool interfaces.Tool) (*builder.ConfigurableAgent[any, *core.AgentState], error) {
+func newAgent(client llm.ToolStreamClient, log session.Store, tool interfaces.Tool) (*builder.ConfigurableAgent[*core.AgentState], error) {
 	dispatched, err := livecase.DispatchTools([]interfaces.Tool{tool})
 	if err != nil {
 		return nil, err

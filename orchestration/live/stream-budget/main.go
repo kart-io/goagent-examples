@@ -41,7 +41,7 @@ type SummaryResult struct {
 }
 
 // agentSource 同步消费 ExecuteStream 的文本增量；下游出错时取消上游并排空通道。
-func agentSource(agent *builder.ConfigurableAgent[any, *core.AgentState], input string) flow.Source[string] {
+func agentSource(agent *builder.ConfigurableAgent[*core.AgentState], input string) flow.Source[string] {
 	return func(ctx context.Context, yield func(string) error) error {
 		runCtx, cancel := context.WithCancel(ctx)
 		defer cancel()

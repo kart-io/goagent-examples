@@ -280,7 +280,7 @@ func TestExecuteReceiptFirstAfterCanceledRecord(t *testing.T) {
 	count, _, err := e.ledger.refunds(context.Background(), "A1001")
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
-	require.EqualValues(t, 2, e.desk.executions.Load())
+	require.EqualValues(t, 1, e.desk.executions.Load(), "取消的记录先经 Reconcile 按回执补记，不再执行 run")
 }
 
 func TestExecutePendingReconcileAndOrderChange(t *testing.T) {

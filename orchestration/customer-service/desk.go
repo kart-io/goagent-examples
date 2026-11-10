@@ -270,8 +270,8 @@ func (d *refundDesk) registerOnce(ctx context.Context, ticketID, customerID stri
 	return reg, json.Unmarshal(record.Value, &reg)
 }
 
-// executeOnce 以持久操作执行退款。退款可能已提交而调用返回错误（记录为 failed），RetryFailed 让续跑重跑 run，
-// 由 run 先查回执确认；记录停在 pending 时先经 Reconcile 按回执补记。
+// executeOnce 以持久操作执行退款。记录被中断（停在 pending 或因取消而失败）时先经 Reconcile 按回执补记；
+// 退款可能已提交而调用返回其他错误（记录为 failed），RetryFailed 让续跑重跑 run，由 run 先查回执确认。
 func (d *refundDesk) executeOnce(ctx context.Context, req refund.Request, actor string) (execution, error) {
 	intent, err := json.Marshal(struct {
 		RequestID string `json:"request_id"`
