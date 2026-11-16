@@ -6,8 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"regexp"
 	"strconv"
-	"strings"
+	"sync"
 
 	"github.com/qdrant/go-client/qdrant"
 
@@ -27,6 +28,9 @@ type Index struct {
 	addr, alias string
 	embedder    retrieval.Embedder
 	client      *qdrant.Client
+
+	mu    sync.Mutex
+	store *cq.QdrantVectorStore // 绑定 alias 名的检索 store，懒创建后复用；alias 切换后仍有效
 }
 
 // NewIndex 连接 Qdrant（addr 形如 host:6334，gRPC）。
@@ -51,7 +55,19 @@ func NewIndex(ctx context.Context, addr, alias string, e retrieval.Embedder) (*I
 }
 
 // Close 关闭内部客户端。
-func (x *Index) Close() error { return x.client.Close() }
+func (x *Index) Close() error {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	var storeErr error
+	if x.store != nil {
+		storeErr = x.store.Close()
+		x.store = nil
+	}
+	if err := x.client.Close(); err != nil {
+		return err
+	}
+	return storeErr
+}
 
 func keyHash(key string) string {
 	sum := sha256.Sum256([]byte(key))
@@ -75,6 +91,9 @@ func (x *Index) Current(ctx context.Context) (string, error) {
 // Rebuild 把 chunks 写入由 key 决定的新集合并切换 alias，返回新集合名。
 // 同一 key 重放是幂等的：已是当前集合时不重写，只清理残留旧集合。
 func (x *Index) Rebuild(ctx context.Context, key string, chunks []Chunk) (string, error) {
+	if len(chunks) == 0 {
+		return "", agentErrors.New(agentErrors.CodeInvalidInput, "语料为空，拒绝重建索引（避免用空集合替换线上索引）")
+	}
 	next := x.alias + "_" + keyHash(key)
 	cur := ""
 	switch c, err := x.Current(ctx); {
@@ -143,8 +162,9 @@ func (x *Index) dropStale(ctx context.Context, keep string) error {
 	if err != nil {
 		return agentErrors.Wrap(err, agentErrors.CodeInternal, "列出 Qdrant 集合失败")
 	}
+	mine := regexp.MustCompile("^" + regexp.QuoteMeta(x.alias) + "_[0-9a-f]{12}$")
 	for _, n := range names {
-		if n == keep || !strings.HasPrefix(n, x.alias+"_") {
+		if n == keep || !mine.MatchString(n) {
 			continue
 		}
 		if err := x.client.DeleteCollection(ctx, n); err != nil {
@@ -159,11 +179,25 @@ func (x *Index) Retriever(ctx context.Context, topK int) (*retrieval.VectorStore
 	if _, err := x.Current(ctx); err != nil {
 		return nil, err
 	}
+	store, err := x.aliasStore(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return retrieval.NewVectorStoreRetriever(store, retrieval.RetrieverConfig{TopK: topK}), nil
+}
+
+func (x *Index) aliasStore(ctx context.Context) (*cq.QdrantVectorStore, error) {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+	if x.store != nil {
+		return x.store, nil
+	}
 	store, err := cq.NewQdrantVectorStore(ctx, cq.QdrantConfig{
 		URL: x.addr, CollectionName: x.alias, VectorSize: x.embedder.Dimensions(), Embedder: x.embedder,
 	})
 	if err != nil {
 		return nil, err
 	}
-	return retrieval.NewVectorStoreRetriever(store, retrieval.RetrieverConfig{TopK: topK}), nil
+	x.store = store
+	return store, nil
 }

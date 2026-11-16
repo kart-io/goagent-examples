@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"math/rand/v2"
+	"net"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -17,7 +19,6 @@ import (
 )
 
 type env struct {
-	addr  string
 	alias string
 	cli   *qdrant.Client
 	idx   *Index
@@ -30,9 +31,13 @@ func newEnv(t *testing.T) *env {
 		t.Skip("需经 scripts/test.sh 运行")
 	}
 	ctx := context.Background()
-	host, port := "127.0.0.1", 0
-	if _, err := fmt.Sscanf(addr[strings.LastIndex(addr, ":")+1:], "%d", &port); err != nil {
+	host, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
 		t.Fatalf("解析 KA_TEST_QDRANT_ADDR %q: %v", addr, err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		t.Fatalf("解析 KA_TEST_QDRANT_ADDR 端口 %q: %v", portStr, err)
 	}
 	cli, err := qdrant.NewClient(&qdrant.Config{Host: host, Port: port})
 	if err != nil {
@@ -43,8 +48,11 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatalf("NewIndex: %v", err)
 	}
-	e := &env{addr: addr, alias: alias, cli: cli, idx: idx}
+	e := &env{alias: alias, cli: cli, idx: idx}
 	t.Cleanup(func() {
+		if err := idx.Close(); err != nil {
+			t.Errorf("关闭 Index: %v", err)
+		}
 		for _, name := range e.collections(t) {
 			if err := cli.DeleteCollection(ctx, name); err != nil {
 				t.Errorf("清理集合 %s: %v", name, err)
@@ -220,5 +228,91 @@ func TestRebuildRecoversPartialCollection(t *testing.T) {
 	}
 	if cur, err := e.idx.Current(ctx); err != nil || cur != name {
 		t.Errorf("Current = %q, %v", cur, err)
+	}
+}
+
+func TestRetrieverReusesStore(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	if _, err := e.idx.Rebuild(ctx, "k1", mustCollect(t)); err != nil {
+		t.Fatalf("Rebuild: %v", err)
+	}
+	if _, err := e.idx.Retriever(ctx, 4); err != nil {
+		t.Fatalf("Retriever: %v", err)
+	}
+	first := e.idx.store
+	if first == nil {
+		t.Fatal("首次调用后应缓存 store")
+	}
+	for range 3 {
+		r, err := e.idx.Retriever(ctx, 4)
+		if err != nil {
+			t.Fatalf("Retriever: %v", err)
+		}
+		if r.VectorStore != interfaces.VectorStore(first) {
+			t.Fatal("检索器应复用同一个 store")
+		}
+	}
+	if e.idx.store != first {
+		t.Error("store 被重建")
+	}
+	// alias 切换后复用的 store 仍能检索到新集合。
+	if _, err := e.idx.Rebuild(ctx, "k2", mustCollect(t)); err != nil {
+		t.Fatalf("Rebuild k2: %v", err)
+	}
+	r, err := e.idx.Retriever(ctx, 4)
+	if err != nil {
+		t.Fatalf("Retriever: %v", err)
+	}
+	if docs, err := r.GetRelevantDocuments(ctx, "pgstore 怎么建表"); err != nil || len(docs) == 0 {
+		t.Fatalf("alias 切换后检索: %d 条, %v", len(docs), err)
+	}
+	if err := e.idx.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	if e.idx.store != nil {
+		t.Error("Close 后应释放缓存的 store")
+	}
+}
+
+func TestRebuildRejectsEmptyChunks(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	live, err := e.idx.Rebuild(ctx, "k1", mustCollect(t))
+	if err != nil {
+		t.Fatalf("Rebuild k1: %v", err)
+	}
+	for _, chunks := range [][]Chunk{nil, {}} {
+		_, err := e.idx.Rebuild(ctx, "k2", chunks)
+		if !agentErrors.IsCode(err, agentErrors.CodeInvalidInput) {
+			t.Fatalf("错误 = %v，期望 CodeInvalidInput", err)
+		}
+	}
+	if cur, err := e.idx.Current(ctx); err != nil || cur != live {
+		t.Errorf("Current = %q, %v；线上索引应不变，期望 %q", cur, err, live)
+	}
+	if got := e.collections(t); len(got) != 1 || got[0] != live {
+		t.Errorf("集合 = %v，期望只有 %s", got, live)
+	}
+}
+
+func TestDropStaleOnlyOwnCollections(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	// 另一个 alias（以本 alias 加下划线为前缀）的集合不能被误删。
+	other := e.alias + "_foo_aaaaaaaaaaaa"
+	if err := e.cli.CreateCollection(ctx, &qdrant.CreateCollection{
+		CollectionName: other,
+		VectorsConfig:  qdrant.NewVectorsConfig(&qdrant.VectorParams{Size: 3072, Distance: qdrant.Distance_Cosine}),
+	}); err != nil {
+		t.Fatalf("CreateCollection: %v", err)
+	}
+	for _, k := range []string{"k1", "k2"} {
+		if _, err := e.idx.Rebuild(ctx, k, mustCollect(t)); err != nil {
+			t.Fatalf("Rebuild %s: %v", k, err)
+		}
+	}
+	if exists, err := e.cli.CollectionExists(ctx, other); err != nil || !exists {
+		t.Errorf("他人集合 %s 被误删: exists=%v err=%v", other, exists, err)
 	}
 }
