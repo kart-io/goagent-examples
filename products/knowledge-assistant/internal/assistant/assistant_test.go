@@ -60,8 +60,9 @@ type env struct {
 	svc    *mg.Service
 }
 
-// newEnv 迁移、装配存储、重建一次测试专用 alias 的文档索引，并起一个 Worker。
-func newEnv(t *testing.T) *env {
+// newEnv 迁移、装配存储、重建一次测试专用 alias 的文档索引；worker 为真时另起 Worker。
+// 不跑任务的测试不起 Worker：Worker.Run 在认领槽位途中被取消会留下无人释放的槽位（FINDINGS F19）。
+func newEnv(t *testing.T, worker bool) *env {
 	t.Helper()
 	c := testConfig(t)
 	ctx := context.Background()
@@ -105,6 +106,9 @@ func newEnv(t *testing.T) *env {
 	if err != nil {
 		t.Fatalf("mg.New: %v", err)
 	}
+	if !worker {
+		return &env{stores: s, svc: svc}
+	}
 	w := mg.NewWorker(svc)
 	wctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
@@ -114,8 +118,13 @@ func newEnv(t *testing.T) *env {
 		cancel()
 		sctx, scancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer scancel()
-		_ = w.Shutdown(sctx)
-		<-done
+		if err := w.Shutdown(sctx); err != nil {
+			t.Errorf("Worker 关闭：%v", err)
+		}
+		// 槽位被同库的其他 Worker 占用时 Run 立即返回 ErrManagementOwner，表现为任务一直不动。
+		if err := <-done; err != nil {
+			t.Errorf("Worker 退出：%v", err)
+		}
 	})
 	return &env{stores: s, svc: svc}
 }
@@ -195,7 +204,7 @@ func TestMigrateTwice(t *testing.T) {
 }
 
 func TestEnsureAgentIdempotent(t *testing.T) {
-	e := newEnv(t)
+	e := newEnv(t, false)
 	ctx := context.Background()
 	ids := map[string]string{}
 	tenants := map[string]string{"ea1": tenant("ea1"), "ea2": tenant("ea2")}
@@ -238,7 +247,7 @@ func recall(t *testing.T, m *memory.Memory, ns, text string) []memory.Scored {
 }
 
 func TestNamespaceBoundInRun(t *testing.T) {
-	e := newEnv(t)
+	e := newEnv(t, true)
 	ns := map[string]string{"u1": tenant("u1"), "u2": tenant("u2")}
 	u1 := actor(ns["u1"])
 	task := e.submit(t, u1, "记住：我们用 pgstore")
@@ -276,7 +285,7 @@ func purgeRuns(t *testing.T, e *env, tenant string) int {
 }
 
 func TestPurgeNeedsApproval(t *testing.T) {
-	e := newEnv(t)
+	e := newEnv(t, true)
 	ctx := context.Background()
 	tenant := tenant("u1")
 	u1 := actor(tenant)
