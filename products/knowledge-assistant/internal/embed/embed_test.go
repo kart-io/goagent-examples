@@ -2,11 +2,14 @@ package embed
 
 import (
 	"context"
+	"errors"
 	"math"
 	"os"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func cosine(a, b []float32) float64 {
@@ -107,5 +110,50 @@ func TestGeminiLive(t *testing.T) {
 	}
 	if id := ModelID(g); !strings.HasPrefix(id, model+"@") {
 		t.Fatalf("ModelID=%q", id)
+	}
+}
+
+func TestEmbedAll(t *testing.T) {
+	boom := errors.New("boom")
+	texts := []string{"a", "bb", "ccc", "dddd", "eeeee", "ffffff", "ggggggg", "hhhhhhhh", "iiiiiiiii"}
+	tests := []struct {
+		name    string
+		failOn  string
+		wantErr error
+	}{
+		{"按输入顺序返回", "", nil},
+		{"任一失败即返回错误", "eeeee", boom},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const limit = 3
+			var running, peak atomic.Int32
+			embed := func(ctx context.Context, s string) ([]float32, error) {
+				n := running.Add(1)
+				defer running.Add(-1)
+				for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
+				}
+				time.Sleep(5 * time.Millisecond)
+				if s == tt.failOn {
+					return nil, boom
+				}
+				return []float32{float32(len(s))}, ctx.Err()
+			}
+			got, err := embedAll(context.Background(), texts, limit, embed)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v，期望 %v", err, tt.wantErr)
+			}
+			if p := peak.Load(); p > limit || p < 2 {
+				t.Errorf("并发峰值 %d，期望在 2..%d", p, limit)
+			}
+			if tt.wantErr != nil {
+				return
+			}
+			for i, s := range texts {
+				if len(got[i]) != 1 || got[i][0] != float32(len(s)) {
+					t.Fatalf("第 %d 条结果 %v 与输入 %q 不对应", i, got[i], s)
+				}
+			}
+		})
 	}
 }

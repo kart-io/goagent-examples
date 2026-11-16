@@ -15,6 +15,7 @@ require (
 	github.com/kart-io/goagent-contrib/retrieval/qdrant v0.4.1
 	github.com/qdrant/go-client v1.16.0
 	github.com/redis/go-redis/v9 v9.23.0
+	golang.org/x/sync v0.24.0
 )
 
 require (
@@ -62,7 +63,6 @@ require (
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	google.golang.org/genai v1.76.0 // indirect

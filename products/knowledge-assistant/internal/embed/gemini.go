@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/kart-io/goagent-contrib/retrieval"
 	"github.com/kart-io/goagent/llm/providers"
 )
@@ -39,15 +41,29 @@ func (g *Gemini) Embed(ctx context.Context, text string) ([]float32, error) {
 	return g.p.Embed(ctx, text)
 }
 
-// EmbedBatch 逐条调用 Embed：provider 没有批量接口（FINDINGS F6）。
+// EmbedBatch 并发逐条调用 Embed：provider 没有批量接口（FINDINGS F6），完整语料约 5500 块，
+// 串行每条约 0.5–0.9 秒，一次 ingest 要一小时以上。
 func (g *Gemini) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	return embedAll(ctx, texts, geminiParallel, g.p.Embed)
+}
+
+// geminiParallel 是单批并发上限；实测 10 并发约 10 条/秒，未触发限流。
+const geminiParallel = 8
+
+// embedAll 以至多 limit 个并发调用 embed，结果按输入顺序返回，任一失败即取消其余调用。
+func embedAll(ctx context.Context, texts []string, limit int, embed func(context.Context, string) ([]float32, error)) ([][]float32, error) {
 	out := make([][]float32, len(texts))
+	g, ctx := errgroup.WithContext(ctx)
+	g.SetLimit(limit)
 	for i, t := range texts {
-		v, err := g.p.Embed(ctx, t)
-		if err != nil {
-			return nil, err
-		}
-		out[i] = v
+		g.Go(func() error {
+			v, err := embed(ctx, t)
+			out[i] = v
+			return err
+		})
+	}
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 	return out, nil
 }
