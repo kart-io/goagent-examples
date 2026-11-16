@@ -3,8 +3,12 @@ module github.com/kart-io/goagent-examples/products/knowledge-assistant
 go 1.27.0
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/kart-io/goagent v0.54.1
+	github.com/kart-io/goagent-contrib/document v0.3.1
 	github.com/kart-io/goagent-contrib/retrieval v0.4.1
+	github.com/kart-io/goagent-contrib/retrieval/qdrant v0.4.1
+	github.com/qdrant/go-client v1.16.0
 )
 
 require (
