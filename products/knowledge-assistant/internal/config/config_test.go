@@ -44,13 +44,16 @@ func TestFromLookup(t *testing.T) {
 		{name: "标签密钥仅 31 字节", env: minimalEnv(map[string]string{"KA_CACHE_TAG_KEY": strings.Repeat("ab", 31)}), wantErr: "KA_CACHE_TAG_KEY"},
 		{name: "非法模型", env: minimalEnv(map[string]string{"KA_MODEL": "foo"}), wantErr: "KA_MODEL"},
 		{name: "非法嵌入器", env: minimalEnv(map[string]string{"KA_EMBEDDER": "foo"}), wantErr: "KA_EMBEDDER"},
+		{name: "嵌入并发非数字", env: minimalEnv(map[string]string{"KA_EMBED_PARALLEL": "x"}), wantErr: "KA_EMBED_PARALLEL"},
+		{name: "嵌入并发为 0", env: minimalEnv(map[string]string{"KA_EMBED_PARALLEL": "0"}), wantErr: "KA_EMBED_PARALLEL"},
+		{name: "嵌入并发超上限", env: minimalEnv(map[string]string{"KA_EMBED_PARALLEL": "65"}), wantErr: "KA_EMBED_PARALLEL"},
 		{
 			name: "最小合法输入取默认值",
 			env:  minimalEnv(nil),
 			check: func(t *testing.T, c Config) {
 				if c.DocsAlias != "ka_docs" || c.Listen != "127.0.0.1:8081" || c.Worker ||
 					c.Model != "live" || c.Embedder != "gemini" ||
-					c.CachePrefix != "ka:cache:" || c.CorpusDir != "/corpus" || len(c.CacheTagKey) != 32 {
+					c.CachePrefix != "ka:cache:" || c.CorpusDir != "/corpus" || len(c.CacheTagKey) != 32 || c.EmbedParallel != 8 {
 					t.Fatalf("默认值不符: %+v", c)
 				}
 			},
@@ -66,9 +69,9 @@ func TestFromLookup(t *testing.T) {
 		},
 		{
 			name: "覆盖默认值",
-			env:  minimalEnv(map[string]string{"KA_MODEL": "script", "KA_EMBEDDER": "hash", "KA_LISTEN": ":9"}),
+			env:  minimalEnv(map[string]string{"KA_MODEL": "script", "KA_EMBEDDER": "hash", "KA_LISTEN": ":9", "KA_EMBED_PARALLEL": "3"}),
 			check: func(t *testing.T, c Config) {
-				if c.Model != "script" || c.Embedder != "hash" || c.Listen != ":9" {
+				if c.Model != "script" || c.Embedder != "hash" || c.Listen != ":9" || c.EmbedParallel != 3 {
 					t.Fatalf("覆盖未生效: %+v", c)
 				}
 			},

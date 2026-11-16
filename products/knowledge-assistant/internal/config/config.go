@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 )
+
+// maxEmbedParallel 限制嵌入并发，过高只会更快撞上提供方限流。
+const maxEmbedParallel = 64
 
 // minTagKeyBytes 是缓存标签 HMAC 密钥的最小长度，短于此值的密钥抗暴力枚举能力不足。
 const minTagKeyBytes = 32
@@ -24,6 +28,8 @@ type Config struct {
 	Model       string // live | script
 	Embedder    string // gemini | hash
 	CorpusDir   string // 其下每个子目录名即仓库名
+	// EmbedParallel 是 ingest 时 Gemini 嵌入的并发上限；默认 8 实测约 10 条/秒且未触发限流。
+	EmbedParallel int
 }
 
 // FromEnv 从进程环境变量加载配置。
@@ -77,6 +83,12 @@ func FromLookup(get func(string) (string, bool)) (Config, error) {
 		}
 		*e.dst = v
 	}
+
+	n, err := strconv.Atoi(val("KA_EMBED_PARALLEL", "8"))
+	if err != nil || n < 1 || n > maxEmbedParallel {
+		return Config{}, fmt.Errorf("环境变量 KA_EMBED_PARALLEL 须为 1..%d 的整数", maxEmbedParallel)
+	}
+	c.EmbedParallel = n
 
 	raw := val("KA_CACHE_TAG_KEY", "")
 	if raw == "" {

@@ -10,6 +10,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/kart-io/goagent/llm"
 )
 
 func cosine(a, b []float32) float64 {
@@ -97,7 +99,7 @@ func TestGeminiLive(t *testing.T) {
 	if os.Getenv("GEMINI_API_KEY") == "" {
 		t.Skip("未设置 GEMINI_API_KEY")
 	}
-	g, err := NewGemini(context.Background())
+	g, err := NewGemini(context.Background(), 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,18 +119,23 @@ func TestEmbedAll(t *testing.T) {
 	boom := errors.New("boom")
 	texts := []string{"a", "bb", "ccc", "dddd", "eeeee", "ffffff", "ggggggg", "hhhhhhhh", "iiiiiiiii"}
 	tests := []struct {
-		name    string
-		failOn  string
-		wantErr error
+		name      string
+		limit     int
+		failOn    string
+		wantErr   error
+		wantCalls int32 // 0 表示不检查
+		wantPeak  bool
 	}{
-		{"按输入顺序返回", "", nil},
-		{"任一失败即返回错误", "eeeee", boom},
+		{name: "按输入顺序返回且并发受限", limit: 3, wantPeak: true},
+		// 并发为 1 时失败后的调度确定：失败那条之后不应再有调用。
+		{name: "失败后不再发起调用", limit: 1, failOn: "ccc", wantErr: boom, wantCalls: 3},
+		{name: "并发下失败仍返回错误", limit: 3, failOn: "eeeee", wantErr: boom},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			const limit = 3
-			var running, peak atomic.Int32
+			var running, peak, calls atomic.Int32
 			embed := func(ctx context.Context, s string) ([]float32, error) {
+				calls.Add(1)
 				n := running.Add(1)
 				defer running.Add(-1)
 				for p := peak.Load(); n > p && !peak.CompareAndSwap(p, n); p = peak.Load() {
@@ -139,15 +146,21 @@ func TestEmbedAll(t *testing.T) {
 				}
 				return []float32{float32(len(s))}, ctx.Err()
 			}
-			got, err := embedAll(context.Background(), texts, limit, embed)
+			got, err := embedAll(context.Background(), texts, tt.limit, embed)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("err = %v，期望 %v", err, tt.wantErr)
 			}
-			if p := peak.Load(); p > limit || p < 2 {
-				t.Errorf("并发峰值 %d，期望在 2..%d", p, limit)
+			if tt.wantCalls != 0 && calls.Load() != tt.wantCalls {
+				t.Errorf("调用 %d 次，期望 %d 次", calls.Load(), tt.wantCalls)
 			}
 			if tt.wantErr != nil {
+				if got != nil {
+					t.Fatalf("失败时应返回 nil，实际 %v", got)
+				}
 				return
+			}
+			if p := peak.Load(); tt.wantPeak && (p > int32(tt.limit) || p < 2) {
+				t.Errorf("并发峰值 %d，期望在 2..%d", p, tt.limit)
 			}
 			for i, s := range texts {
 				if len(got[i]) != 1 || got[i][0] != float32(len(s)) {
@@ -155,5 +168,62 @@ func TestEmbedAll(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestWithRetry(t *testing.T) {
+	pe := func(code int, err error) error { return &llm.ProviderError{StatusCode: code, Err: err} }
+	upstream := errors.New("upstream")
+	tests := []struct {
+		name      string
+		errs      []error // 第 i 次调用返回 errs[i]，用完后返回成功
+		wantErr   bool
+		wantCalls int
+	}{
+		{"429 两次后成功", []error{pe(429, upstream), pe(429, upstream)}, false, 3},
+		{"503 后成功", []error{pe(503, upstream)}, false, 2},
+		{"单次请求超时后成功", []error{pe(0, context.DeadlineExceeded)}, false, 2},
+		{"400 不重试", []error{pe(400, upstream)}, true, 1},
+		{"额度耗尽不重试", []error{&llm.ProviderError{StatusCode: 429, QuotaExhausted: true, Err: upstream}}, true, 1},
+		{"非提供方错误不重试", []error{upstream}, true, 1},
+		{"重试次数用尽", []error{pe(500, upstream), pe(500, upstream), pe(500, upstream), pe(500, upstream)}, true, 3},
+		{"Retry-After 过长放弃", []error{&llm.ProviderError{StatusCode: 429, RetryAfter: time.Hour, Err: upstream}}, true, 1},
+	}
+	policy := retryPolicy{attempts: 3, base: time.Millisecond, max: 4 * time.Millisecond, maxRetryAfter: time.Second}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			embed := func(context.Context, string) ([]float32, error) {
+				calls++
+				if calls <= len(tt.errs) {
+					return nil, tt.errs[calls-1]
+				}
+				return []float32{1}, nil
+			}
+			v, err := withRetry(embed, policy)(context.Background(), "x")
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v，期望出错 %v", err, tt.wantErr)
+			}
+			if !tt.wantErr && len(v) != 1 {
+				t.Fatalf("成功时应返回向量，实际 %v", v)
+			}
+			if calls != tt.wantCalls {
+				t.Fatalf("调用 %d 次，期望 %d 次", calls, tt.wantCalls)
+			}
+		})
+	}
+}
+
+func TestWithRetryStopsOnCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	embed := func(context.Context, string) ([]float32, error) {
+		calls++
+		cancel()
+		return nil, &llm.ProviderError{StatusCode: 503, Err: errors.New("upstream")}
+	}
+	policy := retryPolicy{attempts: 5, base: time.Hour, max: time.Hour, maxRetryAfter: time.Hour}
+	if _, err := withRetry(embed, policy)(ctx, "x"); err == nil || calls != 1 {
+		t.Fatalf("取消后应立即返回错误且不再调用：err=%v calls=%d", err, calls)
 	}
 }

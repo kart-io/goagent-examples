@@ -74,7 +74,7 @@ func newEmbedder(ctx context.Context, c config.Config) (retrieval.Embedder, erro
 	if c.Embedder == "hash" {
 		return embed.NewHash(3072), nil
 	}
-	return embed.NewGemini(ctx)
+	return embed.NewGemini(ctx, c.EmbedParallel)
 }
 
 func newModel(c config.Config) (llm.ToolStreamClient, error) {

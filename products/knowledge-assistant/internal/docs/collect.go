@@ -32,8 +32,9 @@ type Chunk struct {
 
 var skipDirs = map[string]bool{".git": true, "vendor": true, "testdata": true, "node_modules": true}
 
-// skipPaths 按仓库相对路径排除目录。docs/superpowers 是带日期的设计与实施计划，描述当时的意图而非现状，
-// 真实嵌入下却排在模块文档前面（见 verification 中的首次真实验收）。
+// skipPaths 按仓库相对路径排除目录。docs/superpowers 下的 specs 与 plans 都带日期，描述当时的意图而非现状，
+// 真实嵌入下却排在模块文档前面（见 verification 中的首次真实验收）。代价是丢了只写在设计里的细节，
+// 例如 durable/pgstore 的具体建表 SQL（只在 specs 和 schema.go 的常量值里，godoc 不含常量值）。
 var skipPaths = map[string]bool{"docs/superpowers": true}
 
 var headingRe = regexp.MustCompile(`^#{1,4}\s+(.+?)\s*$`)
