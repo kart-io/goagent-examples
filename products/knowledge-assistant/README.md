@@ -89,7 +89,7 @@ KA_MODEL=script KA_EMBEDDER=hash KA_CACHE_TAG_KEY=$(openssl rand -hex 32) docker
 | 命令 | 作用 |
 | --- | --- |
 | `ka migrate` | 建齐全部表，可重复执行，多实例并发启动时由 advisory 锁串行 |
-| `ka ingest` | 采集 `/corpus` 写入 Qdrant。幂等键由语料内容和嵌入模型共同决定，语料没变就不重写，换了嵌入模型必定重建 |
+| `ka ingest` | 采集 `/corpus` 写入 Qdrant。幂等键由语料内容和嵌入模型共同决定，语料没变就不重写，换了嵌入模型必定重建。与经审批的 `rebuild_docs_index` 共用一把 Postgres advisory 锁，同时发生时排队执行 |
 | `ka serve` | HTTP 服务；`WORKER=1` 时同时运行 Worker |
 | `ka recover-worker -reason <原因> -confirm-stopped` | 回收已停止实例占着的 Worker 槽位 |
 
@@ -130,6 +130,17 @@ scripts/failover.sh "a 所在主机宕机"
 - 故障转移之后，不要不带 `WORKER=1` 直接 `docker compose up -d`：那样会把 b 重建为非 Worker 并重新拉起 a。要切回 a，就对 b 反向执行同样的步骤。
 
 这一步需要人工介入，是框架有意的设计：只有运维能确认旧进程确实不在了。目前不顺手的地方在于槽位持有者只能直接读内部文档（F2），而且 owner 是 uuid，对应不到实例（见 FINDINGS）。
+
+## 文档索引丢失时的恢复
+
+alias `ka_docs` 不存在或指向的集合被删后，每个任务构建 Agent 时都会报"索引 ka_docs 不存在，请先运行 ka ingest"。长期记忆、会话与审批都存在 Postgres 里，不受影响，重新采集即可：
+
+```bash
+docker compose run --rm ingest     # compose 部署
+ka ingest                          # 直接运行二进制时，环境变量与 serve 相同
+```
+
+ingest 与审批触发的重建共用一把锁，在线时也可以执行。重建期间 a、b 无须重启：检索器绑定的是 alias 名，切换后的下一个任务就会读到新集合。
 
 ## 生产须替换的部分
 

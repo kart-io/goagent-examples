@@ -281,8 +281,9 @@
 ## 产品侧已知限制（不属于框架）
 
 - `docs.Collect` 遇到一个无法解析的 `.go` 文件就整体失败。当前两个固定版本的语料都能解析。
-- 并发执行 `ka ingest` 没有互斥，按"单写者 CLI"设计；运行中的重建只经审批由唯一的 Worker 执行。
-- e2e 用了 `Pdeathsig`（`e2e/e2e_test.go:115`、`:168`），只能在 Linux 上编译。
+- 重建会并发执行：Worker 每个任务一个 goroutine，两个审批同时通过、或与 compose 每次 `up` 都会跑的 `ingest` 重叠都会撞上。现由 Postgres advisory 锁（`internal/docs/index.go` 的 `rebuildLock`）串行，清理旧集合时也不删 alias 当前指向的集合。代价是排在后面的重建要等前一个写完，期间占着一条 Postgres 连接。
+- e2e 用了 `Pdeathsig`（`e2e/e2e_test.go:117`、`:171`），文件带 `//go:build linux`，只在 Linux 上运行。其余包可在 macOS 上编译（`GOOS=darwin go vet ./...` 通过）。
+- 语料收录了仓库里给 AI 编码助手看的工作流文件，如 `CLAUDE.md`、`.github/*.md`。它们不是产品文档，却会被检索到并被引用：最新的真实验收报告 `verification/live-20261116T172839Z.json` 的记忆场景回答就引用了 `goagent:CLAUDE.md` 的几个小节。排除它们会改变语料和块数，现有真实验收结果随之作废，所以暂不改，留待下次重跑真实验收时一并处理。
 - `serve` 退出时，HTTP 排空、`worker.Shutdown` 和等待后台循环共用同一个 10 秒 ctx（`cmd/ka/main.go` 的 serve 收尾）。前一步耗时越久，后面可用的时间越少，进行中的任务可能来不及交还。
 - 后台循环的 `finish` 把 `context.Canceled` 当作正常退出。如果 Worker 在认领槽位途中被取消并泄漏槽位（F19），进程仍以退出码 0 结束，编排系统看不到异常，只能靠下一次启动时认领失败才暴露出来。
 - 页面 JS 没有自动化测试。

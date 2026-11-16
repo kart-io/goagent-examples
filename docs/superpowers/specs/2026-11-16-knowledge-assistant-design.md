@@ -95,7 +95,8 @@
 
 - 写入新的 Qdrant collection，名字由工具执行键派生（重放幂等）；完成后切换 alias，再删除旧 collection。
 - 重建期间问答继续读旧 alias。
-- 重建只由 Worker 执行。单活动 Worker 加上审批的"恰好一次"语义，已经排除了并发重建。
+- 重建会并发：Worker 为每个任务起一个 goroutine，两个审批同时通过、或审批后的重建与 compose 每次 `up` 都会跑的 `ingest` 重叠，都会同时执行。单活动 Worker 加审批的"恰好一次"只保证同一次重建不执行两次，不排除不同的重建并发。
+- 因此重建在 Postgres advisory 锁下串行执行（ingest 与 Worker 都连同一个库）；清理旧 collection 时每次删除前重读 alias，绝不删除 alias 当前指向的 collection，即使锁被绕过也成立。
 
 **依赖版本**：
 
