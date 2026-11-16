@@ -289,7 +289,7 @@
 
 ## 验证状态
 
-验证于 2026-11-16（UTC），产品提交 5343471，框架为 goagent v0.54.1，contrib 为 396d3eca4884。
+验证于 2026-11-16（UTC），产品提交 5343471（复验见下文 41879bb），框架为 goagent v0.54.1，contrib 为 396d3eca4884。
 
 - **离线**：`TMPDIR=/tmp taskset -c 2,3,6-27 scripts/test.sh ./...` 全部通过（e2e、assistant、chat、config、docs、embed、web）。
 - **compose 演练**（`KA_MODEL=script KA_EMBEDDER=hash`）：ingest 索引 5562 块。a 持有 Worker 槽位，b 不持有。`scripts/failover.sh` 退出码 0，用时约 12 秒，回收了 a 的槽位（代次 1）。之后 b 以 `worker=true` 重启，探测任务成功。此次演练早于下面的语料修正，所以块数更多。
@@ -301,7 +301,11 @@
 - **真实模型复验通过**：`KA_LIVE=1 scripts/live.sh` 退出码 0，报告见 `verification/live-20261116T170741Z.json`，失败 0 项。ingest 索引 4233 块。
   - 3 个文档问题的来源依次为：`durable/pgstore#godoc` 与 contrib `README.md#durable/pgstore`；`CACHING_GUIDE.md#删除承诺`；`cache/redis#godoc`（答案 `goagent:cache:`）。耗时 2.3–9.3 秒，每题约 2400–2900 tokens，`usage_status=available`。
   - 记忆场景：a 写入后 b 可见 1 条；b 新会话召回成功，新增 2 个 `e:` 缓存条目；经 b 删除后 a 查不到记录，这些缓存条目不再存在，a 新会话回答中不再出现代号。
-- **已知局限**：`sources_of` 按正则从回答里提取来源。它会把正文里的字面量（如 `goagent:cache:`）和紧跟的全角括号说明也算进来，所以报告中的 `sources_in_answer` 有噪声。判定只要求有一个来源命中期望前缀。期望前缀较宽时（第 2 题的 `goagent:`），正文里的字面量也可能命中。本次第 2 题的两个来源都是真实文档小节，不受影响。收紧提取规则是后续工作。
+- **断言收紧后复验通过**（提交 41879bb）：旧断言把正文字面量（如 `goagent:cache:`）也算作来源，第 2 题的期望前缀又宽到 `goagent:`，几乎必过。现在的规则是：回答里须原样出现同一问题经 `/api/sources` 实际检索到的来源，且其中有一个命中期望前缀；第 2 题前缀收紧为 `goagent:docs/`（相关文档分在 `docs/design` 与 `docs/guides` 两个子目录）。
+  - `KA_LIVE=1 scripts/live.sh` 退出码 0，报告见 `verification/live-20261116T172839Z.json`，失败 0 项。3 题被引用的检索来源依次为：`durable/pgstore#godoc` 等 3 个；`CACHING_GUIDE.md#删除承诺`、`MEMORY_GOVERNANCE.md#0.1 删除承诺的范围`、`CHANGELOG.md#破坏性变更`；`cache/redis#godoc` 与 contrib `README.md#cache/redis 与 memory/pgvector`。
+  - 记忆场景同样通过：b 可见 1 条；b 召回时新增 1 个 `e:` 条目；删除后 a 不再召回。
+  - 用本次的检索结果按新规则重判 `live-20261116T170741Z.json`：3 题仍全部通过。首次报告 `live-20261116T165540Z.json` 在新规则下仍是第 1、3 题失败，结论不变。
+  - 同一栈上重跑 `scripts/failover.sh`（已修 SIGPIPE 误报）：退出码 0，用时 15 秒，回收槽位（代次 1）后 b 执行探测任务成功。
 
 ## 后续工作
 

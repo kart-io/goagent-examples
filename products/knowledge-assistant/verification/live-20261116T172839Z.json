@@ -1,0 +1,177 @@
+{
+  "run_at": "20261116T172839Z",
+  "commit": "41879bb",
+  "provider": "deepseek",
+  "embedder": "gemini",
+  "failures": 0,
+  "passed": true,
+  "questions": [
+    {
+      "scenario": "rag",
+      "instance": "a",
+      "question": "pgstore 怎么建表",
+      "expected_prefix": "goagent-contrib:durable/pgstore/",
+      "sources_in_answer": [
+        "goagent-contrib:durable/pgstore#godoc",
+        "goagent-contrib:management/pgstore#godoc",
+        "goagent-contrib:README.md#durable/pgstore"
+      ],
+      "retrieved_sources": [
+        "goagent-contrib:README.md#durable/pgstore",
+        "goagent-contrib:durable/pgstore#godoc",
+        "goagent-contrib:management/pgstore#godoc"
+      ],
+      "cited_retrieved": [
+        "goagent-contrib:README.md#durable/pgstore",
+        "goagent-contrib:durable/pgstore#godoc",
+        "goagent-contrib:management/pgstore#godoc"
+      ],
+      "recalled": null,
+      "pass": true,
+      "task_id": "f1754a04-511a-466c-bc49-47c0b08d5cab",
+      "state": "succeeded",
+      "answer": "## pgstore 建表方式\n\n**核心结论：pgstore 不会自动建表，建表语句以 `pgstore.Schema`（以及可选 `pgstore.SessionSchema`）的形式提供，需要在宿主的迁移流程中执行；`pgstore.New` 只会校验表结构版本。**\n\n依据以下资料：\n\n1. **语句由包导出，由宿主执行**\n   - `Schema` 是建表语句，需要你把它纳入自己的迁移流程；`New` 不自动建表 [4]。\n   - 建表：`pgstore.Schema` 由宿主纳入自己的迁移流程，`New` 只校验 `pgstore.SchemaVersion` [3]。\n   - 源码注释同样强调：`Migrate` 必须由宿主显式调用；版本检查在 `New` 中完成 [1]。\n\n   也就是说，调用顺序是：先在你的迁移脚本里执行 `pgstore.Schema`，然后再调用 `pgstore.New`（`New` 会校验 `SchemaVersion`，版本不符就会报错）。\n\n2. **第二个表：`SessionStore` 才需要**\n   - `pgstore.NewSessionStore(ctx, store)` 返回 `session.Store`，与 `store` 共享连接池与租约，并可传给 `builder.WithSessionLog`；持久运行使用 `session.DurableStore(sessions, id)` [3]。\n   - 使用会话日志时，须另建 `pgstore.SessionSchema`（它依赖 `Schema` 中的租约表），`NewSessionStore` 校验 `pgstore.SessionSchemaVersion`；只使用 `durable.Store` 的部署不需要创建它 [3][4]。\n   - 因此只使用 `durable.Store` 的部署只需 `Schema`；使用 `SessionStore` 的部署需要执行 `Schema` 和 `SessionSchema`，且顺序上先 `Schema`。\n\n3. **最小接入示例（来自 README，不含建表语句本身）**\n   ```go\n   pool, _ := pgxpool.New(ctx, dsn) // 直连主库\n   store, err := pgstore.New(ctx, pgstore.Config{Pool: pool})\n   defer store.Close(ctx)\n   ```\n   [2]\n\n4. **建表之外的部署前置条件（会影响表能否正常工作）**\n   - Pool 必须直连主库，不能指向读副本或读写分离代理；经过 pgbouncer 事务模式时须关闭预编译语句缓存 [4]；README 也写明“直连主库（不能指向读副本）” [3]。\n   - 高可用部署须同步复制并隔离旧主；`Save`、`SaveAll` 与 `RemoveScope` 的墓碑事务会 `SET LOCAL synchronous_commit = on` [4]。\n   - `LeaseTTL`（默认 30 秒）须大于一次主备切换的时长 [3][4]。\n\n**检索资料未覆盖的部分：** 具体 DDL 文本、语句条数、是否需要按分号拆分逐条执行、迁移工具（如 goose/atlas）的接入方式，以及 `SchemaVersion` / `SessionSchemaVersion` 的具体数值，资料中都没有给出。如需这些内容，建议直接查看 `pgstore.Schema` 的源码常量或包文档中的完整 DDL。\n\n---\n\n所依据资料：\n- 来源：goagent-contrib:management/pgstore#godoc\n- 来源：goagent-contrib:README.md#durable/pgstore\n- 来源：goagent-contrib:durable/pgstore#godoc",
+      "tokens": {
+        "cached_tokens": 1408,
+        "completion_tokens": 1023,
+        "prompt_tokens": 1655,
+        "reasoning_tokens": 253,
+        "total_tokens": 2678
+      },
+      "usage_status": "available",
+      "elapsed_ms": 8256
+    },
+    {
+      "scenario": "rag",
+      "instance": "b",
+      "question": "模型缓存怎么在删除记忆后擦除",
+      "expected_prefix": "goagent:docs/",
+      "sources_in_answer": [
+        "goagent:CHANGELOG.md#破坏性变更",
+        "goagent:docs/design/MEMORY_GOVERNANCE.md#0.1",
+        "goagent:docs/guides/CACHING_GUIDE.md#删除承诺"
+      ],
+      "retrieved_sources": [
+        "goagent:CHANGELOG.md#破坏性变更",
+        "goagent:docs/design/MEMORY_GOVERNANCE.md#0.1 删除承诺的范围",
+        "goagent:docs/guides/CACHING_GUIDE.md#删除承诺"
+      ],
+      "cited_retrieved": [
+        "goagent:CHANGELOG.md#破坏性变更",
+        "goagent:docs/design/MEMORY_GOVERNANCE.md#0.1 删除承诺的范围",
+        "goagent:docs/guides/CACHING_GUIDE.md#删除承诺"
+      ],
+      "recalled": null,
+      "pass": true,
+      "task_id": "87ffd801-594b-46a5-8001-941d2046e7e1",
+      "state": "succeeded",
+      "answer": "## 机制概览\n\n模型调用缓存的删除分两层：**逻辑不可达由记忆版本保证，物理擦除由 `Erase` 模式决定**。\n\n- 缓存键里含记忆版本，所以 `Forget`、`Rewound`、`Purge` 之后相同请求不会命中——这一层与配置无关，是默认行为。\n- 物理删除是否发生、何时完成，取决于 `Erase` 模式，以及缓存实现和记忆配置是否具备条件 [1]。\n\n## 三种 `Erase` 模式\n\n| 模式 | 行为 |\n|---|---|\n| `EraseOff` | 只做逻辑删除，旧条目留到 TTL 到期；TTL 超过 `EraseWithin` 时不警告。适合进程内缓存、TTL 很短或没有合规要求的场景 |\n| `EraseAuto`（默认） | 缓存实现 `cache.Tagged` 且记忆配置了 `OnErase` 时才物理删除，否则退回 TTL。缓存不支持 `Tagged` 时 `Build` 会记录警告；记忆没配 `OnErase` 时同样退回 TTL，但**不会有警告**，需要自行装配（`mc.Eraser()`）；TTL 超过 `EraseWithin` 时也会警告 |\n| `EraseRequired` | 条件不满足时 `Build` 直接失败，用于有删除个人数据合规要求的生产环境 [1] |\n\n## 各模式下的时间上限\n\n- `EraseRequired` 要求 TTL 不超过 `memory.Config.EraseWithin`，这个约束**只在配置了长期记忆时生效**；不配长期记忆时，删除会话后缓存残留时长的上限就是 TTL [1][2]。\n- 物理删除失败不影响逻辑正确性，只推迟清除：`EraseRequired` 下推迟上限是 TTL；对 Redis 则是 TTL 加过期回收周期（Redis 的过期回收没有硬上限）[1]。\n- 治理表中对缓存那一行的口径与此一致：`Forget`、`Rewound`、`Purge` 之后逻辑上不可达，物理删除按 `Erase` 模式执行，`EraseRequired` 下在 `EraseWithin` 内完成，失败时以 TTL 为上限 [3]。\n\n## 两个容易踩的细节\n\n1. **粒度较粗**：遗忘与回退会清掉该命名空间当前作用域下的**全部**缓存条目，不是只清被删那几条 [1]。\n2. **召回与版本读取之间的窗口**：记忆版本在 `hydrateRecall` 之后才读取，这期间发生的删除可能让条目带上删除后的版本被写入；这种条目逻辑上不可达，物理残留以 TTL 为上限 [1]。\n\n## 配置上的相关变更\n\n旧的 `core/middleware` 缓存中间件（以输入文本为键、会跨用户命中、命中时不写会话日志）已整体删除，迁移到 `WithModelCache(builder.ModelCache{Cache: ..., TTL: ttl, Scope: ...})`，其中 `Scope` 必须返回可信的隔离身份（配置了长期记忆时可省略）；长期记忆与缓存也不再互斥 [4]。\n\n---\n\n**依据的资料路径：**\n\n- [1] `goagent:docs/guides/CACHING_GUIDE.md#删除承诺`\n- [2] `goagent:docs/design/MEMORY_GOVERNANCE.md#0.1 删除承诺的范围`\n- [3] `goagent:docs/design/MEMORY_GOVERNANCE.md#0.1 删除承诺的范围`\n- [4] `goagent:CHANGELOG.md#破坏性变更`",
+      "tokens": {
+        "cached_tokens": 1792,
+        "completion_tokens": 1424,
+        "prompt_tokens": 2009,
+        "reasoning_tokens": 628,
+        "total_tokens": 3433
+      },
+      "usage_status": "available",
+      "elapsed_ms": 8768
+    },
+    {
+      "scenario": "rag",
+      "instance": "a",
+      "question": "Redis 缓存前缀默认是什么",
+      "expected_prefix": "goagent-contrib:cache/redis/",
+      "sources_in_answer": [
+        "goagent-contrib:cache/redis#godoc",
+        "goagent-contrib:README.md#cache/redis"
+      ],
+      "retrieved_sources": [
+        "goagent-contrib:README.md#cache/redis 与 memory/pgvector",
+        "goagent-contrib:cache/redis#godoc"
+      ],
+      "cited_retrieved": [
+        "goagent-contrib:README.md#cache/redis 与 memory/pgvector",
+        "goagent-contrib:cache/redis#godoc"
+      ],
+      "recalled": null,
+      "pass": true,
+      "task_id": "38aa867c-c2ed-413c-8d59-12fec063f371",
+      "state": "succeeded",
+      "answer": "Redis 缓存配置项 `Config.Prefix` 是全部键的前缀，默认值为 **`\"goagent:cache:\"`** [1][2]。\n\n依据资料：\n- [1] 来源：goagent-contrib:cache/redis#godoc（Config.Prefix：Prefix 是全部键的前缀，默认 \"goagent:cache:\"）\n- [2] 来源：goagent-contrib:cache/redis#godoc（Config.Prefix 同上）\n\n另外一点相关提示（非默认值问题，但配置 Prefix 时需要注意）：Prefix 中不要包含 `{`、`}`，否则在 Cluster 模式下花括号内的部分会被当作 hash tag，导致全部键集中到一个槽，`New` 会记录告警 [3]。\n- [3] 来源：goagent-contrib:README.md#cache/redis 与 memory/pgvector",
+      "tokens": {
+        "cached_tokens": 1792,
+        "completion_tokens": 237,
+        "prompt_tokens": 2180,
+        "reasoning_tokens": 46,
+        "total_tokens": 2417
+      },
+      "usage_status": "available",
+      "elapsed_ms": 3628
+    },
+    {
+      "scenario": "remember",
+      "instance": "a",
+      "question": "记住：我们团队的值班集群代号是 orion-a5de7d66",
+      "expected_prefix": null,
+      "sources_in_answer": [],
+      "recalled": true,
+      "records_visible_on_b": 1,
+      "task_id": "dcfac9d6-5d42-426c-8505-9582fc7b4421",
+      "state": "succeeded",
+      "answer": "已记住：团队值班集群代号为 **orion-a5de7d66**，并已设为长期记忆，置顶保存，后续会话中可直接引用。\n\n补充说明：\n- 检索长期记忆时，未发现此前已有与\"值班集群代号\"相关的记录，因此没有冲突或需要覆盖的旧信息。\n- 参考文献中没有与集群代号相关的内容（[1]、[2] 是文档标题模板，[3] 是长期记忆策略说明，[4] 是源码指纹清单），所以本条信息仅依据你的直接告知，不来自检索资料。",
+      "tokens": {
+        "cached_tokens": 2048,
+        "completion_tokens": 437,
+        "prompt_tokens": 2605,
+        "reasoning_tokens": 169,
+        "total_tokens": 3042
+      },
+      "usage_status": "available",
+      "elapsed_ms": 6200
+    },
+    {
+      "scenario": "recall",
+      "instance": "b",
+      "question": "我们团队的值班集群代号是什么？",
+      "expected_prefix": null,
+      "sources_in_answer": [],
+      "recalled": true,
+      "cache_entries_added": 1,
+      "task_id": "c4b79be4-d098-44cc-8ce4-ef22e9083659",
+      "state": "succeeded",
+      "answer": "根据长期记忆中的记录，你们团队的值班集群代号是 **orion-a5de7d66**（这条信息是你此前明确要求记住的团队事实）。\n\n需要注意的是：检索到的文档资料里，没有出现任何关于值班集群代号的内容。这几份资料只包含 CLAUDE.md 中各章节的标题，比如\"编码后声明\"\"项目上下文摘要\"\"项目集成规则\"\"代码质量强制标准\"；它们的来源路径分别是：\n\n- goagent:CLAUDE.md#编码后声明\n- goagent:CLAUDE.md#项目上下文摘要（[任务名称]）\n- goagent:CLAUDE.md#🔧 项目集成规则\n- goagent:CLAUDE.md#✅ 代码质量强制标准\n\n因此，这个代号唯一的依据是长期记忆，文档中没有佐证。如果你需要正式的书面出处，建议在团队文档中补充确认。",
+      "tokens": {
+        "cached_tokens": 768,
+        "completion_tokens": 381,
+        "prompt_tokens": 966,
+        "reasoning_tokens": 197,
+        "total_tokens": 1347
+      },
+      "usage_status": "available",
+      "elapsed_ms": 4140
+    },
+    {
+      "scenario": "after_forget",
+      "instance": "a",
+      "question": "我们团队的值班集群代号是什么？",
+      "expected_prefix": null,
+      "sources_in_answer": [],
+      "recalled": false,
+      "records_deleted_via_b": 1,
+      "records_left_on_a": 0,
+      "cache_entries_left": 0,
+      "task_id": "e047df63-50fd-4f0c-b7b8-582492a2eaf0",
+      "state": "succeeded",
+      "answer": "不知道。\n\n我检索到的资料只有 CLAUDE.md 里关于流程模板和规范的几个章节标题：编码后声明模板 [1]、项目上下文摘要模板 [2]、项目集成规则 [3]、代码质量强制标准 [4]；这些章节都没有提到任何集群名称或代号。我也没有在长期记忆中找到相关记录，因此无法回答“值班集群代号”是什么。如果你能补充相关文档（如值班手册、部署配置说明），我可以再帮你查。",
+      "tokens": {
+        "cached_tokens": 1536,
+        "completion_tokens": 270,
+        "prompt_tokens": 1963,
+        "reasoning_tokens": 96,
+        "total_tokens": 2233
+      },
+      "usage_status": "available",
+      "elapsed_ms": 5166
+    }
+  ]
+}
