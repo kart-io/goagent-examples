@@ -75,7 +75,11 @@ memory_ids() {
 
 cache_keys() { docker compose exec -T redis redis-cli --scan --pattern 'ka:cache:e:*' | sort; }
 
-sources_of() { grep -oE 'goagent(-contrib)?:[A-Za-z0-9_./-]+(#[^[:space:]，。、；：）)`"*]+)?' <<<"$1" | sort -u | jq -Rsc 'split("\n") | map(select(. != ""))'; }
+# sources_of 只取带 #小节 的写法，并在中英文标点、括号处截断，避免把正文里的 goagent:cache: 之类字面量当成来源。
+sources_of() { grep -oE 'goagent(-contrib)?:[A-Za-z0-9_./-]+#[^[:space:]，。、；：（）()`"*]+' <<<"$1" | sort -u | jq -Rsc 'split("\n") | map(select(. != ""))'; }
+
+# retrieved_for <base> <user> <question>：同一问题在索引里实际检索到的来源。
+retrieved_for() { api "$1" "$2" GET "/api/sources?q=$(jq -rn --arg q "$3" '$q|@uri')" | jq -c '[.[].source] | unique'; }
 
 results=()
 failures=0
@@ -97,15 +101,20 @@ while IFS='|' read -r question prefix inst; do
 	r=$(ask "$base" "$docs_user" "$question")
 	answer=$(jq -r .answer <<<"$r")
 	sources=$(sources_of "$answer")
+	retrieved=$(retrieved_for "$base" "$docs_user" "$question")
+	# 只认回答里原样出现的检索来源（小节名可含空格，故按子串而非正则结果比对），编造的路径不会命中。
 	# 只有包文档的目录来源形如 repo:dir#godoc，没有结尾斜杠，所以目录前缀也接受 dir#。
-	ok=$(jq -n --argjson s "$sources" --arg p "$prefix" '[$s[] | select(startswith($p) or startswith(($p | rtrimstr("/")) + "#"))] | length > 0')
+	cited=$(jq -c --arg a "$answer" '[.[] | select(. as $s | $a | contains($s))]' <<<"$retrieved")
+	ok=$(jq -n --argjson s "$cited" --arg p "$prefix" '[$s[] | select(startswith($p) or startswith(($p | rtrimstr("/")) + "#"))] | length > 0')
 	[ "$(jq -r .state <<<"$r")" = succeeded ] || fail "「$question」任务状态 $(jq -r .state <<<"$r")"
-	[ "$ok" = true ] || fail "「$question」回答中没有以 $prefix 开头的来源：$sources"
-	record "$(jq -c --arg q "$question" --arg p "$prefix" --arg i "$inst" --argjson s "$sources" --argjson ok "$ok" \
-		'{scenario:"rag", instance:$i, question:$q, expected_prefix:$p, sources_in_answer:$s, recalled:null, pass:$ok} + .' <<<"$r")"
+	[ "$ok" = true ] || fail "「$question」回答引用的检索来源中没有以 $prefix 开头的：引用 $cited，检索 $retrieved"
+	record "$(jq -c --arg q "$question" --arg p "$prefix" --arg i "$inst" --argjson s "$sources" --argjson rt "$retrieved" \
+		--argjson c "$cited" --argjson ok "$ok" \
+		'{scenario:"rag", instance:$i, question:$q, expected_prefix:$p, sources_in_answer:$s, retrieved_sources:$rt,
+		  cited_retrieved:$c, recalled:null, pass:$ok} + .' <<<"$r")"
 done <<'EOF'
 pgstore 怎么建表|goagent-contrib:durable/pgstore/|a
-模型缓存怎么在删除记忆后擦除|goagent:|b
+模型缓存怎么在删除记忆后擦除|goagent:docs/|b
 Redis 缓存前缀默认是什么|goagent-contrib:cache/redis/|a
 EOF
 
@@ -167,7 +176,7 @@ record "$(jq -c --arg q "$probe" --argjson rc "$recalled" --argjson del "$(grep 
 mkdir -p verification
 report=verification/live-$run_id.json
 printf '%s\n' "${results[@]}" | jq -s --arg at "$run_id" --arg p "$provider" --arg e "$embedder" \
-	--arg commit "$(git rev-parse --short HEAD 2>/dev/null || echo unknown)" --argjson f "$failures" \
+	--arg commit "$(git describe --always --dirty 2>/dev/null || echo unknown)" --argjson f "$failures" \
 	'{run_at:$at, commit:$commit, provider:$p, embedder:$e, failures:$f, passed:($f == 0), questions:.}' >"$report"
 echo "报告：$report"
 if [ "$failures" -gt 0 ]; then

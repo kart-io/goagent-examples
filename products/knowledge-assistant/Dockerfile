@@ -12,7 +12,7 @@ COPY internal ./internal
 RUN go build -trimpath -o /out/ka ./cmd/ka
 
 # 语料按固定版本克隆：来源路径要能对应到确定的提交，重建索引才可复现。
-FROM alpine/git AS corpus
+FROM alpine/git:2.54.1 AS corpus
 RUN git clone --depth 1 -b v0.54.1 https://github.com/kart-io/goagent /corpus/goagent \
 	&& git clone https://github.com/kart-io/goagent-contrib /corpus/goagent-contrib \
 	&& git -C /corpus/goagent-contrib checkout --quiet 396d3eca4884 \

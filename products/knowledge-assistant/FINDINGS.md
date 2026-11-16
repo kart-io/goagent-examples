@@ -31,9 +31,12 @@
 | F19 | Worker 认领槽位途中被取消会泄漏槽位 | **高** | 修框架 |
 | F20 | 任意租户的 Actor 都能回收 Worker 槽位 | 中 | 修框架或写明 |
 | F21 | `memory.Scored` 的分数字段没有 json tag | 低 | 修框架 |
-| F22 | 模型客户端未声明缓存身份时模型缓存静默失效 | **高** | 修框架 |
+| F22 | 模型客户端未声明缓存身份时模型缓存静默失效；身份不含端点与思考预算 | **高** | 修框架 |
 | F23 | cache/redis 的会话标签键在遗忘后保留到过期 | 低 | 写明语义 |
 | F24 | 运维命令也须装配完整 Factory | 低 | 修框架 |
+| F25 | Gemini provider 每次调用只发一个请求，批量调用方须自行重试 | 中 | 写明语义或提供重试辅助 |
+| F26 | 刚推送的子模块 tag 经默认 GOPROXY 取不到 | 低 | 发版流程补预热 |
+| F27 | `document` 切分器默认按字节计长，`ChunkSize` 易被误读为字符数 | 低 | 修框架（文档或默认值） |
 
 ---
 
@@ -222,7 +225,7 @@
 - **产品处理**：`/api/memories` 原样输出，页面不展示分数。
 - **建议**：修框架，加 `json:"score"`、`json:"relevance"`。
 
-## F22 模型客户端未声明缓存身份时，模型缓存静默失效
+## F22 模型客户端未声明缓存身份时，模型缓存静默失效；身份不含端点与思考预算
 
 - **现象**：`clientIdentity` 依次尝试客户端的 `CacheIdentity()`、请求的 `Model`、客户端的 `ModelName()`。三者都取不到时，这次调用不缓存，也不告警。Builder 发出的请求不带 Model。
 - **证据**：
@@ -230,7 +233,8 @@
   - e2e `TestAcceptance/TestForgetAcrossInstancesErasesCache` 首轮失败：提问后 Redis 里没有新增任何键。
 - **影响**：本产品配置了 `EraseRequired`，Build 也全部通过，但缓存从未生效。"缓存擦除"的验收如果只断言"删除后不存在"，会空洞地通过。
 - **产品处理**：提交 dad6454 修复，脚本模型声明 `CacheIdentity`，真实模型客户端声明 `ModelName`（`internal/chat/script.go:26`、`internal/chat/livemodel.go:111`）。真实模型下缓存生效的证据见验证状态一节。
-- **建议**：修框架。配置了 ModelCache 而客户端无法解析身份时，在 Build/Validate 阶段报错，或至少告警一次。
+- **另一面：身份过粗**：没有 `CacheIdentity` 时，身份只是"提供方 + 模型名"（`goagent:builder/model_cache_key.go:111-120`）。在客户端上配置、不进请求体的参数都不参与缓存键，例如 BaseURL（端点）和 `llm.WithReasoning` 的思考预算。两个客户端模型名相同、端点或思考预算不同，共用同一个缓存后端时会互相命中对方的回答。本产品各实例配置相同，暂不受影响；Gemini 客户端设了思考预算（`internal/chat/livemodel.go:75-77`），改预算后旧条目要等 TTL（4 分钟）过期才会失效。
+- **建议**：修框架。配置了 ModelCache 而客户端无法解析身份时，在 Build/Validate 阶段报错，或至少告警一次。各 provider 应自带 `CacheIdentity`，把端点、思考预算等影响输出的客户端配置纳入身份。
 
 ## F23 cache/redis 的会话标签键在遗忘后保留到过期
 
@@ -248,13 +252,39 @@
 - **产品处理**：复用完整装配。
 - **建议**：修框架。提供只依赖 Store 的运维入口，例如 `mg.NewAdmin(store, authorizer)`。
 
+## F25 Gemini provider 每次调用只发一个请求，批量调用方须自行重试
+
+- **现象**：`NewGeminiWithOptions` 把 genai 的重试次数固定为 1，一次 `Embed` 就是一次上游请求。provider 本身也不重试，只把失败包装成带 `StatusCode`、`RetryAfter` 的 `llm.ProviderError`。
+- **证据**：`goagent:llm/providers/gemini.go:39-48`（`Attempts: 1`，注释说明不做隐式重试）；`goagent:llm/providers/provider_error.go:80-90`；`goagent:llm/provider_error.go:71`（`Retryable`）。框架的重试只有 `builder.RetryTransient`，它作用于 Agent 的模型请求，不覆盖嵌入。
+- **影响**：ingest 并发嵌入数千块，任一块遇到 429 或 5xx 就会让整批失败。而 compose 让 a、b 依赖 ingest 成功才启动，整个栈因此起不来。每次调用也带着 provider 自己的超时，这类超时在 `Retryable` 里被归为不可重试。
+- **产品处理**：`internal/embed/gemini.go` 的 `withRetry` 用 `ProviderError.Retryable` 判定，另把"调用方 ctx 仍有效时的单次超时"视为可重试。最多 5 次指数退避，带全抖动，遵守 Retry-After，超过 1 分钟就放弃。并发由 `KA_EMBED_PARALLEL` 控制。
+- **建议**：写明"provider 不重试，批量调用方自行处理"。最好由框架提供与 `RetryTransient` 同口径的通用重试辅助，供嵌入等非 Agent 调用复用。
+
+## F26 刚推送的子模块 tag 经默认 GOPROXY 取不到
+
+- **现象**：contrib 补发的 `retrieval/qdrant/v0.4.1` 等 tag 推送后，经默认 `proxy.golang.org` 执行 `go get` 失败，需 `GOPROXY=direct`。
+- **证据**：Task 4 报告：`go get .../retrieval/qdrant@v0.4.1` 经默认代理失败，改用 `GOPROXY=direct` 成功。`Dockerfile` 的 `GOPROXY` 因此保留 `,direct` 回退。
+- **影响**：发版后第一批下游可能拉不到新版本，CI 与 Docker 构建会偶发失败。
+- **产品处理**：构建参数 `GOPROXY=https://proxy.golang.org,direct`。
+- **建议**：发版流程在推 tag 后请求一次 `proxy.golang.org/<module>/@v/<tag>.info` 预热，并在发版说明中注明。
+
+## F27 `document` 切分器默认按字节计长
+
+- **现象**：`ChunkSize`、`ChunkOverlap` 的名字和文档都没有说明单位。默认 `LengthFunction` 是 `len`，按字节计。中文一字 3 字节，`ChunkSize: 800` 实际约 266 个汉字。
+- **证据**：`contrib:document/splitter.go:57-59`；`internal/docs/collect.go:48`。
+- **影响**：按"字符"理解去设置中文语料的块大小，实际块会小到约三分之一，检索粒度和块数都和预期不同。
+- **产品处理**：保留字节口径。改按字符计长会重新切分全部语料，已有验收结果随之作废。README 写明了单位和理由。
+- **建议**：修框架。在字段注释写明单位；或把默认计长改为 `utf8.RuneCountInString`，作为破坏性变更发版。
+
 ---
 
 ## 产品侧已知限制（不属于框架）
 
 - `docs.Collect` 遇到一个无法解析的 `.go` 文件就整体失败。当前两个固定版本的语料都能解析。
 - 并发执行 `ka ingest` 没有互斥，按"单写者 CLI"设计；运行中的重建只经审批由唯一的 Worker 执行。
-- e2e 用了 `Pdeathsig`，只能在 Linux 上编译。
+- e2e 用了 `Pdeathsig`（`e2e/e2e_test.go:115`、`:168`），只能在 Linux 上编译。
+- `serve` 退出时，HTTP 排空、`worker.Shutdown` 和等待后台循环共用同一个 10 秒 ctx（`cmd/ka/main.go` 的 serve 收尾）。前一步耗时越久，后面可用的时间越少，进行中的任务可能来不及交还。
+- 后台循环的 `finish` 把 `context.Canceled` 当作正常退出。如果 Worker 在认领槽位途中被取消并泄漏槽位（F19），进程仍以退出码 0 结束，编排系统看不到异常，只能靠下一次启动时认领失败才暴露出来。
 - 页面 JS 没有自动化测试。
 
 ## 验证状态
@@ -263,11 +293,11 @@
 
 - **离线**：`TMPDIR=/tmp taskset -c 2,3,6-27 scripts/test.sh ./...` 全部通过（e2e、assistant、chat、config、docs、embed、web）。
 - **compose 演练**（`KA_MODEL=script KA_EMBEDDER=hash`）：ingest 索引 5562 块。a 持有 Worker 槽位，b 不持有。`scripts/failover.sh` 退出码 0，用时约 12 秒，回收了 a 的槽位（代次 1）。之后 b 以 `worker=true` 重启，探测任务成功。此次演练早于下面的语料修正，所以块数更多。
-- **真实模型首次验收失败**：报告见 `verification/live-20261116T165540Z.json`，提交 9927f15，模型 deepseek，嵌入 gemini，失败 2 项。两个记忆场景都通过（a 写入、b 召回、经 b 删除后 a 不再召回，召回产生的 `e:` 缓存条目被物理删除）。两项失败都是产品问题，不是框架问题：
-  - 语料收录了 `docs/superpowers` 下带日期的设计和实施计划，真实嵌入下这些计划排在模块文档前面。「Redis 缓存前缀默认是什么」的答案因此来自旧计划。
+- **真实模型首次验收失败**：报告见 `verification/live-20261116T165540Z.json`，提交 9927f15，模型 deepseek，嵌入 gemini，失败 2 项。三个记忆场景（写入、跨实例召回、删除后不再召回）都通过：a 写入的 1 条记录 b 可见，经 b 删除后 a 查不到，召回产生的 `e:` 缓存条目被物理删除。两项失败的根因都在产品侧：
+  - 语料收录了 `docs/superpowers` 下带日期的设计和实施计划，真实嵌入下这些计划排在模块文档前面。「pgstore 怎么建表」引用了一份 spec；「Redis 缓存前缀默认是什么」的答案来自旧计划。
   - godoc 采集漏掉了导出结构体字段的注释，而默认前缀只写在 `Config.Prefix` 的字段注释里。
-  - 验收脚本只按 `dir/` 前缀判断来源，`repo:dir#godoc` 这种只有包文档的来源会被误判为不匹配。
-- **修复**：提交 5343471 排除 `docs/superpowers`，并收录导出字段注释，均先写失败测试；验收脚本的来源判断改为同时接受 `dir#`。
+- **修复**：提交 5343471 排除 `docs/superpowers`，并收录导出字段注释，均先写了失败测试。
+- **修复中另外发现的脚本问题**（不是首次失败的根因）：验收脚本只按 `dir/` 前缀判断来源，`repo:dir#godoc` 这种只有包文档的来源会被误判为不匹配，可能造成误报失败。脚本改为同时接受 `dir#`。
 - **真实模型复验通过**：`KA_LIVE=1 scripts/live.sh` 退出码 0，报告见 `verification/live-20261116T170741Z.json`，失败 0 项。ingest 索引 4233 块。
   - 3 个文档问题的来源依次为：`durable/pgstore#godoc` 与 contrib `README.md#durable/pgstore`；`CACHING_GUIDE.md#删除承诺`；`cache/redis#godoc`（答案 `goagent:cache:`）。耗时 2.3–9.3 秒，每题约 2400–2900 tokens，`usage_status=available`。
   - 记忆场景：a 写入后 b 可见 1 条；b 新会话召回成功，新增 2 个 `e:` 缓存条目；经 b 删除后 a 查不到记录，这些缓存条目不再存在，a 新会话回答中不再出现代号。

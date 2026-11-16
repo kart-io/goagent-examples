@@ -35,7 +35,9 @@ for _ in $(seq 120); do
 	curl -fsS "$base/" >/dev/null 2>&1 && break
 	sleep 0.5
 done
-docker compose logs b | grep -q 'worker=true' || { echo "b 未以 Worker 身份启动" >&2; docker compose logs b >&2; exit 1; }
+# 先取全文再匹配：pipefail 下 grep -q 提前退出会让 logs 收到 SIGPIPE，造成误报。
+logs_b=$(docker compose logs b)
+grep -q 'worker=true' <<<"$logs_b" || { echo "b 未以 Worker 身份启动" >&2; printf '%s\n' "$logs_b" >&2; exit 1; }
 
 user=failover-probe
 api() {
