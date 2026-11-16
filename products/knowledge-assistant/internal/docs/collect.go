@@ -32,6 +32,10 @@ type Chunk struct {
 
 var skipDirs = map[string]bool{".git": true, "vendor": true, "testdata": true, "node_modules": true}
 
+// skipPaths 按仓库相对路径排除目录。docs/superpowers 是带日期的设计与实施计划，描述当时的意图而非现状，
+// 真实嵌入下却排在模块文档前面（见 verification 中的首次真实验收）。
+var skipPaths = map[string]bool{"docs/superpowers": true}
+
 var headingRe = regexp.MustCompile(`^#{1,4}\s+(.+?)\s*$`)
 
 // Collect 采集 root 下各仓库（一级子目录）的 Markdown 小节与 Go 包文档。
@@ -66,17 +70,17 @@ func (c *collector) collectRepo(root, repo string) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() {
-			if path != repoDir && skipDirs[d.Name()] {
-				return filepath.SkipDir
-			}
-			return nil
-		}
 		rel, err := filepath.Rel(repoDir, path)
 		if err != nil {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
+		if d.IsDir() {
+			if path != repoDir && (skipDirs[d.Name()] || skipPaths[rel]) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
 		switch {
 		case strings.HasSuffix(path, ".md"):
 			return c.collectMarkdown(repo, rel, path)
@@ -172,7 +176,7 @@ func (c *collector) collectGodoc(repo, dir string, files []string) error {
 	return c.add(fmt.Sprintf("%s:%s#godoc", repo, dir), text)
 }
 
-// pkgText 拼接包注释与导出符号的注释；doc 默认已过滤未导出符号。
+// pkgText 拼接包注释与导出符号（含导出结构体字段）的注释；doc 默认已过滤未导出符号。
 func pkgText(p *doc.Package) string {
 	var out []string
 	if d := strings.TrimSpace(p.Doc); d != "" {
@@ -191,6 +195,17 @@ func pkgText(p *doc.Package) string {
 	}
 	for _, t := range p.Types {
 		sym(t.Name, t.Doc)
+		// 默认值、单位这类约定常写在字段注释上，漏掉它们模型只能从过期的计划文档里猜。
+		for _, f := range structFields(t.Decl) {
+			if f.Doc == nil {
+				continue
+			}
+			for _, n := range f.Names {
+				if n.IsExported() {
+					sym(t.Name+"."+n.Name, f.Doc.Text())
+				}
+			}
+		}
 		for _, f := range t.Funcs {
 			sym(f.Name, f.Doc)
 		}
@@ -199,6 +214,18 @@ func pkgText(p *doc.Package) string {
 		}
 	}
 	return strings.Join(out, "\n\n")
+}
+
+func structFields(decl *ast.GenDecl) []*ast.Field {
+	var out []*ast.Field
+	for _, spec := range decl.Specs {
+		if ts, ok := spec.(*ast.TypeSpec); ok {
+			if st, ok := ts.Type.(*ast.StructType); ok {
+				out = append(out, st.Fields.List...)
+			}
+		}
+	}
+	return out
 }
 
 func (c *collector) add(source, text string) error {

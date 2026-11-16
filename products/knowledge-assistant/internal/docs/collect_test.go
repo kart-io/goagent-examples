@@ -26,6 +26,7 @@ func TestCollectSources(t *testing.T) {
 		{"markdown 小节", "goagent-contrib:durable/pgstore/README.md#建表", "执行 `Schema`"},
 		{"godoc", "goagent:memory#godoc", "Package memory 提供智能体的长期记忆能力"},
 		{"godoc 含导出函数注释", "goagent:memory#godoc", "向指定命名空间写入一条记忆"},
+		{"godoc 含导出字段注释", "goagent-contrib:cache/redis#godoc", "Config.Prefix\nPrefix 是全部键的前缀，默认 \"goagent:cache:\""},
 	}
 	chunks := mustCollect(t)
 	for _, tt := range tests {
@@ -92,5 +93,13 @@ func TestCollectStableIDs(t *testing.T) {
 			t.Fatalf("ID 重复: %s", a[i])
 		}
 		seen[a[i]] = true
+	}
+}
+
+func TestCollectSkipsWorkingDocs(t *testing.T) {
+	for _, c := range mustCollect(t) {
+		if strings.Contains(c.Source, "docs/superpowers/") || strings.Contains(c.Text, "superpowers-plan-marker") {
+			t.Fatalf("开发过程文档不应进入索引: %s", c.Source)
+		}
 	}
 }
