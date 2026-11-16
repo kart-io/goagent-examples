@@ -79,7 +79,7 @@ func newEnv(t *testing.T) *env {
 		}
 	})
 
-	idx, err := docs.NewIndex(ctx, c.QdrantAddr, fmt.Sprintf("t_%08x", rand.Uint32()), e)
+	idx, err := docs.NewIndex(ctx, c.QdrantAddr, fmt.Sprintf("t_%08x", rand.Uint32()), e, s.Pool)
 	if err != nil {
 		t.Fatalf("NewIndex: %v", err)
 	}

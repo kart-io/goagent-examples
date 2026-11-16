@@ -94,7 +94,12 @@ func ingest(ctx context.Context, c config.Config, _ []string) error {
 	if err != nil {
 		return err
 	}
-	idx, err := docs.NewIndex(ctx, c.QdrantAddr, c.DocsAlias, e)
+	pool, err := pgxpool.New(ctx, c.PGURL)
+	if err != nil {
+		return err
+	}
+	defer pool.Close()
+	idx, err := docs.NewIndex(ctx, c.QdrantAddr, c.DocsAlias, e, pool)
 	if err != nil {
 		return err
 	}
@@ -137,7 +142,7 @@ func open(ctx context.Context, c config.Config, confirm func(context.Context, st
 	if a.stores, err = assistant.Open(ctx, c, model, e); err != nil {
 		return nil, err
 	}
-	if a.index, err = docs.NewIndex(ctx, c.QdrantAddr, c.DocsAlias, e); err != nil {
+	if a.index, err = docs.NewIndex(ctx, c.QdrantAddr, c.DocsAlias, e, a.stores.Pool); err != nil {
 		return nil, err
 	}
 	a.svc, err = mg.New(mg.Config{

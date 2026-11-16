@@ -8,8 +8,11 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qdrant/go-client/qdrant"
 
 	agentErrors "github.com/kart-io/goagent/errors"
@@ -19,18 +22,25 @@ import (
 )
 
 type env struct {
+	addr  string
 	alias string
 	cli   *qdrant.Client
+	pool  *pgxpool.Pool
 	idx   *Index
 }
 
 func newEnv(t *testing.T) *env {
 	t.Helper()
-	addr := os.Getenv("KA_TEST_QDRANT_ADDR")
-	if addr == "" {
+	addr, pgURL := os.Getenv("KA_TEST_QDRANT_ADDR"), os.Getenv("KA_TEST_PG_URL")
+	if addr == "" || pgURL == "" {
 		t.Skip("需经 scripts/test.sh 运行")
 	}
 	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, pgURL)
+	if err != nil {
+		t.Fatalf("连接 PG: %v", err)
+	}
+	t.Cleanup(pool.Close)
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
 		t.Fatalf("解析 KA_TEST_QDRANT_ADDR %q: %v", addr, err)
@@ -44,11 +54,11 @@ func newEnv(t *testing.T) *env {
 		t.Fatalf("NewClient: %v", err)
 	}
 	alias := fmt.Sprintf("t_%08x", rand.Uint32())
-	idx, err := NewIndex(ctx, addr, alias, embed.NewHash(3072))
+	idx, err := NewIndex(ctx, addr, alias, embed.NewHash(3072), pool)
 	if err != nil {
 		t.Fatalf("NewIndex: %v", err)
 	}
-	e := &env{alias: alias, cli: cli, idx: idx}
+	e := &env{addr: addr, alias: alias, cli: cli, pool: pool, idx: idx}
 	t.Cleanup(func() {
 		if err := idx.Close(); err != nil {
 			t.Errorf("关闭 Index: %v", err)
@@ -314,5 +324,146 @@ func TestDropStaleOnlyOwnCollections(t *testing.T) {
 	}
 	if exists, err := e.cli.CollectionExists(ctx, other); err != nil || !exists {
 		t.Errorf("他人集合 %s 被误删: exists=%v err=%v", other, exists, err)
+	}
+}
+
+// 模拟锁被绕过的并发重建：A 切换 alias 之后、清理之前，B 把 alias 切到了自己的集合。
+// A 的清理必须放过 alias 当前指向的集合，否则线上索引被删，之后所有任务都会失败。
+func TestDropStaleKeepsCurrentAfterConcurrentSwitch(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	mine, err := e.idx.Rebuild(ctx, "k1", mustCollect(t))
+	if err != nil {
+		t.Fatalf("Rebuild k1: %v", err)
+	}
+	theirs := e.alias + "_" + keyHash("k2")
+	if err := e.cli.CreateCollection(ctx, &qdrant.CreateCollection{
+		CollectionName: theirs,
+		VectorsConfig:  qdrant.NewVectorsConfig(&qdrant.VectorParams{Size: 3072, Distance: qdrant.Distance_Cosine}),
+	}); err != nil {
+		t.Fatalf("CreateCollection: %v", err)
+	}
+	if err := e.cli.UpdateAliases(ctx, []*qdrant.AliasOperations{
+		qdrant.NewAliasDelete(e.alias), qdrant.NewAliasCreate(e.alias, theirs),
+	}); err != nil {
+		t.Fatalf("外部切换 alias: %v", err)
+	}
+
+	if err := e.idx.dropStale(ctx, mine); err != nil {
+		t.Fatalf("dropStale: %v", err)
+	}
+	if exists, err := e.cli.CollectionExists(ctx, theirs); err != nil || !exists {
+		t.Fatalf("alias 当前指向的 %s 被删除: exists=%v err=%v", theirs, exists, err)
+	}
+	if cur, err := e.idx.Current(ctx); err != nil || cur != theirs {
+		t.Errorf("Current = %q, %v；期望 %q", cur, err, theirs)
+	}
+}
+
+// 两个进程（各自的 Index）同时以不同的键重建：锁让它们依次执行，都成功，最终 alias 指向完整的集合且只剩它一个。
+func TestConcurrentRebuildsSerialized(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	chunks := mustCollect(t)
+	other, err := NewIndex(ctx, e.addr, e.alias, embed.NewHash(3072), e.pool)
+	if err != nil {
+		t.Fatalf("NewIndex: %v", err)
+	}
+	t.Cleanup(func() { _ = other.Close() })
+
+	tests := []struct {
+		idx *Index
+		key string
+	}{
+		{e.idx, "k1"},
+		{other, "k2"},
+	}
+	names := make([]string, len(tests))
+	errs := make([]error, len(tests))
+	var wg sync.WaitGroup
+	for i, tt := range tests {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			names[i], errs[i] = tt.idx.Rebuild(ctx, tt.key, chunks)
+		}()
+	}
+	wg.Wait()
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("Rebuild %s: %v", tests[i].key, err)
+		}
+	}
+	cur, err := e.idx.Current(ctx)
+	if err != nil {
+		t.Fatalf("Current: %v", err)
+	}
+	if cur != names[0] && cur != names[1] {
+		t.Fatalf("Current = %q，期望是 %v 之一", cur, names)
+	}
+	if n := e.count(t, cur); n != uint64(len(chunks)) {
+		t.Errorf("当前集合点数 = %d，期望 %d", n, len(chunks))
+	}
+	if got := e.collections(t); len(got) != 1 || got[0] != cur {
+		t.Errorf("集合 = %v，期望只剩 %s", got, cur)
+	}
+}
+
+// 锁被另一方持有时 Rebuild 必须等待，释放后才继续：证明串行化来自锁，而不是两次调用碰巧错开。
+func TestRebuildWaitsForLock(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	tx, err := e.pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("Begin: %v", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, rebuildLock); err != nil {
+		t.Fatalf("持锁: %v", err)
+	}
+
+	chunks := mustCollect(t)
+	done := make(chan error, 1)
+	go func() {
+		_, err := e.idx.Rebuild(ctx, "k1", chunks)
+		done <- err
+	}()
+	// 以 pg_locks 中出现未授予的同号 advisory 锁为准，确认 Rebuild 正在等这把锁，而不是碰巧还没跑完。
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		var waiting int
+		if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM pg_locks
+			WHERE locktype = 'advisory' AND classid = 0 AND objid = $1 AND objsubid = 1 AND NOT granted`, rebuildLock).Scan(&waiting); err != nil {
+			t.Fatalf("查询 pg_locks: %v", err)
+		}
+		if waiting > 0 {
+			break
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("锁被占用时 Rebuild 不应完成: %v", err)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("30 秒内没有看到 Rebuild 等待重建锁")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got := e.collections(t); len(got) != 0 {
+		t.Fatalf("等锁期间不应写集合，实际有 %v", got)
+	}
+	if err := tx.Rollback(ctx); err != nil {
+		t.Fatalf("释放锁: %v", err)
+	}
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Rebuild: %v", err)
+		}
+	case <-time.After(60 * time.Second):
+		t.Fatal("释放锁后 Rebuild 60 秒内未完成")
+	}
+	if _, err := e.idx.Current(ctx); err != nil {
+		t.Errorf("Current: %v", err)
 	}
 }

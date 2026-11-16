@@ -108,7 +108,7 @@ func newServer(t *testing.T, worker bool) *httptest.Server {
 			t.Errorf("关闭 Stores: %v", err)
 		}
 	})
-	idx, err := docs.NewIndex(ctx, c.QdrantAddr, fmt.Sprintf("w_%08x", rand.Uint32()), e)
+	idx, err := docs.NewIndex(ctx, c.QdrantAddr, fmt.Sprintf("w_%08x", rand.Uint32()), e, st.Pool)
 	if err != nil {
 		t.Fatalf("NewIndex: %v", err)
 	}

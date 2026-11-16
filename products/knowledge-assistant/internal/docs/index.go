@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"sync"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/qdrant/go-client/qdrant"
 
 	cq "github.com/kart-io/goagent-contrib/retrieval/qdrant"
@@ -23,18 +25,27 @@ var _ interfaces.DocumentRetriever = (*retrieval.VectorStoreRetriever)(nil)
 
 const writeBatch = 100
 
+// rebuildLock 串行化同一数据库上的全部重建：Worker 每个任务一个 goroutine，两个审批同时通过、
+// 或与 compose 每次 up 都会跑的 ingest 重叠时，重建会并发执行，后者的集合可能被前者的清理删掉。
+// 不与迁移锁（assistant.migrateLock = 80261116）共用，免得耗时数分钟的重建挡住实例启动时的迁移。
+const rebuildLock = 80261117
+
 // Index 是以 Qdrant alias 对外的文档索引：每次重建写入新集合，再原子切换 alias。
 type Index struct {
 	addr, alias string
 	embedder    retrieval.Embedder
 	client      *qdrant.Client
+	pool        *pgxpool.Pool // 只用于 rebuildLock；放进构造参数，让每条重建路径都绕不开锁
 
 	mu    sync.Mutex
 	store *cq.QdrantVectorStore // 绑定 alias 名的检索 store，懒创建后复用；alias 切换后仍有效
 }
 
-// NewIndex 连接 Qdrant（addr 形如 host:6334，gRPC）。
-func NewIndex(ctx context.Context, addr, alias string, e retrieval.Embedder) (*Index, error) {
+// NewIndex 连接 Qdrant（addr 形如 host:6334，gRPC）；pool 指向各实例共用的 Postgres，Rebuild 在其上取 advisory 锁。
+func NewIndex(ctx context.Context, addr, alias string, e retrieval.Embedder, pool *pgxpool.Pool) (*Index, error) {
+	if pool == nil {
+		return nil, agentErrors.New(agentErrors.CodeInvalidConfig, "文档索引需要 Postgres 连接池以串行化重建")
+	}
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, agentErrors.Wrap(err, agentErrors.CodeInvalidConfig, "Qdrant 地址格式应为 host:port")
@@ -51,7 +62,7 @@ func NewIndex(ctx context.Context, addr, alias string, e retrieval.Embedder) (*I
 		_ = cli.Close()
 		return nil, agentErrors.Wrap(err, agentErrors.CodeInternal, "连接 Qdrant 失败")
 	}
-	return &Index{addr: addr, alias: alias, embedder: e, client: cli}, nil
+	return &Index{addr: addr, alias: alias, embedder: e, client: cli, pool: pool}, nil
 }
 
 // Close 关闭内部客户端。
@@ -90,10 +101,24 @@ func (x *Index) Current(ctx context.Context) (string, error) {
 
 // Rebuild 把 chunks 写入由 key 决定的新集合并切换 alias，返回新集合名。
 // 同一 key 重放是幂等的：已是当前集合时不重写，只清理残留旧集合。
+// 并发调用（含其它进程）经 rebuildLock 排队依次执行；事务级锁在提交、回滚或连接断开时都会释放，进程崩溃也不会留下死锁。
 func (x *Index) Rebuild(ctx context.Context, key string, chunks []Chunk) (string, error) {
 	if len(chunks) == 0 {
 		return "", agentErrors.New(agentErrors.CodeInvalidInput, "语料为空，拒绝重建索引（避免用空集合替换线上索引）")
 	}
+	var name string
+	err := pgx.BeginFunc(ctx, x.pool, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, rebuildLock); err != nil {
+			return agentErrors.Wrap(err, agentErrors.CodeInternal, "获取重建索引锁失败")
+		}
+		var err error
+		name, err = x.rebuild(ctx, key, chunks)
+		return err
+	})
+	return name, err
+}
+
+func (x *Index) rebuild(ctx context.Context, key string, chunks []Chunk) (string, error) {
 	next := x.alias + "_" + keyHash(key)
 	cur := ""
 	switch c, err := x.Current(ctx); {
@@ -165,6 +190,14 @@ func (x *Index) dropStale(ctx context.Context, keep string) error {
 	mine := regexp.MustCompile("^" + regexp.QuoteMeta(x.alias) + "_[0-9a-f]{12}$")
 	for _, n := range names {
 		if n == keep || !mine.MatchString(n) {
+			continue
+		}
+		// 每次删除前重读 alias：即使锁被绕过、alias 已被别的重建切走，也不删线上集合。
+		cur, err := x.Current(ctx)
+		if err != nil && !agentErrors.IsCode(err, agentErrors.CodeNotFound) {
+			return err
+		}
+		if n == cur {
 			continue
 		}
 		if err := x.client.DeleteCollection(ctx, n); err != nil {

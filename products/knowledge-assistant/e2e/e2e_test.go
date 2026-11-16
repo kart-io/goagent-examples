@@ -596,7 +596,7 @@ func TestAcceptance(t *testing.T) {
 	t.Run("TestRebuildIndexViaApproval", func(t *testing.T) {
 		ctx := context.Background()
 		qd := os.Getenv("KA_TEST_QDRANT_ADDR")
-		idx, err := docs.NewIndex(ctx, qd, s.alias, embed.NewHash(3072))
+		idx, err := docs.NewIndex(ctx, qd, s.alias, embed.NewHash(3072), s.pool)
 		if err != nil {
 			t.Fatalf("NewIndex：%v", err)
 		}
