@@ -23,6 +23,7 @@
 | [orchestration/protocol-agent](orchestration/protocol-agent/README.md) | 独立模块：A2A/MCP/HTTP 共用任务，跨入口输入与审批、检查点换连接续接、远端 Agent 工具与流式取消；使用同级 goagent 工作树 |
 | `orchestration/` 其余目录 | 子 Agent 工具化、组合订单、上下文恢复、字段适配、并行诊断、Runnable 工具、流式管道 |
 | [agent-usage](agent-usage/README.md) | Token 统计：单 Agent、父子协作、多平台同任务、推理明细、失败／取消与持久回放；含真实调用与完整验证报告 |
+| [products/knowledge-assistant](products/knowledge-assistant/README.md) | 独立模块：团队知识助手实战项目，RAG 带来源、按用户的长期记忆、审批、双实例部署与故障转移；含 docker compose、真实模型验收与框架发现 |
 | `internal/livemodel` | 真实模型客户端的构造与用量记录，供各案例共用 |
 | `scripts/` | 真实模型评测脚本 |
 

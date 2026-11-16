@@ -1,0 +1,112 @@
+# 团队知识助手全套部署：Postgres(pgvector)、Redis、Qdrant、一次性的 migrate/ingest，以及两个助手实例 a、b。
+# 密钥与模型选择从 shell 环境或同目录 .env 读取，见 .env.example。
+# 固定项目名，避免与 scripts/test.sh 的测试容器或其它 compose 项目混在一起。
+name: knowledge-assistant
+
+x-ka: &ka
+  build: .
+  image: knowledge-assistant:local
+  environment: &ka-env
+    KA_PG_URL: postgres://ka:ka@postgres:5432/ka?sslmode=disable
+    KA_REDIS_ADDR: redis:6379
+    KA_QDRANT_ADDR: qdrant:6334
+    KA_LISTEN: 0.0.0.0:8081
+    KA_MODEL: ${KA_MODEL:-live}
+    KA_EMBEDDER: ${KA_EMBEDDER:-gemini}
+    KA_CACHE_TAG_KEY: ${KA_CACHE_TAG_KEY:?须设置 KA_CACHE_TAG_KEY（至少 32 字节的 hex，可用 openssl rand -hex 32 生成）}
+    GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-}
+    GOAGENT_LIVE_PROVIDER: ${GOAGENT_LIVE_PROVIDER:-deepseek}
+    DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-}
+    MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+    MINIMAX_CN_API_KEY: ${MINIMAX_CN_API_KEY:-}
+    MINIMAX_MODEL: ${MINIMAX_MODEL:-}
+    GEMINI_MODEL: ${GEMINI_MODEL:-}
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ka
+      POSTGRES_PASSWORD: ka
+      POSTGRES_DB: ka
+    configs:
+      - source: pg-init
+        target: /docker-entrypoint-initdb.d/init.sql
+    volumes:
+      - pg:/var/lib/postgresql/data
+    healthcheck:
+      # 走 TCP：初始化阶段的临时实例只监听 unix socket，用 socket 探活会过早判定就绪。
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "ka", "-d", "ka"]
+      interval: 2s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      retries: 30
+
+  qdrant:
+    image: qdrant/qdrant:v1.20.2
+    volumes:
+      - qdrant:/qdrant/storage
+    healthcheck:
+      # 镜像里没有 curl，用 bash 的 /dev/tcp 请求 /readyz。
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/6333 && printf 'GET /readyz HTTP/1.0\\r\\n\\r\\n' >&3 && grep -q ' 200 ' <&3"]
+      interval: 2s
+      retries: 30
+
+  migrate:
+    <<: *ka
+    command: ["ka", "migrate"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  ingest:
+    <<: *ka
+    command: ["ka", "ingest"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      qdrant:
+        condition: service_healthy
+
+  # 只有 a 运行 Worker：management 全局只允许一个活动 Worker，不做自动接管。
+  # 不设重启策略：Worker 实例被强杀后槽位仍被占用，须先经 scripts/failover.sh 人工回收。
+  a:
+    <<: *ka
+    command: ["ka", "serve"]
+    environment:
+      <<: *ka-env
+      WORKER: "1"
+    ports:
+      - "127.0.0.1:${KA_A_PORT:-8081}:8081"
+    depends_on: &serve-deps
+      ingest:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  # b 平时只提供 HTTP；故障转移时以 WORKER=1 docker compose up -d --no-deps b 重建。
+  b:
+    <<: *ka
+    command: ["ka", "serve"]
+    environment:
+      <<: *ka-env
+      WORKER: ${WORKER:-0}
+    ports:
+      - "127.0.0.1:${KA_B_PORT:-8082}:8081"
+    depends_on: *serve-deps
+
+configs:
+  pg-init:
+    content: |
+      CREATE EXTENSION IF NOT EXISTS vector;
+
+volumes:
+  pg:
+  qdrant:
