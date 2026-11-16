@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>团队知识助手</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <p class="eyebrow">GOAGENT · KNOWLEDGE ASSISTANT</p>
+        <h1>团队知识助手</h1>
+        <p>基于 goagent 与 goagent-contrib 文档回答问题，并记住你的个人偏好。</p>
+        <div class="toolbar">
+          <label for="user">用户名</label
+          ><input id="user" autocomplete="username" placeholder="小写字母、数字、- 或 _" /><span
+            id="status"
+            role="status"
+            >就绪</span
+          >
+        </div>
+      </header>
+
+      <section class="panel">
+        <form id="ask">
+          <h2>对话</h2>
+          <label for="input">问题</label
+          ><textarea id="input" rows="3" placeholder="例如：pgstore 怎么建表">
+pgstore 怎么建表</textarea
+          >
+          <div class="actions">
+            <button id="send" type="submit">提问</button
+            ><button id="new-session" type="button" class="secondary">新会话</button>
+          </div>
+        </form>
+        <div class="result">
+          <p class="eyebrow" id="task-state">尚无任务</p>
+          <pre id="answer" aria-live="polite">提交问题后，这里将显示回答。</pre>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="pad">
+          <div class="row">
+            <h2>待审批</h2>
+            <button id="refresh-approvals" type="button" class="secondary">刷新</button>
+          </div>
+          <ul id="approvals" class="list"></ul>
+        </div>
+      </section>
+
+      <section class="panel">
+        <form id="memory-search" class="pad">
+          <h2>我的记忆</h2>
+          <div class="row">
+            <input id="memory-q" placeholder="搜索记忆，留空只看置顶" /><button type="submit">搜索</button>
+          </div>
+          <h3>置顶</h3>
+          <ul id="pinned" class="list"></ul>
+          <h3>搜索结果</h3>
+          <ul id="matches" class="list"></ul>
+        </form>
+      </section>
+
+      <footer>
+        身份仅为演示：令牌即用户名。清空记忆、重建文档索引等操作需要在“待审批”中批准后才会执行。
+      </footer>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

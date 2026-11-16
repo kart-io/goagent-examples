@@ -44,4 +44,5 @@ export KA_TEST_QDRANT_ADDR="127.0.0.1:$qdrant_port"
 pkgs=("$@")
 [ ${#pkgs[@]} -eq 0 ] && pkgs=(./...)
 go vet "${pkgs[@]}"
-TMPDIR=/tmp taskset -c 2,3,6-27 go test -count=1 "${pkgs[@]}"
+# 包之间串行：管理面全局只有一个 Worker 槽位，并行的测试包共用同一个库会互相抢占。
+TMPDIR=/tmp taskset -c 2,3,6-27 go test -p 1 -count=1 "${pkgs[@]}"
