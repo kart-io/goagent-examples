@@ -213,14 +213,23 @@ func serve(ctx context.Context, c config.Config, _ []string) (runErr error) {
 		running++
 		go func() { finish(worker.Run(workCtx)) }()
 	}
-	// 只有真实模型才能抽取记忆；script 模式下 Stores 未配置 Model。
+	// 只有真实模型才能抽取记忆；script 模式下 Stores 未配置 Model，改跑 RunMaintenance：
+	// 框架要求不跑记忆 Worker 的部署必须运行它，否则 Purge 中断后的旧作用域、Forget 残留的向量与删除标记都无人清理。
+	// 两个实例都跑：Maintain 各步幂等、不持 Worker 锁（与 live 下两个实例都跑 Memory.Run 对称），
+	// 也不必跟着 management 的 Worker 槽位做人工故障转移。
+	running++
+	memoryLoop := "extract"
 	if c.Model == "live" {
-		running++
 		go func() {
 			finish(a.stores.Memory.Run(workCtx, func(err error) { fmt.Fprintln(os.Stderr, "记忆抽取：", err) }))
 		}()
+	} else {
+		memoryLoop = "maintenance"
+		go func() {
+			finish(a.stores.Memory.RunMaintenance(workCtx, 0, func(err error) { fmt.Fprintln(os.Stderr, "记忆维护：", err) }))
+		}()
 	}
-	fmt.Printf("团队知识助手已启动：http://%s（worker=%v，model=%s）\n", listener.Addr(), c.Worker, c.Model)
+	fmt.Printf("团队知识助手已启动：http://%s（worker=%v，model=%s，memory=%s）\n", listener.Addr(), c.Worker, c.Model, memoryLoop)
 
 	defer func() {
 		if worker != nil {

@@ -126,6 +126,7 @@ type proc struct {
 	base   string
 	cmd    *exec.Cmd
 	done   chan error
+	stdout *syncBuffer
 	stderr *syncBuffer
 }
 
@@ -161,7 +162,7 @@ func (s *suite) start(t *testing.T, name string, worker bool) *proc {
 	if worker {
 		w = "1"
 	}
-	p := &proc{name: name, cmd: exec.Command(bin, "serve"), done: make(chan error, 1), stderr: &syncBuffer{}}
+	p := &proc{name: name, cmd: exec.Command(bin, "serve"), done: make(chan error, 1), stdout: &syncBuffer{}, stderr: &syncBuffer{}}
 	p.cmd.Env = append(slices.Clone(s.env), "WORKER="+w)
 	p.cmd.Stderr = p.stderr
 	// go test 超时被杀时子进程随之退出，否则 WORKER=1 的孤儿进程会一直占着槽位。
@@ -177,6 +178,7 @@ func (s *suite) start(t *testing.T, name string, worker bool) *proc {
 	go func() {
 		sc := bufio.NewScanner(stdout)
 		for sc.Scan() {
+			_, _ = fmt.Fprintln(p.stdout, sc.Text())
 			if m := startedLine.FindStringSubmatch(sc.Text()); m != nil {
 				addr <- m[1]
 			}
@@ -414,6 +416,17 @@ func remember(t *testing.T, base, user, fact string) {
 	wantState(t, ask(t, base, user, "记住："+fact), mg.Succeeded)
 }
 
+// snapshotReads 返回 durable 快照表的累计扫描次数。统计由各后端异步上报，有秒级延迟，只用来判断是否增长。
+func (s *suite) snapshotReads(t *testing.T) int64 {
+	t.Helper()
+	var n int64
+	if err := s.pool.QueryRow(context.Background(),
+		`SELECT coalesce(seq_scan, 0) + coalesce(idx_scan, 0) FROM pg_stat_user_tables WHERE relname = 'goagent_durable_snapshot'`).Scan(&n); err != nil {
+		t.Fatalf("读取 durable 快照表统计：%v", err)
+	}
+	return n
+}
+
 func (s *suite) toolRuns(t *testing.T, tool, user string) int {
 	t.Helper()
 	var n int
@@ -453,6 +466,18 @@ func TestAcceptance(t *testing.T) {
 	t.Log(s.command(t, "ingest"))
 	s.a = s.start(t, "a", true)
 	s.b = s.start(t, "b", false)
+	// 放在任何任务之前：此时只有记忆维护会读 durable 快照表，读次数增长即说明维护在运行。
+	t.Run("TestMemoryMaintenanceRuns", func(t *testing.T) {
+		for _, p := range []*proc{s.a, s.b} {
+			if !strings.Contains(p.stdout.String(), "memory=maintenance") {
+				t.Errorf("%s 未以记忆维护模式启动：%s", p.name, p.stdout)
+			}
+		}
+		before := s.snapshotReads(t)
+		waitFor(t, "记忆维护读取 durable 快照", func() (bool, error) {
+			return s.snapshotReads(t) > before, nil
+		})
+	})
 	// 先确认 a 已认领 Worker 槽位且能执行任务，之后才可能对它发信号（见 Task 7 FINDING：认领途中取消会泄漏槽位）。
 	wantState(t, ask(t, s.a.base, tenant("probe"), "你好"), mg.Succeeded)
 
@@ -626,6 +651,14 @@ func TestAcceptance(t *testing.T) {
 			t.Errorf("切换后结果不含来源 %q：\n%s", sourceHint, got)
 		}
 	})
+
+	live.mu.Lock()
+	for _, p := range live.procs {
+		if strings.Contains(p.stderr.String(), "记忆维护：") {
+			t.Errorf("%s 的记忆维护报错", p.name)
+		}
+	}
+	live.mu.Unlock()
 
 	if t.Failed() {
 		dumpProcs(t)
