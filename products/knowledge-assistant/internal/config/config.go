@@ -5,11 +5,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
+	"slices"
 )
 
 // minTagKeyBytes 是缓存标签 HMAC 密钥的最小长度，短于此值的密钥抗暴力枚举能力不足。
 const minTagKeyBytes = 32
 
+// Config 是服务全部运行参数，字段与环境变量的对应见 FromLookup。
 type Config struct {
 	PGURL       string
 	RedisAddr   string
@@ -70,7 +72,7 @@ func FromLookup(get func(string) (string, bool)) (Config, error) {
 	}
 	for _, e := range enums {
 		v := val(e.name, e.def)
-		if !contains(e.allowed, v) {
+		if !slices.Contains(e.allowed, v) {
 			return Config{}, fmt.Errorf("环境变量 %s 取值 %q 非法，可选 %v", e.name, v, e.allowed)
 		}
 		*e.dst = v
@@ -89,13 +91,4 @@ func FromLookup(get func(string) (string, bool)) (Config, error) {
 	}
 	c.CacheTagKey = key
 	return c, nil
-}
-
-func contains(list []string, v string) bool {
-	for _, s := range list {
-		if s == v {
-			return true
-		}
-	}
-	return false
 }

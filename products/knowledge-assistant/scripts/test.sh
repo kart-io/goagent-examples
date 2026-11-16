@@ -18,11 +18,24 @@ docker run -d --rm --name "$pg" -e POSTGRES_PASSWORD=test -p "127.0.0.1:$pg_port
 docker run -d --rm --name "$redis" -p "127.0.0.1:$redis_port:6379" redis:7-alpine >/dev/null
 docker run -d --rm --name "$qdrant" -p "127.0.0.1:$qdrant_port:6334" -p "127.0.0.1:$qdrant_http_port:6333" qdrant/qdrant:v1.20.2 >/dev/null
 
-until docker exec "$pg" pg_isready -q 2>/dev/null; do sleep 0.2; done
+# 最多等待约 60 秒，超时按服务名报错退出
+wait_for() {
+	local svc=$1
+	shift
+	for _ in $(seq 300); do
+		"$@" >/dev/null 2>&1 && return 0
+		sleep 0.2
+	done
+	echo "等待 $svc 就绪超时（60 秒）" >&2
+	exit 1
+}
+
+wait_for Postgres docker exec "$pg" pg_isready -q
 # 官方镜像初始化阶段会重启一次服务，等稳定后再连
 sleep 1
-until docker exec "$pg" psql -U postgres -qc 'CREATE EXTENSION IF NOT EXISTS vector' 2>/dev/null; do sleep 0.2; done
-until curl -fsS "http://127.0.0.1:$qdrant_http_port/readyz" >/dev/null 2>&1; do sleep 0.2; done
+wait_for "Postgres(vector 扩展)" docker exec "$pg" psql -U postgres -qc 'CREATE EXTENSION IF NOT EXISTS vector'
+wait_for Redis docker exec "$redis" sh -c 'redis-cli ping | grep -q PONG'
+wait_for Qdrant curl -fsS "http://127.0.0.1:$qdrant_http_port/readyz"
 
 export KA_TEST_PG_URL="postgres://postgres:test@127.0.0.1:$pg_port/postgres?sslmode=disable"
 export KA_TEST_REDIS_ADDR="127.0.0.1:$redis_port"
