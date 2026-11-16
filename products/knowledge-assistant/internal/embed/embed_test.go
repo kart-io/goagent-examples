@@ -25,7 +25,10 @@ func TestHashDeterministic(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b, _ := h.Embed(context.Background(), "pgstore 怎么建表")
+	b, err := h.Embed(context.Background(), "pgstore 怎么建表")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if len(a) != 3072 || !reflect.DeepEqual(a, b) {
 		t.Fatalf("向量不确定或维度错误: len=%d", len(a))
 	}
@@ -34,9 +37,16 @@ func TestHashDeterministic(t *testing.T) {
 func TestHashSimilarity(t *testing.T) {
 	h := NewHash(3072)
 	ctx := context.Background()
-	q, _ := h.Embed(ctx, "pgstore 怎么建表")
-	near, _ := h.Embed(ctx, "durable/pgstore 建表：执行 Schema")
-	far, _ := h.Embed(ctx, "Redis 缓存前缀")
+	embed := func(s string) []float32 {
+		v, err := h.Embed(ctx, s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return v
+	}
+	q := embed("pgstore 怎么建表")
+	near := embed("durable/pgstore 建表：执行 Schema")
+	far := embed("Redis 缓存前缀")
 	if cosine(q, near) <= cosine(q, far) {
 		t.Fatalf("相近文本相似度 %.3f 应大于无关文本 %.3f", cosine(q, near), cosine(q, far))
 	}
@@ -64,7 +74,10 @@ func TestHashBatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	for i, s := range texts {
-		one, _ := h.Embed(ctx, s)
+		one, err := h.Embed(ctx, s)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !reflect.DeepEqual(batch[i], one) {
 			t.Fatalf("第 %d 条批量与单条结果不一致", i)
 		}
@@ -88,7 +101,11 @@ func TestGeminiLive(t *testing.T) {
 	if g.Dimensions() <= 0 {
 		t.Fatalf("维度应大于 0: %d", g.Dimensions())
 	}
-	if id := ModelID(g); !strings.HasPrefix(id, "gemini-embedding-001@") {
+	model := os.Getenv("GEMINI_EMBEDDING_MODEL")
+	if model == "" {
+		model = "gemini-embedding-001"
+	}
+	if id := ModelID(g); !strings.HasPrefix(id, model+"@") {
 		t.Fatalf("ModelID=%q", id)
 	}
 }
