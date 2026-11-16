@@ -32,12 +32,16 @@ for base in "$base_a" "$base_b"; do
 	done
 done
 
-now_ms() { date +%s%3N; }
+# date +%N 是 GNU 扩展，macOS 不支持；perl 在两边都自带。
+now_ms() { perl -MTime::HiRes=time -e 'printf "%d\n", time() * 1000'; }
+
+# uuidgen 在 macOS 与多数 Linux 上都有；精简的 Linux 镜像没有时退回内核接口。
+new_uuid() { uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid; }
 
 # api <base> <user> <method> <path> [body]：输出响应体，非 2xx 时报错退出。
 api() {
 	curl -fsS -X "$3" "$1$4" -H "Authorization: Bearer $2" \
-		-H "Idempotency-Key: $(cat /proc/sys/kernel/random/uuid)" -H 'Content-Type: application/json' ${5:+-d "$5"}
+		-H "Idempotency-Key: $(new_uuid)" -H 'Content-Type: application/json' ${5:+-d "$5"}
 }
 
 # ask <base> <user> <question>：新建会话提问，等到终态，输出 {state, answer, tokens, usage_status, elapsed_ms}。

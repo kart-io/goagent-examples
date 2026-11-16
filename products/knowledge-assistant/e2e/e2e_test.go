@@ -1,3 +1,5 @@
+//go:build linux
+
 // Package e2e 以两个 ka serve 子进程跑规格第 6 节的离线验收场景。
 package e2e
 

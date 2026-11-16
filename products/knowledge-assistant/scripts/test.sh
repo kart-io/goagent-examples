@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 启动 Postgres(pgvector)、Redis、Qdrant 专用容器并运行产品全部测试，结束后删除容器。
-# 用法：scripts/test.sh [go test 参数]，默认包范围为 ./...
+# 用法：[KA_TASKSET=<核列表>] scripts/test.sh [go test 参数]，默认包范围为 ./...
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -45,4 +45,5 @@ pkgs=("$@")
 [ ${#pkgs[@]} -eq 0 ] && pkgs=(./...)
 go vet "${pkgs[@]}"
 # 包之间串行：管理面全局只有一个 Worker 槽位，并行的测试包共用同一个库会互相抢占。
-TMPDIR=/tmp taskset -c 2,3,6-27 go test -p 1 -count=1 "${pkgs[@]}"
+# KA_TASKSET 非空时用 taskset 把测试绑到这些 CPU 核上（如 KA_TASKSET=2,3,6-27），仅 Linux 可用。
+TMPDIR=/tmp ${KA_TASKSET:+taskset -c "$KA_TASKSET"} go test -p 1 -count=1 "${pkgs[@]}"

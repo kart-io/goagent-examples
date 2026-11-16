@@ -40,8 +40,10 @@ logs_b=$(docker compose logs b)
 grep -q 'worker=true' <<<"$logs_b" || { echo "b 未以 Worker 身份启动" >&2; printf '%s\n' "$logs_b" >&2; exit 1; }
 
 user=failover-probe
+# uuidgen 在 macOS 与多数 Linux 上都有；精简的 Linux 镜像没有时退回内核接口。
+new_uuid() { uuidgen 2>/dev/null || cat /proc/sys/kernel/random/uuid; }
 api() {
-	curl -fsS -X "$1" "$base$2" -H "Authorization: Bearer $user" -H "Idempotency-Key: $(cat /proc/sys/kernel/random/uuid)" \
+	curl -fsS -X "$1" "$base$2" -H "Authorization: Bearer $user" -H "Idempotency-Key: $(new_uuid)" \
 		-H 'Content-Type: application/json' ${3:+-d "$3"}
 }
 agent=$(api POST /api/agent | jq -r .agent_id)
