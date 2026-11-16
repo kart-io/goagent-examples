@@ -23,7 +23,7 @@ import (
 	"github.com/kart-io/goagent-examples/products/knowledge-assistant/internal/embed"
 )
 
-// migrateLock 与 contrib 各自的迁移锁不同，避免与 mgpg.Migrate 互相等待。
+// migrateLock 是本产品专用的锁号，不与 contrib 示例（80261109）和 mgpg（80261108）的迁移锁共用，免得互相串行。
 const migrateLock = 80261116
 
 // cacheTTL 须不超过 memory 默认的 EraseWithin（5 分钟），否则 EraseRequired 构建失败。

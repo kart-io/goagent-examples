@@ -122,6 +122,9 @@ func newEnv(t *testing.T) *env {
 
 func actor(name string) mg.Actor { return mg.Actor{TenantID: name, Subject: name} }
 
+// tenant 生成本次运行独有的租户，测试之间及复用的库里互不干扰。
+func tenant(prefix string) string { return prefix + "-" + uuid.NewString() }
+
 func waitFor(t *testing.T, what string, ok func() (bool, error)) {
 	t.Helper()
 	deadline := time.Now().Add(60 * time.Second)
@@ -195,6 +198,7 @@ func TestEnsureAgentIdempotent(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
 	ids := map[string]string{}
+	tenants := map[string]string{"ea1": tenant("ea1"), "ea2": tenant("ea2")}
 	tests := []struct {
 		actor string
 		same  string // 非空时期望与该 actor 先前得到的 ID 相同
@@ -206,7 +210,7 @@ func TestEnsureAgentIdempotent(t *testing.T) {
 	}
 	for i, tt := range tests {
 		t.Run(fmt.Sprintf("%d_%s", i, tt.actor), func(t *testing.T) {
-			agent, err := EnsureAgent(ctx, e.svc, actor(tt.actor))
+			agent, err := EnsureAgent(ctx, e.svc, actor(tenants[tt.actor]))
 			if err != nil {
 				t.Fatalf("EnsureAgent: %v", err)
 			}
@@ -235,7 +239,8 @@ func recall(t *testing.T, m *memory.Memory, ns, text string) []memory.Scored {
 
 func TestNamespaceBoundInRun(t *testing.T) {
 	e := newEnv(t)
-	u1 := actor("u1")
+	ns := map[string]string{"u1": tenant("u1"), "u2": tenant("u2")}
+	u1 := actor(ns["u1"])
 	task := e.submit(t, u1, "记住：我们用 pgstore")
 	e.waitState(t, u1, task.ID, mg.Succeeded)
 
@@ -248,7 +253,7 @@ func TestNamespaceBoundInRun(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.ns, func(t *testing.T) {
-			got := recall(t, e.stores.Memory, tt.ns, "pgstore")
+			got := recall(t, e.stores.Memory, ns[tt.ns], "pgstore")
 			hit := false
 			for _, s := range got {
 				hit = hit || strings.Contains(s.Content, "我们用 pgstore")
@@ -273,7 +278,7 @@ func purgeRuns(t *testing.T, e *env, tenant string) int {
 func TestPurgeNeedsApproval(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
-	const tenant = "u1"
+	tenant := tenant("u1")
 	u1 := actor(tenant)
 	if _, err := e.stores.Memory.Remember(memory.WithNamespace(ctx, tenant), memory.Record{
 		Content: "部署在 k8s", Kind: memory.KindFact, Importance: 0.5, Pinned: true,
@@ -281,8 +286,6 @@ func TestPurgeNeedsApproval(t *testing.T) {
 		t.Fatalf("Remember: %v", err)
 	}
 
-	// 按差值断言，库被复用时历史行不影响结果。
-	before := purgeRuns(t, e, tenant)
 	task := e.submit(t, u1, "清空我的记忆")
 	e.waitState(t, u1, task.ID, mg.WaitingApproval)
 	page, err := e.svc.ListApprovals(ctx, u1, mg.Query{TaskID: task.ID, Statuses: []string{"pending"}})
@@ -300,7 +303,7 @@ func TestPurgeNeedsApproval(t *testing.T) {
 	}
 	e.waitState(t, u1, task.ID, mg.Succeeded)
 
-	if runs := purgeRuns(t, e, tenant) - before; runs != 1 {
+	if runs := purgeRuns(t, e, tenant); runs != 1 {
 		t.Errorf("purge 执行 %d 次，期望 1", runs)
 	}
 	pinned, err := e.stores.Memory.Pinned(memory.WithNamespace(ctx, tenant))
