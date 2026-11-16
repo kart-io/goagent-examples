@@ -348,7 +348,7 @@ func TestSources(t *testing.T) {
 }
 
 func TestStaticIndex(t *testing.T) {
-	srv := newServer(t, false)
+	h := staticHandler()
 	tests := []struct {
 		path, want string
 	}{
@@ -358,14 +358,80 @@ func TestStaticIndex(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			res, err := http.Get(srv.URL + tt.path)
-			if err != nil {
-				t.Fatalf("GET %s: %v", tt.path, err)
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, tt.path, nil))
+			if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), tt.want) {
+				t.Errorf("GET %s = %d，正文不含 %q", tt.path, rec.Code, tt.want)
 			}
-			defer func() { _ = res.Body.Close() }()
-			raw, _ := io.ReadAll(res.Body)
-			if res.StatusCode != http.StatusOK || !strings.Contains(string(raw), tt.want) {
-				t.Errorf("GET %s = %d，正文不含 %q", tt.path, res.StatusCode, tt.want)
+		})
+	}
+}
+
+// 未认证请求在触及依赖前就被拒绝，因此空 handler 即可验证。
+func TestAPIUnauthenticated(t *testing.T) {
+	mux := http.NewServeMux()
+	productRoutes(mux, &handler{})
+	routes := []struct{ method, path string }{
+		{"POST", "/api/agent"},
+		{"GET", "/api/memories?q=x"},
+		{"DELETE", "/api/memories/abc"},
+		{"GET", "/api/sources?q=x"},
+	}
+	tokens := []struct{ name, header string }{
+		{"无令牌", ""},
+		{"非法令牌", "Bearer ../x"},
+		{"Basic", "Basic u1"},
+	}
+	for _, rt := range routes {
+		for _, tk := range tokens {
+			t.Run(rt.method+" "+rt.path+" "+tk.name, func(t *testing.T) {
+				req := httptest.NewRequest(rt.method, rt.path, nil)
+				if tk.header != "" {
+					req.Header.Set("Authorization", tk.header)
+				}
+				rec := httptest.NewRecorder()
+				mux.ServeHTTP(rec, req)
+				if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), `"unauthenticated"`) {
+					t.Errorf("状态 = %d，正文 %s，期望 401 unauthenticated", rec.Code, rec.Body)
+				}
+			})
+		}
+	}
+}
+
+func TestProblemMapping(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+		code string
+	}{
+		{"记忆不存在", agentErrors.New(agentErrors.CodeStoreNotFound, "x"), http.StatusNotFound, "not_found"},
+		{"通用不存在", agentErrors.New(agentErrors.CodeNotFound, "x"), http.StatusNotFound, "not_found"},
+		{"管理面不存在", agentErrors.ErrManagementNotFound, http.StatusNotFound, "not_found"},
+		{"无权限", agentErrors.ErrManagementForbidden, http.StatusForbidden, "forbidden"},
+		{"冲突", agentErrors.ErrManagementConflict, http.StatusConflict, "conflict"},
+		{"依赖不可用", fmt.Errorf("包装：%w", agentErrors.ErrManagementUnavailable), http.StatusServiceUnavailable, "unavailable"},
+		{"容量已满", agentErrors.ErrManagementBusy, http.StatusServiceUnavailable, "busy"},
+		{"参数无效", agentErrors.ErrManagementInvalid, http.StatusBadRequest, "invalid_request"},
+		{"未知错误", errors.New("boom"), http.StatusInternalServerError, "internal"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			h := authed(func(http.ResponseWriter, *http.Request, mg.Actor) error { return tt.err })
+			req := httptest.NewRequest(http.MethodGet, "/api/x", nil)
+			req.Header.Set("Authorization", "Bearer u1")
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			var body struct {
+				Error struct{ Code, Message string } `json:"error"`
+			}
+			_ = json.Unmarshal(rec.Body.Bytes(), &body)
+			if rec.Code != tt.want || body.Error.Code != tt.code {
+				t.Errorf("状态 = %d、code = %q，期望 %d、%q", rec.Code, body.Error.Code, tt.want, tt.code)
+			}
+			if strings.Contains(body.Error.Message, "ingest") || strings.Contains(body.Error.Message, "boom") {
+				t.Errorf("通用映射泄漏了不相关或内部信息：%q", body.Error.Message)
 			}
 		})
 	}

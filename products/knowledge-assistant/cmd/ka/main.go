@@ -13,12 +13,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/kart-io/goagent-contrib/retrieval"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/llm"
 	mg "github.com/kart-io/goagent/management"
 
@@ -180,29 +182,37 @@ func serve(ctx context.Context, c config.Config, _ []string) (runErr error) {
 	if err != nil {
 		return err
 	}
-	server := &http.Server{Handler: h, ReadHeaderTimeout: 5 * time.Second}
+	// 请求 ctx 派生自 workCtx：关闭时一并取消仍在进行的长请求。
+	workCtx, cancelWork := context.WithCancel(context.Background())
+	server := &http.Server{
+		Handler:           h,
+		ReadHeaderTimeout: 5 * time.Second,
+		BaseContext:       func(net.Listener) context.Context { return workCtx },
+	}
 	httpDone := make(chan error, 1)
 	go func() { httpDone <- server.Serve(listener) }()
 
 	// 后台循环（管理 Worker、记忆抽取）任一提前退出都结束进程，交给编排系统重启。
-	workCtx, cancelWork := context.WithCancel(context.Background())
+	// 关闭时取消 workCtx，循环返回的 context.Canceled 属正常退出。
 	background := make(chan error, 2)
+	finish := func(err error) {
+		if errors.Is(err, context.Canceled) {
+			err = nil
+		}
+		background <- err
+	}
 	running := 0
 	var worker *mg.Worker
 	if c.Worker {
 		worker = mg.NewWorker(a.svc)
 		running++
-		go func() { background <- worker.Run(workCtx) }()
+		go func() { finish(worker.Run(workCtx)) }()
 	}
 	// 只有真实模型才能抽取记忆；script 模式下 Stores 未配置 Model。
 	if c.Model == "live" {
 		running++
 		go func() {
-			err := a.stores.Memory.Run(workCtx, func(err error) { fmt.Fprintln(os.Stderr, "记忆抽取：", err) })
-			if errors.Is(err, context.Canceled) {
-				err = nil
-			}
-			background <- err
+			finish(a.stores.Memory.Run(workCtx, func(err error) { fmt.Fprintln(os.Stderr, "记忆抽取：", err) }))
 		}()
 	}
 	fmt.Printf("团队知识助手已启动：http://%s（worker=%v，model=%s）\n", listener.Addr(), c.Worker, c.Model)
@@ -214,13 +224,21 @@ func serve(ctx context.Context, c config.Config, _ []string) (runErr error) {
 		cancelWork()
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		runErr = errors.Join(runErr, server.Shutdown(shutdown))
+		if err := server.Shutdown(shutdown); err != nil {
+			runErr = errors.Join(runErr, err, server.Close())
+		}
 		if worker != nil {
 			runErr = errors.Join(runErr, worker.Shutdown(shutdown))
 		}
-		// 等后台循环全部返回，再由外层关闭它们使用的存储。
+		// 等后台循环全部返回，再由外层关闭它们使用的存储；卡住的循环不能让进程永远挂起。
 		for ; running > 0; running-- {
-			runErr = errors.Join(runErr, <-background)
+			select {
+			case err := <-background:
+				runErr = errors.Join(runErr, err)
+			case <-shutdown.Done():
+				runErr = errors.Join(runErr, fmt.Errorf("等待 %d 个后台循环退出超时", running))
+				return
+			}
 		}
 	}()
 	select {
@@ -249,6 +267,9 @@ func recoverWorker(ctx context.Context, c config.Config, args []string) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if strings.TrimSpace(*reason) == "" {
+		return errors.New("须用 -reason 写明回收原因（写入审计）")
+	}
 	confirm := func(context.Context, string, int64) error {
 		if !*confirmed {
 			return errors.New("须由运维确认旧实例已停止")
@@ -261,6 +282,10 @@ func recoverWorker(ctx context.Context, c config.Config, args []string) error {
 	}
 	defer func() { _ = a.close(context.Background()) }()
 	doc, err := a.stores.Manage.Get(ctx, "workers", "__system", "default")
+	if errors.Is(err, agentErrors.ErrManagementNotFound) {
+		fmt.Println("Worker 槽位从未被认领，无需回收")
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("读取 Worker 槽位：%w", err)
 	}

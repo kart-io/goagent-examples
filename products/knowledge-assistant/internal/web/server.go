@@ -49,19 +49,28 @@ func NewHandler(s *mg.Service, st *assistant.Stores, idx *docs.Index) (http.Hand
 	if err != nil {
 		return nil, err
 	}
-	page, err := fs.Sub(static, "static")
-	if err != nil {
-		return nil, err
-	}
-	h := &handler{svc: s, mem: st.Memory, idx: idx}
 	mux := http.NewServeMux()
 	mux.Handle("/v1/", api)
+	productRoutes(mux, &handler{svc: s, mem: st.Memory, idx: idx})
+	mux.Handle("/", staticHandler())
+	return mux, nil
+}
+
+// productRoutes 挂载 /api/*；鉴权先于处理函数执行，未认证请求不会触及依赖。
+func productRoutes(mux *http.ServeMux, h *handler) {
 	mux.HandleFunc("POST /api/agent", authed(h.ensureAgent))
 	mux.HandleFunc("GET /api/memories", authed(h.memories))
 	mux.HandleFunc("DELETE /api/memories/{id}", authed(h.forget))
 	mux.HandleFunc("GET /api/sources", authed(h.sources))
-	mux.Handle("/", http.FileServer(http.FS(page)))
-	return mux, nil
+}
+
+// staticHandler 提供嵌入的页面，不依赖任何存储。
+func staticHandler() http.Handler {
+	page, err := fs.Sub(static, "static")
+	if err != nil {
+		panic(err) // "static" 由 go:embed 保证存在
+	}
+	return http.FileServer(http.FS(page))
 }
 
 type handler struct {
@@ -134,6 +143,10 @@ func (h *handler) sources(w http.ResponseWriter, r *http.Request, _ mg.Actor) er
 		return nil
 	}
 	ret, err := h.idx.Retriever(r.Context(), sourcesK)
+	if agentErrors.IsCode(err, agentErrors.CodeNotFound) {
+		writeProblem(w, http.StatusNotFound, "index_missing", "文档索引不存在，请先运行 ka ingest")
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -169,9 +182,12 @@ var problems = []struct {
 	message string
 }{
 	{is(agentErrors.ErrManagementUnauthenticated), http.StatusUnauthorized, "unauthenticated", "需要认证"},
+	{is(agentErrors.ErrManagementForbidden), http.StatusForbidden, "forbidden", "没有操作权限"},
 	{is(agentErrors.ErrManagementNotFound), http.StatusNotFound, "not_found", "资源不存在"},
 	{code(agentErrors.CodeStoreNotFound), http.StatusNotFound, "not_found", "资源不存在"},
-	{code(agentErrors.CodeNotFound), http.StatusNotFound, "not_found", "文档索引不存在，请先运行 ka ingest"},
+	{code(agentErrors.CodeNotFound), http.StatusNotFound, "not_found", "资源不存在"},
+	{is(agentErrors.ErrManagementUnavailable), http.StatusServiceUnavailable, "unavailable", "依赖暂不可用"},
+	{is(agentErrors.ErrManagementBusy), http.StatusServiceUnavailable, "busy", "容量已满，请稍后重试"},
 	{is(agentErrors.ErrManagementConflict), http.StatusConflict, "conflict", "修订号、状态或幂等内容冲突"},
 	{is(agentErrors.ErrManagementInvalid), http.StatusBadRequest, "invalid_request", "请求参数无效"},
 	{code(agentErrors.CodeInvalidInput), http.StatusBadRequest, "invalid_request", "请求参数无效"},
@@ -194,7 +210,11 @@ func problem(w http.ResponseWriter, r *http.Request, err error) {
 	if status == http.StatusInternalServerError {
 		log.Printf("%s %s 失败：%v", r.Method, r.URL.Path, err)
 	}
-	writeJSON(w, status, map[string]any{"error": map[string]string{"code": c, "message": msg}})
+	writeProblem(w, status, c, msg)
+}
+
+func writeProblem(w http.ResponseWriter, status int, code, msg string) {
+	writeJSON(w, status, map[string]any{"error": map[string]string{"code": code, "message": msg}})
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
