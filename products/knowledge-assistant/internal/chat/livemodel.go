@@ -107,6 +107,9 @@ func FromEnv() (*Client, error) {
 func (c *Client) Calls() int64                { return c.calls.Load() }
 func (c *Client) StreamMode() core.StreamMode { return c.mode }
 
+// ModelName 供模型缓存解析身份：Builder 不设请求的 Model，withModel 又只在发请求时才补，缺了它缓存会静默关闭。
+func (c *Client) ModelName() string { return c.Live.Model }
+
 func (c *Client) CompleteStream(ctx context.Context, req *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	c.calls.Add(1)
 	return c.ToolStreamClient.CompleteStream(ctx, c.withModel(req))

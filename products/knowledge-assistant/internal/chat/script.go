@@ -22,6 +22,9 @@ func NewScript() *Script { return &Script{} }
 
 func (*Script) Provider() constants.Provider { return constants.ProviderOpenAI }
 
+// CacheIdentity 让模型缓存生效：builder.ModelCache 解析不出客户端身份时静默不缓存，离线验收就测不到缓存擦除。
+func (*Script) CacheIdentity() string { return "ka-script" }
+
 func (s *Script) CompleteStream(_ context.Context, r *llm.CompletionRequest) (<-chan *llm.StreamChunk, error) {
 	return s.reply(r), nil
 }

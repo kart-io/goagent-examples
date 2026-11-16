@@ -98,3 +98,29 @@ func TestScriptCallIDDeterministic(t *testing.T) {
 		t.Fatal("工具调用 ID 须可重放且随消息数变化")
 	}
 }
+
+// builder.ModelCache 只缓存能解析出身份（CacheIdentity 或 ModelName）的客户端，取不到时静默不缓存。
+func TestCacheIdentity(t *testing.T) {
+	tests := []struct {
+		name   string
+		client llm.Client
+		want   string
+	}{
+		{"脚本模型", NewScript(), "ka-script"},
+		{"真实模型包装", Wrap(NewScript(), Config{Provider: "deepseek", Model: "deepseek-chat"}), "deepseek-chat"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var got string
+			switch c := tt.client.(type) {
+			case interface{ CacheIdentity() string }:
+				got = c.CacheIdentity()
+			case interface{ ModelName() string }:
+				got = c.ModelName()
+			}
+			if got != tt.want {
+				t.Errorf("缓存身份 = %q，期望 %q", got, tt.want)
+			}
+		})
+	}
+}
