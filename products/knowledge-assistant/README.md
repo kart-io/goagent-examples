@@ -46,20 +46,21 @@
 | 文档切分 | contrib `document` 的 `RecursiveCharacterTextSplitter`；Markdown 按标题切成小节，Go 包文档用 `go/doc` 解析导出注释 | 来源要精确到小节，标题必须由产品自己保留。Markdown/Token 切分器经 `SplitDocuments` 不会切分（F7） |
 | 文档检索 | `retrieval.VectorStoreRetriever` + `retrieval/qdrant`，经 `builder.WithRetriever` 接入 | RAGRetriever 不实现 `DocumentRetriever`，接不上 Builder（F11） |
 | 文档向量库 | Qdrant，alias 蓝绿切换 | 不改框架即可开工，也顺带验证现成的 Qdrant 模块。代价是多一个服务、向量分两处存。全部放进 Postgres 是后续工作 |
-| 长期记忆 | goagent `memory`：Durable = `durable/pgstore`，Index = `memory/pgvector`，抽取由 `Memory.Run` 异步完成 | 两个实例各持有一个 `memory.Memory`，读写同一套存储。跨实例一致靠共享存储，不依赖 Worker |
+| 长期记忆 | goagent `memory`：Durable = `durable/pgstore`，Index = `memory/pgvector`，抽取由 `Memory.Run` 异步完成；脚本模型下没有抽取，改跑 `Memory.RunMaintenance` | 两个实例各持有一个 `memory.Memory`，读写同一套存储。跨实例一致靠共享存储，不依赖 Worker。框架要求不跑记忆 Worker 的部署必须跑维护，否则 Purge 中断后的旧作用域、Forget 残留的向量无人清理；维护各步幂等，两个实例都跑 |
 | 模型缓存 | `builder.ModelCache`：`cache/redis` + `Erase: EraseRequired` + `OnErase: Memory 的 Eraser` | 记忆删除后，用到它的缓存条目由框架回调擦除，产品不直接删 Redis 键。`EraseRequired` 让"后端不支持擦除"在构建时就失败，而不是线上静默保留 |
 
 ### 取值理由
 
 - **切分 800 字节、重叠 100 字节**：`document` 的切分器默认用 `len` 计长，单位是字节不是字符（F27）。中文一字 3 字节，800 字节约合 266 个汉字，英文和代码约 800 个字符。中文小节短的落在一块里，来源能精确到小节；长的会切成数块，但来源仍指向同一小节。100 字节的重叠（约 33 个汉字）让被切开的那句话在相邻两块里都有完整出现的机会。改按字符计长会重新切分全部语料，现有验收结果随之作废，所以保留字节口径。
 - **语料范围**：完整语料约 4200 块。goagent 的 `docs/superpowers`（`specs` 与 `plans`）整体不收录：这些文件带日期，描述的是当时的意图，真实嵌入下却排在模块文档前面（见 FINDINGS 验证状态）。代价是丢掉只写在设计文档里的细节，例如 `durable/pgstore` 的具体建表 SQL：它只出现在 specs 和 `schema.go` 的常量值里，而 godoc 不包含常量值。问到这类细节时，回答会如实说明文档未给出。
+  语料目前还收录了给 AI 编码助手看的工作流文件，如 `CLAUDE.md`、`.github/*.md`，它们会被检索到并被回答引用。排除它们会改变块数、使现有真实验收作废，暂不改动（见 FINDINGS 产品侧已知限制）。
 - **召回 4 条**（`RetrievalConfig{MaxDocuments: 4}`，`/api/sources` 同样取 4）：问题通常落在一两个小节，4 条足以覆盖"概念 + 用法"两类证据。再多会挤占上下文，模型也更容易引用不相干的路径。
 - **缓存 TTL 4 分钟**：`memory` 默认的 `EraseWithin` 是 5 分钟，`EraseRequired` 要求 TTL ≤ EraseWithin，否则构建失败。这样即使擦除回调因故没有执行，旧条目也会在承诺的擦除时限内过期。
-- **Gemini 嵌入 8 并发，可重试**：provider 没有批量接口，串行嵌入完整语料约需一小时。实测 10 并发约每秒 10 条且未被限流，所以默认取 8 留出余量，可用 `KA_EMBED_PARALLEL`（1–64）调整。provider 每次调用只发一个请求、不重试（F25），产品对单条嵌入做最多 5 次指数退避（1 秒起、上限 30 秒、全抖动），服务端给出 Retry-After 时按它等待。重试只针对 429、5xx、暂时性连接错误和单次请求超时，否则一次限流就会让整个 ingest 失败，a、b 也就起不来。
+- **Gemini 嵌入 8 并发，可重试**：provider 没有批量接口，串行嵌入完整语料约需一小时。实测 10 并发约每秒 10 条且未被限流，所以默认取 8 留出余量，可用 `KA_EMBED_PARALLEL`（1–64）调整。provider 每次调用只发一个请求、不重试（F25），产品对单条嵌入最多尝试 5 次，失败后按指数退避重试，等待窗口依次为 1、2、4、8 秒（全抖动，在窗口内随机取值）。代码里 30 秒的单次上限在 5 次尝试下达不到。服务端给出 Retry-After 时按它等待，超过 1 分钟则放弃。重试只针对 429、5xx、暂时性连接错误和单次请求超时，否则一次限流就会让整个 ingest 失败，a、b 也就起不来。
 
 ## 启动
 
-前置：Docker（含 compose v2），以及 Gemini 嵌入 key 和一个对话模型 key。
+前置：Docker 与 Docker Compose 2.23 或更高版本（`docker-compose.yml` 用 `configs.content` 内联 Postgres 初始化脚本，这是 2.23 才支持的写法），以及 Gemini 嵌入 key 和一个对话模型 key。
 
 ```bash
 cd products/knowledge-assistant
@@ -95,7 +96,13 @@ KA_MODEL=script KA_EMBEDDER=hash KA_CACHE_TAG_KEY=$(openssl rand -hex 32) docker
 
 ### 测试与验收
 
-- 离线：`scripts/test.sh ./...`。脚本临时启动 Postgres、Redis、Qdrant 容器，跑单元测试和双实例 e2e（规格第 6 节场景 1–6），用脚本模型和 3072 维哈希嵌入。参数同时传给 `go vet`，所以 `-v` 之类的标志要放在包路径前面。
+支持的平台：
+
+- 离线测试（`scripts/test.sh`）支持 Linux 和 macOS，需要 Docker、bash、curl。双实例 e2e 用了 Linux 专有的 `Pdeathsig`，文件带 `//go:build linux`，在 macOS 上不运行，其余包照常运行。
+- 运维脚本（`live.sh`、`failover.sh`）支持 Linux 和 macOS，另需 jq、perl，以及 `uuidgen`（没有时退回 Linux 的 `/proc/sys/kernel/random/uuid`）。
+- Windows 未验证。
+
+- 离线：`scripts/test.sh ./...`。脚本临时启动 Postgres、Redis、Qdrant 容器，跑单元测试和双实例 e2e（规格第 6 节场景 1–6），用脚本模型和 3072 维哈希嵌入。参数同时传给 `go vet`，所以 `-v` 之类的标志要放在包路径前面。设置 `KA_TASKSET`（如 `KA_TASKSET=2,3,6-27`）时，`go test` 经 `taskset -c` 绑定到这些 CPU 核上运行，仅 Linux 可用。
 - 真实模型：`KA_LIVE=1 scripts/live.sh`，用真实对话模型和 Gemini 嵌入跑场景 1–3：
   - 3 个文档问题，必须引用期望的仓库路径前缀；
   - a 上写入记忆，b 上新会话召回；
@@ -127,7 +134,16 @@ scripts/failover.sh "a 所在主机宕机"
 注意事项：
 
 - 运行 `failover.sh` 时的环境变量（或 `.env`）须与 `docker compose up` 时相同，否则 b 会以不同的模型或嵌入配置重建。
-- 故障转移之后，不要不带 `WORKER=1` 直接 `docker compose up -d`：那样会把 b 重建为非 Worker 并重新拉起 a。要切回 a，就对 b 反向执行同样的步骤。
+- 故障转移之后，不要不带 `WORKER=1` 直接 `docker compose up -d`：那样会把 b 重建为非 Worker 并重新拉起 a。`failover.sh` 只做 a→b 方向。要切回 a，按下面的步骤手工执行：
+
+  ```bash
+  docker compose kill b
+  docker compose ps -q --status running b   # 须为空，b 仍在运行就不能回收
+  docker compose run --rm --no-deps a ka recover-worker -reason "切回 a" -confirm-stopped
+  docker compose up -d --no-deps a          # a 的 WORKER 固定为 1
+  ```
+
+  然后在 a 上提交一个任务（例如在页面上问一句"你好"），等它成功，确认 a 已持有槽位（F19）。之后再执行 `docker compose up -d --no-deps b`，把 b 重建为非 Worker；此时 shell 里不能带着 `WORKER=1`。
 
 这一步需要人工介入，是框架有意的设计：只有运维能确认旧进程确实不在了。目前不顺手的地方在于槽位持有者只能直接读内部文档（F2），而且 owner 是 uuid，对应不到实例（见 FINDINGS）。
 
@@ -146,6 +162,7 @@ ingest 与审批触发的重建共用一把锁，在线时也可以执行。重�
 
 - **认证**：`Authorization: Bearer <用户名>` 只是演示。令牌就是用户名，任何人都能冒充任何人。生产环境要在 `web.ActorFromRequest` 处接入真实身份（OIDC、网关注入的身份头等），映射出 `Actor.TenantID` 与 `Subject`，同时去掉端口只绑 127.0.0.1 的限制。
 - **租户模型**：会话不记录创建者，产品只能让每个用户独占一个租户（F10）。团队内共享会话需要框架支持后再调整。
+- **审批不是授权**：每个用户独占一个租户，`TenantAuthorizer` 只核对租户，所以审批项只能由发起人自己批准。审批只防模型误调用工具，不限制谁能执行。任何用户都能让 `rebuild_docs_index` 执行，一次全量重新嵌入约 4200 次 Gemini 调用。框架目前表达不了"由管理员审批"（F28）。生产环境须实现区分管理员身份的 Authorizer，或不向普通用户开放这个工具。
 - **运维身份**：`recover-worker` 以固定的 `ops` Actor 调用，内置的 `TenantAuthorizer` 对这个系统级操作不设防（F20）。若要经 HTTP 暴露回收能力，须先实现区分运维身份的 Authorizer。
 - **密钥**：`KA_CACHE_TAG_KEY` 和模型 key 应来自密钥管理系统，不要放在 `.env`。
 - **重启策略**：交给编排系统时，非 Worker 实例可以自由重启；Worker 实例被强杀后须走故障转移，不能盲目重启。
