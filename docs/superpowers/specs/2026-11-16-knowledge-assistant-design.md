@@ -16,7 +16,7 @@
 
 - **文档问答（RAG）**：知识库为 goagent 与 goagent-contrib 的 Markdown 文档和 Go 包文档注释。回答必须附来源，给出仓库相对路径与小节，例如 `goagent-contrib:durable/pgstore/README.md#建表`。
 - **长期记忆**：按用户记住偏好与决定，例如"我们用 pgstore""我偏好中文示例"，后续对话自动召回。
-  - 用户可在页面上查看自己的记忆、删除单条记忆。这是产品自己的 REST 接口，内部调用 `memory.Forget`。
+  - 用户可在页面上搜索自己的记忆（`Recall`，另列置顶记忆）、删除单条记忆。这是产品自己的 REST 接口，删除内部调用 `memory.Forget`。`memory` 没有全量列举接口，记入 `FINDINGS.md`。
   - 也可以在对话里说"忘掉这条"，由 Agent 工具调用 `Forget`，这个操作不需要审批。
 - **审批**：两类敏感操作做成 Agent 工具，执行前须人工批准：
   - 清空当前用户的全部记忆（`Purge`）；
@@ -27,7 +27,7 @@
   - 后端：核心 `management/httpapi` 的标准 HTTP API，覆盖会话、任务、审批、运行查询。
   - 产品额外挂两组接口：记忆查看与删除，以及来源查看。
   - 前端：一个最小静态页面（对话、待审批列表、我的记忆），参考 `orchestration/httpagent/web` 的写法，只调用上述 HTTP 接口。
-- **用户身份**：页面填写用户名，请求带 `Authorization: Bearer <用户名>`。产品实现 `management.Authorizer`，把它映射为用户 ID，同时用作记忆命名空间与会话归属。这里不做真实认证，README 写明生产环境须替换。
+- **用户身份**：页面填写用户名，请求带 `Authorization: Bearer <用户名>`。产品实现 `management.Authorizer`，把它映射为用户 ID，同时用作 `Actor.TenantID`（会话不记录创建者，按用户隔离只能每用户一个租户，Agent 也按用户幂等注册）与记忆命名空间。这里不做真实认证，README 写明生产环境须替换。
 
 ## 3. 目标、非目标、反目标
 
@@ -87,18 +87,20 @@
 
   这一步是人工或运维动作，README 写明原因。如果实际用下来不顺手，在 `FINDINGS.md` 记录。
 
+**来源呈现**：框架送给模型的证据只有编号与正文，原生适配器也不保留 sources 事件，因此 ingest 把"来源：repo:path#小节"写在每个分块正文首行，模型据此引用路径；该缺口记入 `FINDINGS.md`。
+
 **知识库来源**：`ingest` 镜像构建时按固定版本 `git clone` 两个仓库：goagent 用 tag `v0.54.1`，contrib 用 master 的固定提交。来源路径为"仓库名:仓库相对路径#小节标题"。
 
 **重建索引**：
 
-- 写入新的 Qdrant collection，名字带时间戳；完成后切换 alias，再删除旧 collection。
+- 写入新的 Qdrant collection，名字由工具执行键派生（重放幂等）；完成后切换 alias，再删除旧 collection。
 - 重建期间问答继续读旧 alias。
 - 重建只由 Worker 执行。单活动 Worker 加上审批的"恰好一次"语义，已经排除了并发重建。
 
 **依赖版本**：
 
 - goagent `v0.54.1`。
-- contrib 各模块用当前最新 tag：`durable/pgstore/v0.5.0`、`document/v0.3.0`、`retrieval/v0.4.0`、`retrieval/qdrant/v0.4.0`、`cache/redis/v0.1.0`、`memory/pgvector/v0.1.1`；`management/pgstore` 按其 go.mod 的发布情况取用。
+- contrib：`durable/pgstore/v0.5.0`、`cache/redis/v0.1.0`、`memory/pgvector/v0.1.1`；`document/v0.3.0`、`retrieval/v0.4.0` 引用了 goagent v0.53 已删除的 `utils/json`，无法编译，master 已修，发补丁版 `document/v0.3.1`、`retrieval/v0.4.1`、`retrieval/qdrant/v0.4.1` 后使用；`management` 模块无 tag，用 master 提交的 pseudo-version。
 - 只用已推送的提交，不用本地 replace，独立克隆即可构建。
 - 如果某模块与 goagent v0.54.1 不兼容，先修 contrib 并发版，再继续，同时记入 `FINDINGS.md`。
 
