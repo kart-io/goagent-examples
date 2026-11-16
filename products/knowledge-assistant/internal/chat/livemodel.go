@@ -1,5 +1,5 @@
 // 本文件拷贝自 goagent-examples 的 internal/livemodel：Go 的 internal 目录
-// 不能跨 module 导入，见 FINDINGS F8。
+// 不能跨 module 导入，见 FINDINGS F8。与原文件相比多了 ModelName：模型缓存须据此解析客户端身份，否则静默不缓存。
 
 // Package chat 为编排案例接入真实模型（DeepSeek、MiniMax、Gemini）。
 // 客户端不做隐式重试，并统计真实发出的请求数，回放不会进入传输层。

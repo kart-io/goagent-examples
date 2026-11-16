@@ -112,6 +112,7 @@ func (s *suite) command(t *testing.T, args ...string) string {
 	t.Helper()
 	cmd := exec.Command(bin, args...)
 	cmd.Env = s.env
+	cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("ka %s 失败：%v\n%s", strings.Join(args, " "), err, out)
@@ -163,6 +164,8 @@ func (s *suite) start(t *testing.T, name string, worker bool) *proc {
 	p := &proc{name: name, cmd: exec.Command(bin, "serve"), done: make(chan error, 1), stderr: &syncBuffer{}}
 	p.cmd.Env = append(slices.Clone(s.env), "WORKER="+w)
 	p.cmd.Stderr = p.stderr
+	// go test 超时被杀时子进程随之退出，否则 WORKER=1 的孤儿进程会一直占着槽位。
+	p.cmd.SysProcAttr = &syscall.SysProcAttr{Pdeathsig: syscall.SIGKILL}
 	stdout, err := p.cmd.StdoutPipe()
 	if err != nil {
 		t.Fatalf("%s stdout：%v", name, err)
@@ -274,6 +277,8 @@ func waitFor(t *testing.T, what string, ok func() (bool, error)) {
 	}
 }
 
+var httpClient = &http.Client{Timeout: 30 * time.Second}
+
 // call 以 user 身份请求 base+path，out 非 nil 时解码 2xx 响应体；返回状态码与原始响应体。
 func call(t *testing.T, base, user, method, path string, body, out any) (int, []byte) {
 	t.Helper()
@@ -291,7 +296,7 @@ func call(t *testing.T, base, user, method, path string, body, out any) (int, []
 	}
 	req.Header.Set("Authorization", "Bearer "+user)
 	req.Header.Set("Idempotency-Key", uuid.NewString())
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		t.Fatalf("%s %s：%v", method, path, err)
 	}
@@ -512,14 +517,26 @@ func TestAcceptance(t *testing.T) {
 		entries := 0
 		for _, k := range added {
 			if !strings.HasPrefix(k, s.prefix+"e:") {
+				if !strings.HasPrefix(k, s.prefix+"g:") && !strings.HasPrefix(k, s.prefix+"t:") {
+					t.Errorf("新增键 %s 既非条目（e:）也非标签令牌（g:）或成员集合（t:）", k)
+					continue
+				}
+				ttl, err := s.redis.PTTL(ctx, k).Result()
+				if err != nil {
+					t.Fatalf("PTTL %s：%v", k, err)
+				}
 				// 不存在时 PTTL 为 -2，未设过期时间为 -1（go-redis 原样返回为纳秒数）。
-				if ttl := s.redis.PTTL(ctx, k).Val(); ttl == -1 {
+				if ttl == -1 {
 					t.Errorf("标签键 %s 没有过期时间", k)
 				}
 				continue
 			}
 			entries++
-			if n := s.redis.Exists(ctx, k).Val(); n != 0 {
+			n, err := s.redis.Exists(ctx, k).Result()
+			if err != nil {
+				t.Fatalf("EXISTS %s：%v", k, err)
+			}
+			if n != 0 {
 				t.Errorf("缓存条目 %s 在删除记忆后仍存在", k)
 			}
 		}
@@ -532,6 +549,9 @@ func TestAcceptance(t *testing.T) {
 		u1 := tenant("u1")
 		const fact = "值班表在共享盘"
 		remember(t, s.a.base, u1, fact)
+		if findMemory(t, s.a.base, u1, "值班表", fact) == "" {
+			t.Fatalf("清空前经 a 查不到刚写入的记忆，后续“清空后为空”的断言没有意义")
+		}
 		task := ask(t, s.a.base, u1, "清空我的记忆")
 		wantState(t, task, mg.WaitingApproval)
 
