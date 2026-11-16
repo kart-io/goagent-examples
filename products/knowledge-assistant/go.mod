@@ -4,11 +4,17 @@ go 1.27.0
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/jackc/pgx/v5 v5.10.0
 	github.com/kart-io/goagent v0.54.1
+	github.com/kart-io/goagent-contrib/cache/redis v0.1.0
 	github.com/kart-io/goagent-contrib/document v0.3.1
+	github.com/kart-io/goagent-contrib/durable/pgstore v0.5.1-0.20261116130024-396d3eca4884
+	github.com/kart-io/goagent-contrib/management v0.0.0-20261116130024-396d3eca4884
+	github.com/kart-io/goagent-contrib/memory/pgvector v0.1.1
 	github.com/kart-io/goagent-contrib/retrieval v0.4.1
 	github.com/kart-io/goagent-contrib/retrieval/qdrant v0.4.1
 	github.com/qdrant/go-client v1.16.0
+	github.com/redis/go-redis/v9 v9.23.0
 )
 
 require (
@@ -23,13 +29,20 @@ require (
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-resty/resty/v2 v2.16.5 // indirect
+	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.7 // indirect
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/klauspost/compress v1.18.1 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
+	github.com/pgvector/pgvector-go v0.4.1 // indirect
 	github.com/sashabaranov/go-openai v1.41.2 // indirect
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
@@ -42,8 +55,10 @@ require (
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
 	go.opentelemetry.io/otel/metric v1.47.0 // indirect
 	go.opentelemetry.io/otel/trace v1.47.0 // indirect
+	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.2 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect

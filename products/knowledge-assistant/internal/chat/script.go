@@ -9,9 +9,10 @@ import (
 	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
+	"github.com/kart-io/goagent/memory"
 )
 
-// Script 是离线确定性模型：按最后一条消息的内容选择工具调用或回答，
+// Script 是离线确定性模型：按最后一条用户请求选择工具调用或回答，
 // 让 e2e 与测试不依赖外部模型。llm.Client 在 v0.54.1 只有 CompleteStream 与
 // Provider，Builder 不会调用 Complete/Chat，因此无需内嵌接口。
 type Script struct{}
@@ -27,6 +28,18 @@ func (s *Script) CompleteStream(_ context.Context, r *llm.CompletionRequest) (<-
 
 func (s *Script) CompleteToolsStream(_ context.Context, r *llm.CompletionRequest, _ []interfaces.Tool) (<-chan *llm.StreamChunk, error) {
 	return s.reply(r), nil
+}
+
+// requestMarker 是 Builder 把检索证据拼在用户请求前所用的分隔（goagent 未导出该常量）。
+const requestMarker = "\n用户请求："
+
+// cutLast 按 sep 最后一次出现切分；没有 sep 时整段作为请求。
+func cutLast(s, sep string) (before, after string, found bool) {
+	i := strings.LastIndex(s, sep)
+	if i < 0 {
+		return "", s, false
+	}
+	return s[:i], s[i+len(sep):], true
 }
 
 // scriptTools 按顺序匹配用户消息；新增一种工具只需加一行。
@@ -51,10 +64,16 @@ func (*Script) reply(r *llm.CompletionRequest) <-chan *llm.StreamChunk {
 	var lastUser string
 	var others []string
 	for _, m := range msgs {
-		switch m.Role {
-		case "user":
-			lastUser = m.Content
-		case "tool":
+		switch {
+		case m.Role == "tool":
+		case m.Role == "user" && strings.HasPrefix(m.Content, memory.RecallPrefix):
+			others = append(others, m.Content)
+		case m.Role == "user":
+			evidence, request, ok := cutLast(m.Content, requestMarker)
+			if ok {
+				others = append(others, evidence)
+			}
+			lastUser = request
 		default:
 			others = append(others, m.Content)
 		}

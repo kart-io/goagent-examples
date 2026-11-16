@@ -27,6 +27,23 @@ func TestScriptRules(t *testing.T) {
 		{name: "回显", msgs: []llm.Message{
 			{Role: "system", Content: "来源：goagent:memory#godoc"}, {Role: "user", Content: "怎么用"}},
 			finish: "stop", contains: "来源：goagent:memory#godoc"},
+		// v0.54.1 Builder 把检索证据拼在请求前（"\n用户请求："），把长期记忆召回块作为请求之后的 user 消息。
+		{name: "检索与记忆包裹下的记住", msgs: []llm.Message{
+			{Role: "user", Content: "Reference material:\n[1]\n来源：a#b\n正文\n用户请求：记住：我们用 pgstore"},
+			{Role: "user", Content: "[相关长期记忆]\n- 部署在 k8s"}},
+			finish: "tool_calls", toolName: "memory_save", toolArgs: `{"content":"我们用 pgstore","kind":"fact"}`},
+		{name: "检索与记忆包裹下的清空", msgs: []llm.Message{
+			{Role: "user", Content: "Reference material:\n用户请求：清空我的记忆"},
+			{Role: "user", Content: "[相关长期记忆]\n- 部署在 k8s"}},
+			finish: "tool_calls", toolName: "purge_my_memory", toolArgs: `{}`},
+		{name: "回显证据与记忆", msgs: []llm.Message{
+			{Role: "user", Content: "[1]\n来源：goagent:memory#godoc\n用户请求：存储选型用什么"},
+			{Role: "user", Content: "[相关长期记忆]\n- 我们用 pgstore"}},
+			finish: "stop", contains: "来源：goagent:memory#godoc"},
+		{name: "回显记忆", msgs: []llm.Message{
+			{Role: "user", Content: "用户请求：存储选型用什么"},
+			{Role: "user", Content: "[相关长期记忆]\n- 我们用 pgstore"}},
+			finish: "stop", contains: "我们用 pgstore"},
 		{name: "工具结果", msgs: []llm.Message{{Role: "user", Content: "清空我的记忆"}, {Role: "tool", Content: "已清空 3 条"}},
 			finish: "stop", text: "工具结果：已清空 3 条"},
 		{name: "拒绝", msgs: []llm.Message{{Role: "user", Content: "清空我的记忆"}, {Role: "tool", Content: "审批人已拒绝此操作"}},
