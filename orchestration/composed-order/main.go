@@ -17,10 +17,10 @@ import (
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/core/observe"
+	"github.com/kart-io/goagent/core/session"
 	"github.com/kart-io/goagent/devtools"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/memory"
 	"github.com/kart-io/goagent/tools"
 	"github.com/kart-io/goagent/workflow"
 )
@@ -88,11 +88,11 @@ func run(ctx context.Context, dir string) (result, error) {
 	if err != nil {
 		return out, err
 	}
-	mem := memory.NewInMemoryManager(nil)
+	mem := session.NewMemoryStore()
 	childTool, err := tools.NewRunnableToolFactory(func(context.Context) (tools.OwnedRunnable[any, *builder.AgentOutput], error) {
 		created.Add(1)
 		model := &demomodel.Model{Calls: &calls, Respond: func(*llm.CompletionRequest) llm.StreamChunk { return llm.StreamChunk{Content: "政策允许退款"} }}
-		child, e := builder.NewSimpleBuilder(model).WithDurableScope("policy").WithSystemPrompt("仅检查政策；父历史不传入").WithMemory(mem).WithSessionID("policy/" + uuid.NewString()).Build()
+		child, e := builder.NewSimpleBuilder(model).WithDurableScope("policy").WithSystemPrompt("仅检查政策；父历史不传入").WithSessionLog(mem).WithSessionID("policy/" + uuid.NewString()).Build()
 		if e != nil {
 			return tools.OwnedRunnable[any, *builder.AgentOutput]{}, e
 		}

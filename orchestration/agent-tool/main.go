@@ -8,9 +8,9 @@ import (
 	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/core/budget"
+	"github.com/kart-io/goagent/core/session"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/llm"
-	"github.com/kart-io/goagent/memory"
 	"github.com/kart-io/goagent/tools"
 	"sync"
 	"sync/atomic"
@@ -19,12 +19,12 @@ import (
 type host struct {
 	mu            sync.Mutex
 	sessions      map[string]bool
-	memory        interfaces.MemoryManager
+	memory        session.Store
 	calls, closed atomic.Int64
 }
 
 func newHost() *host {
-	return &host{sessions: map[string]bool{}, memory: memory.NewInMemoryManager(nil)}
+	return &host{sessions: map[string]bool{}, memory: session.NewMemoryStore()}
 }
 func (h *host) tool(nextID func() string) (interfaces.Tool, error) {
 	return tools.NewRunnableToolFactory(func(context.Context) (tools.OwnedRunnable[any, *builder.AgentOutput], error) {
@@ -37,7 +37,7 @@ func (h *host) tool(nextID func() string) (interfaces.Tool, error) {
 			return tools.OwnedRunnable[any, *builder.AgentOutput]{}, fmt.Errorf("host reused child SessionID")
 		}
 		model := &demomodel.Model{Calls: &h.calls, Respond: func(*llm.CompletionRequest) llm.StreamChunk { return llm.StreamChunk{Content: "政策允许"} }}
-		child, err := builder.NewSimpleBuilder(model).WithSystemPrompt("独立政策助手").WithMemory(h.memory).WithSessionID(id).Build()
+		child, err := builder.NewSimpleBuilder(model).WithSystemPrompt("独立政策助手").WithSessionLog(h.memory).WithSessionID(id).Build()
 		if err != nil {
 			return tools.OwnedRunnable[any, *builder.AgentOutput]{}, err
 		}

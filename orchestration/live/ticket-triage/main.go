@@ -18,8 +18,8 @@ import (
 	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
+	"github.com/kart-io/goagent/core/session"
 	"github.com/kart-io/goagent/interfaces"
-	"github.com/kart-io/goagent/memory"
 	"github.com/kart-io/goagent/tools"
 	"github.com/kart-io/goagent/workflow"
 )
@@ -105,11 +105,11 @@ func orderLookupTool(runs *atomic.Int64) (interfaces.Tool, error) {
 }
 
 // policyAgentTool 每次调用新建子 Agent 和唯一会话；父对话不会传入子会话。
-func policyAgentTool(client *livemodel.Client, mem interfaces.MemoryManager, created, closed *atomic.Int64) (interfaces.Tool, error) {
+func policyAgentTool(client *livemodel.Client, mem session.Store, created, closed *atomic.Int64) (interfaces.Tool, error) {
 	return tools.NewRunnableToolFactory(func(context.Context) (tools.OwnedRunnable[any, *builder.AgentOutput], error) {
 		child, err := builder.NewSimpleBuilder(client).WithDurableScope("policy").
 			WithSystemPrompt(refundPolicy + "\n你只依据上述政策判断，回答“符合”或“不符合”并引用条款编号，不超过两句话。").
-			WithMemory(mem).WithSessionID("policy/" + uuid.NewString()).WithMaxIterations(2).WithMaxTokens(livemodel.MaxTokens).Build()
+			WithSessionLog(mem).WithSessionID("policy/" + uuid.NewString()).WithMaxIterations(2).WithMaxTokens(livemodel.MaxTokens).Build()
 		if err != nil {
 			return tools.OwnedRunnable[any, *builder.AgentOutput]{}, err
 		}
@@ -156,7 +156,7 @@ func Run(ctx context.Context, client *livemodel.Client, dir, ticketID string) (R
 	if err != nil {
 		return out, err
 	}
-	policy, err := policyAgentTool(client, memory.NewInMemoryManager(nil), &created, &closed)
+	policy, err := policyAgentTool(client, session.NewMemoryStore(), &created, &closed)
 	if err != nil {
 		return out, err
 	}

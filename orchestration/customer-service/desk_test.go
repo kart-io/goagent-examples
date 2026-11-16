@@ -257,7 +257,7 @@ func TestRegisterPendingReconcile(t *testing.T) {
 	})
 }
 
-func TestExecuteReceiptFirstAfterCanceledRecord(t *testing.T) {
+func TestExecuteReplaysRecordAfterLateCancel(t *testing.T) {
 	e := newDeskEnv(t)
 	reg := e.register("v-1", "t-1", "c-1001", refundOf("A1001", 3000))
 	ctx, cancel := context.WithCancel(e.ctx("v-1"))
@@ -266,10 +266,9 @@ func TestExecuteReceiptFirstAfterCanceledRecord(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 	r, err := durable.InspectOperation(e.ctx("v-1"), "refund/execute")
 	require.NoError(t, err)
-	require.Equal(t, "failed", r.Status)
-	require.Equal(t, "canceled", r.FailureKind)
+	require.Equal(t, "completed", r.Status, "退款已提交后才取消：照常记为 completed，调用方仍收到取消错误")
 
-	// 申请已过期、订单已变化：若先 Approve 会报过期或需重新审核而卡死，先查回执则直接返回。
+	// 申请已过期、订单已变化：若重新 Approve 会报过期或需重新审核而卡死，回放已完成的记录则直接返回回执。
 	e.clock.Advance(72 * time.Hour)
 	_, err = e.ledger.db.Exec("UPDATE orders SET version = 2 WHERE order_id = 'A1001'")
 	require.NoError(t, err)
@@ -280,7 +279,7 @@ func TestExecuteReceiptFirstAfterCanceledRecord(t *testing.T) {
 	count, _, err := e.ledger.refunds(context.Background(), "A1001")
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
-	require.EqualValues(t, 1, e.desk.executions.Load(), "取消的记录先经 Reconcile 按回执补记，不再执行 run")
+	require.EqualValues(t, 1, e.desk.executions.Load(), "已完成的记录直接回放，不再执行 run")
 }
 
 func TestExecutePendingReconcileAndOrderChange(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/google/uuid"
 	"github.com/kart-io/goagent/core/budget"
+	"github.com/kart-io/goagent/core/session"
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/stretchr/testify/require"
 	"sync"
@@ -34,8 +35,10 @@ func TestOwnedAgentSessionIsolation(t *testing.T) {
 	}
 	require.Len(t, h.sessions, 2)
 	users := map[string]bool{}
-	for session := range h.sessions {
-		history, e := h.memory.GetConversationHistory(ctx, session, 0)
+	for id := range h.sessions {
+		events, e := h.memory.Read(ctx, id, 0)
+		require.NoError(t, e)
+		history, e := session.DeriveMessages(events)
 		require.NoError(t, e)
 		require.Len(t, history, 2)
 		users[history[0].Content] = true
