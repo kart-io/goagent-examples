@@ -20,6 +20,7 @@ import (
 type webEnv struct {
 	*hostEnv
 	srv *httptest.Server
+	ws  *webServer
 }
 
 func newWebEnv(t *testing.T, mutate func(*HostConfig)) *webEnv {
@@ -31,7 +32,7 @@ func newWebEnv(t *testing.T, mutate func(*HostConfig)) *webEnv {
 		srv.Close()
 		ws.Close(5 * time.Second)
 	})
-	return &webEnv{hostEnv: e, srv: srv}
+	return &webEnv{hostEnv: e, srv: srv, ws: ws}
 }
 
 func (w *webEnv) do(method, path string, body any) (int, []byte) {
@@ -131,12 +132,23 @@ func TestWebMessages(t *testing.T) {
 	})
 	t.Run("连续两条", func(t *testing.T) {
 		w := newWebEnv(t, nil)
-		for _, id := range []string{"m1", "m2"} {
+		w.ws.mu.Lock() // 占住写锁，让三个任务同时排队，再一起放行
+		for _, id := range []string{"m1", "m2", "m3"} {
 			code, _ := w.postJSON("/api/customers/c-1001/messages", map[string]string{"message_id": id, "text": refund})
 			require.Equal(t, http.StatusAccepted, code)
 		}
-		c := w.waitConversation("c-1001", func(c convResp) bool { return len(roleIDs(c, "customer")) == 2 && len(c.Pending) == 0 })
-		require.Equal(t, []string{"m1", "m2"}, roleIDs(c, "customer"))
+		w.ws.mu.Unlock()
+		c := w.waitConversation("c-1001", func(c convResp) bool { return len(roleIDs(c, "customer")) == 3 && len(c.Pending) == 0 })
+		require.Equal(t, []string{"m1", "m2", "m3"}, roleIDs(c, "customer"))
+	})
+	t.Run("关闭后拒绝写请求", func(t *testing.T) {
+		w := newWebEnv(t, nil)
+		w.ws.Close(time.Second)
+		for _, p := range []string{"/api/customers/c-1001/messages", "/api/sweep", "/api/tickets/tk-1/reply", "/api/tickets/tk-1/answer"} {
+			code, raw := w.postJSON(p, map[string]any{"message_id": "m1", "text": refund, "reply_id": "r1", "approver": "fin-1"})
+			require.Equal(t, http.StatusServiceUnavailable, code, p)
+			require.Equal(t, "internal", errCode(t, raw))
+		}
 	})
 	t.Run("非法输入", func(t *testing.T) {
 		w := newWebEnv(t, nil)
@@ -145,6 +157,7 @@ func TestWebMessages(t *testing.T) {
 			{"客户ID含点点", url.PathEscape("../x"), "m1", "你好"},
 			{"客户ID含空格", url.PathEscape("a b"), "m1", "你好"},
 			{"text为空", "c-1001", "m1", ""},
+			{"text只有空白", "c-1001", "m1", " \t\n"},
 			{"text超长", "c-1001", "m1", strings.Repeat("字", 2001)},
 			{"message_id为空", "c-1001", "", "你好"},
 			{"message_id含斜杠", "c-1001", "a/b", "你好"},

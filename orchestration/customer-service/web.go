@@ -31,6 +31,8 @@ type badRequestError string
 
 func (e badRequestError) Error() string { return string(e) }
 
+var errClosing = errors.New("服务正在关闭")
+
 var errMemoryDisabled = errors.New("未开启长期记忆（启动 serve 时加 -memory）")
 
 // apiErrors 按顺序匹配，第一条命中的决定状态码与错误码；未命中为 500 internal。
@@ -39,6 +41,7 @@ var apiErrors = []struct {
 	code   string
 	match  func(error) bool
 }{
+	{http.StatusServiceUnavailable, "internal", func(err error) bool { return errors.Is(err, errClosing) }},
 	{http.StatusBadRequest, "bad_request", func(err error) bool { var e badRequestError; return errors.As(err, &e) }},
 	{http.StatusBadRequest, "memory_disabled", func(err error) bool { return errors.Is(err, errMemoryDisabled) }},
 	{http.StatusNotFound, "not_found", func(err error) bool { var e ticketNotFoundError; return errors.As(err, &e) }},
@@ -78,7 +81,7 @@ func checkID(field, v string) error {
 }
 
 func checkText(v string) error {
-	if n := utf8.RuneCountInString(v); n == 0 || n > maxTextRunes {
+	if n := utf8.RuneCountInString(v); strings.TrimSpace(v) == "" || n > maxTextRunes {
 		return badRequestError(fmt.Sprintf("text 不能为空且不超过 %d 个字符", maxTextRunes))
 	}
 	return nil
@@ -100,14 +103,23 @@ type webServer struct {
 
 	jobsMu sync.Mutex
 	jobs   map[string]*jobState
-	wg     sync.WaitGroup
+	queue  []queuedJob // 先进先出，由唯一的 worker 按入队顺序执行
+	closed bool
+	wake   chan struct{}
+	done   chan struct{} // worker 退出后关闭
 	base   context.Context
 	cancel context.CancelFunc
 }
 
+type queuedJob struct {
+	key string
+	st  *jobState
+	fn  func(context.Context) error
+}
+
 func newWebServer(h *Host) *webServer {
 	base, cancel := context.WithCancel(context.Background())
-	s := &webServer{host: h, mux: http.NewServeMux(), jobs: map[string]*jobState{}, base: base, cancel: cancel}
+	s := &webServer{host: h, mux: http.NewServeMux(), jobs: map[string]*jobState{}, wake: make(chan struct{}, 1), done: make(chan struct{}), base: base, cancel: cancel}
 	for pattern, fn := range map[string]func(http.ResponseWriter, *http.Request) error{
 		"POST /api/customers/{c}/messages":     s.postMessage,
 		"GET /api/customers/{c}/conversation":  s.getConversation,
@@ -125,58 +137,97 @@ func newWebServer(h *Host) *webServer {
 			}
 		})
 	}
+	go s.run()
 	return s
 }
 
 func (s *webServer) Handler() http.Handler { return s.mux }
 
-// Close 等后台任务结束；wait 内没结束就取消 base，再等它们退出。
+// Close 不再接受新任务，让 worker 在 wait 内排空队列；超时则取消 base，再等 worker 退出。
 func (s *webServer) Close(wait time.Duration) {
-	done := make(chan struct{})
-	go func() { s.wg.Wait(); close(done) }()
+	s.jobsMu.Lock()
+	s.closed = true
+	s.jobsMu.Unlock()
+	s.signal()
 	select {
-	case <-done:
-		s.cancel()
-		return
+	case <-s.done:
 	case <-time.After(wait):
+		s.cancel()
+		<-s.done
 	}
 	s.cancel()
-	<-done
 }
 
-// start 在后台持写锁执行 fn。skipRunning 为真时，同键任务仍在运行则不再重复调度。
-func (s *webServer) start(key string, job jobState, skipRunning bool, fn func(context.Context) error) {
+func (s *webServer) signal() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
+}
+
+func (s *webServer) checkOpen() error {
 	s.jobsMu.Lock()
+	defer s.jobsMu.Unlock()
+	if s.closed {
+		return errClosing
+	}
+	return nil
+}
+
+// run 是唯一的 worker：按入队顺序持写锁执行任务，保证先到的消息先写入账本。
+func (s *webServer) run() {
+	defer close(s.done)
+	for {
+		s.jobsMu.Lock()
+		if len(s.queue) == 0 {
+			closed := s.closed
+			s.jobsMu.Unlock()
+			if closed {
+				return
+			}
+			<-s.wake
+			continue
+		}
+		j := s.queue[0]
+		s.queue = s.queue[1:]
+		s.jobsMu.Unlock()
+
+		s.mu.Lock()
+		err := j.fn(s.base)
+		s.mu.Unlock()
+
+		s.jobsMu.Lock()
+		j.st.running--
+		if err != nil {
+			j.st.err = livemodel.Redact(err.Error())
+		}
+		if j.st.running == 0 && j.st.err == "" {
+			delete(s.jobs, j.key)
+		}
+		s.jobsMu.Unlock()
+	}
+}
+
+// start 把 fn 排入队列，running 同时统计排队与执行中的任务。skipRunning 为真时，同键任务未完成则不重复入队。
+func (s *webServer) start(key string, job jobState, skipRunning bool, fn func(context.Context) error) error {
+	s.jobsMu.Lock()
+	defer s.jobsMu.Unlock()
+	if s.closed {
+		return errClosing
+	}
 	st := s.jobs[key]
 	if st == nil {
 		st = &jobState{}
 		s.jobs[key] = st
 	}
 	if skipRunning && st.running > 0 {
-		s.jobsMu.Unlock()
-		return
+		return nil
 	}
 	st.customer, st.text, st.err = job.customer, job.text, ""
 	st.running++
-	s.jobsMu.Unlock()
-
-	s.wg.Add(1)
-	go func() {
-		defer s.wg.Done()
-		s.mu.Lock()
-		err := fn(s.base)
-		s.mu.Unlock()
-
-		s.jobsMu.Lock()
-		defer s.jobsMu.Unlock()
-		st.running--
-		if err != nil {
-			st.err = livemodel.Redact(err.Error())
-		}
-		if st.running == 0 && st.err == "" {
-			delete(s.jobs, key)
-		}
-	}()
+	s.queue = append(s.queue, queuedJob{key: key, st: st, fn: fn})
+	s.signal()
+	return nil
 }
 
 func (s *webServer) job(key string) jobState {
@@ -206,10 +257,13 @@ func (s *webServer) postMessage(w http.ResponseWriter, r *http.Request) error {
 	if err := checkText(body.Text); err != nil {
 		return err
 	}
-	s.start("message:"+body.MessageID, jobState{customer: customer, text: body.Text}, true, func(ctx context.Context) error {
+	err := s.start("message:"+body.MessageID, jobState{customer: customer, text: body.Text}, true, func(ctx context.Context) error {
 		_, err := s.host.Message(ctx, customer, webSubmitter, body.MessageID, body.Text)
 		return err
 	})
+	if err != nil {
+		return err
+	}
 	writeJSON(w, http.StatusAccepted, map[string]string{"message_id": body.MessageID})
 	return nil
 }
@@ -304,13 +358,19 @@ func (s *webServer) postAnswer(w http.ResponseWriter, r *http.Request) error {
 	if err := checkID("approver", body.Approver); err != nil {
 		return err
 	}
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
 	if _, err := s.host.Show(r.Context(), id); err != nil {
 		return err
 	}
-	s.start("answer:"+id, jobState{}, false, func(ctx context.Context) error {
+	err := s.start("answer:"+id, jobState{}, false, func(ctx context.Context) error {
 		_, err := s.host.Answer(ctx, id, body.Approver, body.Approve, body.Note)
 		return err
 	})
+	if err != nil {
+		return err
+	}
 	w.WriteHeader(http.StatusAccepted)
 	return nil
 }
@@ -329,6 +389,9 @@ func (s *webServer) postReply(w http.ResponseWriter, r *http.Request) error {
 	if err := checkText(body.Text); err != nil {
 		return err
 	}
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	res, err := s.host.Reply(r.Context(), r.PathValue("t"), body.ReplyID, body.Text)
 	s.mu.Unlock()
@@ -340,6 +403,9 @@ func (s *webServer) postReply(w http.ResponseWriter, r *http.Request) error {
 }
 
 func (s *webServer) postSweep(w http.ResponseWriter, r *http.Request) error {
+	if err := s.checkOpen(); err != nil {
+		return err
+	}
 	s.mu.Lock()
 	report, err := s.host.Sweep(r.Context())
 	s.mu.Unlock()
