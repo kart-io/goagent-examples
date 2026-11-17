@@ -33,7 +33,7 @@ const usage = `用法：customer-service <message|answer|sweep|show|memory> -dir
   answer  -ticket 工单ID -approver 审核人 (-approve | -reject) [-note 说明]
   sweep   执行一次扫描（-now 指定时间可演示超时）
   show    -ticket 工单ID
-  memory  -customer 客户ID [-q 召回文本]   查看客户的长期记忆（需要 -memory）
+  memory  -customer 客户ID [-q 召回文本 | -id 记录ID]   查看客户的长期记忆（需要 -memory）；-id 输出单条记录，含已失效的
   -memory [-pg URL] [-qdrant 地址] 接入长期记忆；-pg、-qdrant 默认取环境变量 CS_MEMORY_PG_URL、CS_MEMORY_QDRANT_ADDR`
 
 // printer 把通知与转人工打印为 JSON 行，代替真实 IM 渠道。
@@ -68,7 +68,7 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 	approverFile := flags.String("approvers", "", "审核人配置 JSON 文件，默认使用内置演示配置")
 	customer := flags.String("customer", "", "客户 ID")
 	text := flags.String("text", "", "客户消息")
-	messageID := flags.String("id", "", "消息 ID，默认由时间生成；重复投递同一 ID 只处理一次")
+	messageID := flags.String("id", "", "message 的消息 ID，默认由时间生成，重复投递同一 ID 只处理一次；memory 的记录 ID")
 	submitter := flags.String("submitter", "agent-1", "提交工单的客服账号")
 	ticket := flags.String("ticket", "", "工单 ID")
 	approver := flags.String("approver", "", "作答人；演示中视为已认证，不是真实认证")
@@ -164,7 +164,14 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 		if h.memory == nil {
 			return errors.New("memory 需要 -memory")
 		}
-		out, err = h.Memories(ctx, *customer, *query)
+		switch {
+		case *messageID != "" && *query != "":
+			return errors.New("memory 的 -id 与 -q 只能二选一")
+		case *messageID != "":
+			out, err = h.MemoryRecord(ctx, *customer, *messageID)
+		default:
+			out, err = h.Memories(ctx, *customer, *query)
+		}
 	default:
 		return fmt.Errorf("未知命令 %q\n%s", cmd, usage)
 	}
@@ -223,6 +230,12 @@ func (h *Host) Show(ctx context.Context, ticketID string) (TicketView, error) {
 		v.Outbox = append(v.Outbox, o)
 	}
 	return v, rows.Err()
+}
+
+// MemoryRecord 读取客户的一条记忆，含已被取代或失效的旧记录：Pinned 与 Recall 只返回有效记录，验证取代关系要看旧记录的 superseded_by。
+// 命名空间仅取自客户 ID，读不到其他客户的记录。
+func (h *Host) MemoryRecord(ctx context.Context, customerID, id string) (memory.Record, error) {
+	return h.memory.Memory.Get(memory.WithNamespace(ctx, memoryNS(customerID)...), id)
 }
 
 // MemoryView 是 memory 的输出；空列表编码为 [] 而不是 null。

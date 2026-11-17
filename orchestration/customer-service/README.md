@@ -6,13 +6,14 @@
 
 ## 依赖
 
-本案例使用 goagent 的 `multiagent` 包与 `refund.Service.OnRegister`（v0.48.0 起），以及 Gemini 3 工具调用回放修复（v0.48.1）；长期记忆依赖本地 master（未发布）的 `memory` 包。`go.mod` 仍固定为 v0.53.0，离线案例按 `go.mod` 运行：
+本案例使用 goagent 的 `multiagent` 包与 `refund.Service.OnRegister`（v0.48.0 起），以及 Gemini 3 工具调用回放修复（v0.48.1）；长期记忆依赖本地 master（未发布）的 `memory` 包，以及 contrib 未发布的 `memory/qdrant` 与 `durable/pgstore`。`go.mod` 仍固定为 v0.53.0，且不 require contrib 模块，所以本包只能在工作区模式下编译，必须先生成 `go.work`（已被 `.gitignore` 忽略）：
 
 ```bash
-make test-remote   # GOWORK=off go test -race ./...
+make work CONTRIB=<contrib 工作树路径>   # go.work 指向 ../goagent 与 contrib 的两个模块
+make test
 ```
 
-与本地 goagent 联调时用 `make work` 生成 `go.work`（指向 `../goagent`，已被 `.gitignore` 忽略）。
+在 goagent 与 contrib 发布这些包之前，`make test-remote`（`GOWORK=off`）和不带 `CONTRIB` 的 `make work` 都会因找不到 `goagent-contrib/memory/qdrant` 等包而编译失败。
 
 ## 职责划分
 
@@ -205,7 +206,7 @@ cs message -dir $DIR -live -customer c-1001 -text "订单 A1001 申请退款 30 
 - 嵌入：默认离线哈希嵌入（无语义，仅供演示与测试）；加 `-live` 改用 Gemini 嵌入，需要 `GEMINI_API_KEY`，模型由 `GEMINI_EMBEDDING_MODEL` 指定（默认 `gemini-embedding-001`）。
 - 抽取：每轮对话登记抽取任务，由 `sweep` 处理；客户明确要求“请记住”时由 `memory_save` 钉住，钉住记录被新记录取代时新记录继承钉住。
 
-contrib 的 `memory/qdrant` 与 `durable/pgstore` 尚未发布，只能在工作区模式下编译；`make test-remote` 会失败。先用 `make work CONTRIB=<contrib 工作树路径>` 生成 `go.work`（把两个模块加入工作区）。
+编译方式见[依赖](#依赖)：须先 `make work CONTRIB=<contrib 工作树路径>`。
 
 容器脚本 `scripts/with-stores.sh` 启动专用的 Postgres 与 Qdrant 容器（默认端口 55450、56344，可用 `CS_MEMORY_PG_PORT`、`CS_MEMORY_QDRANT_PORT`、`CS_MEMORY_QDRANT_HTTP_PORT` 覆盖），导出 `CS_MEMORY_PG_URL` 与 `CS_MEMORY_QDRANT_ADDR`（gRPC，host:port）后执行命令，结束删除容器：
 
@@ -224,20 +225,26 @@ cs message -dir $DIR -memory -customer c-1001 -text "订单 A1001 申请退款 3
 cs sweep -dir $DIR -memory
 # 查看客户的钉住记录；-q 追加召回
 cs memory -dir $DIR -memory -customer c-1001 -q 支付方式
+# 按记录 ID 查看单条记录，含已被取代或失效的旧记录（superseded_by、invalid_at），用于核对取代与钉住继承
+cs memory -dir $DIR -memory -customer c-1001 -id <记录ID>
 ```
+
+`memory` 的 `-id` 与 `-q` 二选一；命名空间只取自 `-customer`，查不到其他客户的记录。钉住与召回只返回有效记录，旧记录只能经 `-id` 查看。
 
 `sweep` 报告增加 `memory_jobs`（本次处理的抽取任务数）与 `memory_dropped`（其间丢弃的任务数）；未接入记忆时不出现这两个字段。
 
 已知限制：
 
-- 会话 ID `<工单ID>:<成员>` 只在单个账本目录内唯一，多个 `-dir` 共用同一个 Postgres 会串会话。
+- 会话 ID `<工单ID>:<成员>` 只在单个账本目录内唯一，工单 ID 由消息 ID 派生。多个 `-dir` 共用一个 Postgres 且消息 ID 相同时，A 客户的会话历史会注入 B 客户的请求，属于跨客户数据泄漏。默认消息 ID 取 UnixNano，撞上的概率低，但一个 Postgres 只能供单个目录使用。
 - 同一 `-dir` 中途切换 `-memory` 没有拦截；开启后通用成员的提示词与步数不同，持久回放可能报意图不一致。
-- `sweep` 先投递发件箱，再处理抽取任务（`ProcessPending`）。抽取没有单独的总时限，耗时随积压线性增长。抽取任务重试耗尽后 `sweep` 不会报错，要用 `memory` 命令或任务状态查看，因为 goagent 不提供失败任务列表。
+- `sweep` 先投递发件箱，再处理抽取任务（`ProcessPending`）。抽取没有单独的总时限，耗时随积压线性增长。抽取任务重试耗尽后 `sweep` 不会报错，只能经 `Memory.Job` 按任务 Key 查任务状态（goagent 没有失败任务列表），命令行不提供。
 - `memory_dropped` 只统计本次 `sweep` 期间的丢弃。
 
 ## 测试覆盖
 
 `go test -race ./orchestration/customer-service/...` 覆盖：无争议直退、有争议批准/拒绝/超时、Agent 升级、判定固定、并发拆单、重复申请、订单归属、非审核人作答、作答与超时并发、自审自批、新工单再次申请、审核期间订单变化、退款已生效后重跑、登记半途退出、运行失败转人工、他人订单、无需退款与提议无效、运行中来消息、追问与追问超时（超时后不退款）、目录绑定模型、工具参数错误交还模型、代码块中的提议、分流在退款有结论后再派回退款、分流未派成员即结束、紧接着重复派同一成员、等待期间新消息、三种转人工、用量告警与扫描补偿、崩溃恢复与重启后不重复投递、审核人解析与目录故障、飞书适配器。
+
+长期记忆的测试需要容器，经 `scripts/with-stores.sh` 运行，缺少 `CS_MEMORY_PG_URL`、`CS_MEMORY_QDRANT_ADDR` 时跳过：跨工单召回且其他客户读不到（`TestMemoryAcrossTickets`）、钉住记录被合并更新或否定后取代者继承钉住（`TestPinnedInheritedBySuccessor`，goagent 47e1f5f5）、同一轮否定取代已有记录的计划记录时不 panic 且钉住转给否定者（`TestSameTurnNegateOfSupersedingPlan`，goagent 49dd0983）、追问续跑保持命名空间（`TestFollowUpKeepsNamespace`）、抽取重试耗尽不影响投递（`TestSweepMemoryFailure`）、退款成员读到召回块（`TestRefundRecallsMemory`）、`memory` 命令与 `-id` 查看旧记录（`TestCLIMemoryShow`）、打开记忆存储后写入、召回与重新打开（`TestOpenMemory`）。不需要容器的：离线哈希嵌入（`TestHashEmbedder`）、未开启记忆时行为不变（`TestNoMemoryUnchanged`）、`-memory` 缺存储参数（`TestCLIMemoryRequiresStores`）、离线脚本的抽取与整理（`TestOfflineMemoryScripts`、`TestOfflineScriptsCurrentTurn`）。真实模型验证见 `TestLiveMemory`（`GOAGENT_LIVE=1`）。
 
 ## 限制
 

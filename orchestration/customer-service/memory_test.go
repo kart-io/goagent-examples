@@ -127,41 +127,76 @@ func TestMemoryAcrossTickets(t *testing.T) {
 	})
 }
 
-func TestPinnedSurvivesUpdate(t *testing.T) {
-	e, _ := newMemoryEnv(t)
-	c, cctx := newCustomer()
-
-	e.message(msgID(), c, "请记住：只用邮件联系我")
+// rememberPinned 让客户经 memory_save 钉住一条记录并返回它。
+func rememberPinned(t *testing.T, e *hostEnv, ctx context.Context, customer, text string) memory.Record {
+	t.Helper()
+	e.message(msgID(), customer, text)
 	replies := e.sent(support.KindCustomerReply)
-	require.Len(t, replies, 1)
-	require.Equal(t, "好的，已记住。", replies[0].Message.Body)
-	before := pinned(t, e, cctx)
-	require.Len(t, before, 1, "memory_save 钉住了客户要求记住的内容")
-
-	e.message(msgID(), c, "邮件或短信都可以")
-	e.sweep()
-	after := pinned(t, e, cctx)
-	require.Len(t, after, 1, "合并更新后仍只有一条钉住记录")
-	require.Equal(t, "客户接受邮件或短信联系", after[0].Content)
-
-	old, err := e.host.memory.Memory.Get(cctx, before[0].ID)
-	require.NoError(t, err)
-	require.False(t, old.Valid())
-	require.Equal(t, after[0].ID, old.SupersededBy, "旧记录指向取代它的新记录")
+	require.Equal(t, "好的，已记住。", replies[len(replies)-1].Message.Body)
+	recs := pinned(t, e, ctx)
+	require.Len(t, recs, 1, "memory_save 钉住了客户要求记住的内容")
+	return recs[0]
 }
 
-func TestSameTurnNegateNoPanic(t *testing.T) {
+// sweepTicket 发一条消息后扫描，要求扫描无错且该工单通用成员本轮的抽取任务完成。
+func sweepTicket(t *testing.T, e *hostEnv, ctx context.Context, customer, text string) {
+	t.Helper()
+	r := e.message(msgID(), customer, text)
+	_, err := e.host.Sweep(context.Background())
+	require.NoError(t, err)
+	keys := turnJobKeys(t, e, memorySession(r.TicketID, generalName))
+	require.Len(t, keys, 1)
+	j, ok, err := e.host.memory.Memory.Job(ctx, keys[0])
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Equal(t, memory.JobDone, j.Status, j.Error)
+}
+
+// 钉住记录被整理取代时，取代者继承钉住（goagent 47e1f5f5 的 update 与 invalidate 两个分支）。
+func TestPinnedInheritedBySuccessor(t *testing.T) {
+	tests := []struct {
+		name, remember, next, successor string
+	}{
+		{name: "合并更新", remember: "请记住：只用邮件联系我", next: "邮件或短信都可以", successor: "客户接受邮件或短信联系"},
+		{name: "否定", remember: "请记住：我住在上海", next: "上海的记录不对", successor: "客户不住在上海"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e, _ := newMemoryEnv(t)
+			c, cctx := newCustomer()
+			before := rememberPinned(t, e, cctx, c, tt.remember)
+
+			sweepTicket(t, e, cctx, c, tt.next)
+			after := pinned(t, e, cctx)
+			require.Len(t, after, 1, "取代后仍只有一条钉住记录")
+			require.Equal(t, tt.successor, after[0].Content)
+
+			old, err := e.host.memory.Memory.Get(cctx, before.ID)
+			require.NoError(t, err)
+			require.False(t, old.Valid())
+			require.Equal(t, after[0].ID, old.SupersededBy, "旧记录指向取代它的新记录")
+		})
+	}
+}
+
+// 同一轮中候选 A 合并更新已有钉住记录 x，候选 B 又否定了 A 的计划记录：A 不再创建，x 改由 B 取代，钉住随之转移给 B。
+// 被否定的计划记录本身须取代已有记录才会走到 goagent 49dd0983 修复的路径，修复前提交时空指针 panic。
+func TestSameTurnNegateOfSupersedingPlan(t *testing.T) {
 	e, _ := newMemoryEnv(t)
 	c, cctx := newCustomer()
+	x := rememberPinned(t, e, cctx, c, "请记住：我住在上海")
 
-	e.message(msgID(), c, "先说住杭州又改口")
-	r, err := e.host.Sweep(context.Background())
+	sweepTicket(t, e, cctx, c, "先说搬到浦东又改口")
+	after := pinned(t, e, cctx)
+	require.Len(t, after, 1)
+	negator := after[0]
+	require.Equal(t, "客户不住在上海浦东", negator.Content, "否定者继承了 x 的钉住")
+
+	old, err := e.host.memory.Memory.Get(cctx, x.ID)
 	require.NoError(t, err)
-	require.GreaterOrEqual(t, r.MemoryJobs, 1)
-
-	got := recallContents(t, e, cctx, "杭州")
-	require.Contains(t, got, "客户不住在杭州")
-	require.NotContains(t, got, "客户住在杭州", "同一轮被否定的记录不再召回")
+	require.False(t, old.Valid())
+	require.Equal(t, negator.ID, old.SupersededBy, "x 改由否定者取代")
+	require.NotContains(t, recallContents(t, e, cctx, "上海浦东"), "客户住在上海浦东", "被否定的计划记录没有创建")
 }
 
 func TestFollowUpKeepsNamespace(t *testing.T) {

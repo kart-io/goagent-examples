@@ -29,7 +29,19 @@ var extractScripts = []struct {
 }{
 	{"只退回原支付方式", []string{"客户要求退款只退回原支付方式"}},
 	{"邮件或短信都可以", []string{"客户接受邮件或短信联系"}},
-	{"先说住杭州又改口", []string{"客户住在杭州", "客户不住在杭州"}},
+	{"先说搬到浦东又改口", []string{"客户住在上海浦东", "客户不住在上海浦东"}},
+	{"上海的记录不对", []string{"客户不住在上海"}},
+}
+
+// reconcileScripts 按新信息与已有记忆的内容给出整理决定，按顺序取第一条匹配；都不匹配时新增。
+var reconcileScripts = []struct {
+	info, existing string // 分别为新信息、已有记忆须包含的说法
+	op, content    string
+}{
+	{"邮件或短信", "邮件", "update", "客户接受邮件或短信联系"},
+	{"客户住在上海浦东", "住在上海", "update", "客户住在上海浦东"},
+	{"客户不住在上海浦东", "客户住在上海浦东", "invalidate", ""},
+	{"客户不住在上海", "住在上海", "invalidate", ""},
 }
 
 // offlineModel 是有限的脚本化对话，不是自然语言模型：按 README 中的固定说法回答。
@@ -134,11 +146,15 @@ func reconcileTurn(msgs []llm.Message) llm.StreamChunk {
 	info, _, _ := strings.Cut(strings.TrimPrefix(user, "新信息："), "\n\n已有记忆：")
 	for _, m := range memoryLine.FindAllStringSubmatch(user, -1) {
 		id, content := m[1], m[2]
-		switch {
-		case strings.Contains(info, "邮件或短信") && strings.Contains(content, "邮件"):
-			return jsonText(map[string]string{"op": "update", "target": id, "content": "客户接受邮件或短信联系"})
-		case info == "客户不住在杭州" && content == "客户住在杭州":
-			return jsonText(map[string]string{"op": "invalidate", "target": id})
+		for _, sc := range reconcileScripts {
+			if !strings.Contains(info, sc.info) || !strings.Contains(content, sc.existing) {
+				continue
+			}
+			reply := map[string]string{"op": sc.op, "target": id}
+			if sc.content != "" {
+				reply["content"] = sc.content
+			}
+			return jsonText(reply)
 		}
 	}
 	return jsonText(map[string]string{"op": "add"})

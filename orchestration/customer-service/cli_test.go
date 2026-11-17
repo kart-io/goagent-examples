@@ -119,7 +119,36 @@ func TestCLIMemoryShow(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, res["pinned"], 1)
 	require.Equal(t, []any{}, res["matches"])
+	oldID := res["pinned"].([]any)[0].(map[string]any)["id"].(string)
 
 	_, _, err = cli(t, "memory", "-dir", dir, "-customer", customer)
 	require.Error(t, err, "未给 -memory 时 memory 命令应报错")
+
+	t.Run("-id 看得到被取代的旧记录", func(t *testing.T) {
+		_, _, err := cli(t, append([]string{"message", "-dir", dir, "-id", msgID(), "-customer", customer, "-text", "邮件或短信都可以"}, mem...)...)
+		require.NoError(t, err)
+		_, _, err = cli(t, append([]string{"sweep", "-dir", dir}, mem...)...)
+		require.NoError(t, err)
+		res, _, err := cli(t, append([]string{"memory", "-dir", dir, "-customer", customer}, mem...)...)
+		require.NoError(t, err)
+		require.Len(t, res["pinned"], 1)
+		newID := res["pinned"].([]any)[0].(map[string]any)["id"].(string)
+		require.NotEqual(t, oldID, newID)
+
+		old, _, err := cli(t, append([]string{"memory", "-dir", dir, "-customer", customer, "-id", oldID}, mem...)...)
+		require.NoError(t, err)
+		require.Equal(t, oldID, old["id"])
+		require.Equal(t, newID, old["superseded_by"], "旧记录指向继承钉住的新记录")
+		require.NotEmpty(t, old["invalid_at"])
+	})
+
+	t.Run("-id 不跨客户", func(t *testing.T) {
+		_, _, err := cli(t, append([]string{"memory", "-dir", dir, "-customer", "c-" + uuid.NewString(), "-id", oldID}, mem...)...)
+		require.Error(t, err)
+	})
+
+	t.Run("-id 与 -q 二选一", func(t *testing.T) {
+		_, _, err := cli(t, append([]string{"memory", "-dir", dir, "-customer", customer, "-id", oldID, "-q", "邮件"}, mem...)...)
+		require.EqualError(t, err, "memory 的 -id 与 -q 只能二选一")
+	})
 }
