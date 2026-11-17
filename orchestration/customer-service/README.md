@@ -271,6 +271,21 @@ scripts/with-stores.sh go run ./orchestration/customer-service serve -dir /tmp/c
 
 长期记忆的测试需要容器，经 `scripts/with-stores.sh` 运行，缺少 `CS_MEMORY_PG_URL`、`CS_MEMORY_QDRANT_ADDR` 时跳过：跨工单召回且其他客户读不到（`TestMemoryAcrossTickets`）、钉住记录被合并更新或否定后取代者继承钉住（`TestPinnedInheritedBySuccessor`，goagent 47e1f5f5）、同一轮否定取代已有记录的计划记录时不 panic 且钉住转给否定者（`TestSameTurnNegateOfSupersedingPlan`，goagent 49dd0983）、追问续跑保持命名空间（`TestFollowUpKeepsNamespace`）、抽取重试耗尽不影响投递（`TestSweepMemoryFailure`）、退款成员读到召回块（`TestRefundRecallsMemory`）、`memory` 命令与 `-id` 查看旧记录（`TestCLIMemoryShow`）、打开记忆存储后写入、召回与重新打开（`TestOpenMemory`）。不需要容器的：离线哈希嵌入（`TestHashEmbedder`）、未开启记忆时行为不变（`TestNoMemoryUnchanged`）、`-memory` 缺存储参数（`TestCLIMemoryRequiresStores`）、离线脚本的抽取与整理（`TestOfflineMemoryScripts`、`TestOfflineScriptsCurrentTurn`）。真实模型验证见 `TestLiveMemory`（`GOAGENT_LIVE=1`）。
 
+长期记忆可靠性验证分两部分，都在仓库根目录经 `with-stores.sh` 运行：
+
+- 真实场景回归 `TestLiveMemoryScenarios`：需要 `GOAGENT_LIVE=1`、`GEMINI_API_KEY` 与对话模型的密钥，会产生费用。`CS_SCENARIO_REPEATS` 为每个场景的重复次数（默认 10），`CS_SCENARIO_ONLY` 以逗号分隔只跑指定场景，`CS_SCENARIO_OUT` 为结果目录（写入 `results.jsonl` 与 `summary.md`）。场景并行运行，用 `-parallel 3` 限制并发：
+
+  ```bash
+  GOAGENT_LIVE=1 CS_SCENARIO_REPEATS=10 CS_SCENARIO_OUT=/tmp/cs-scenarios \
+    orchestration/customer-service/scripts/with-stores.sh go test -p 1 -parallel 3 -timeout 0 -run TestLiveMemoryScenarios -v ./orchestration/customer-service/
+  ```
+
+- 故障与并发 `TestMemoryFaults`：离线脚本模型与哈希嵌入，结果确定，不产生费用。子测试 concurrent、replay、crash（子进程在整理中被 SIGKILL 后重启续跑）、pg-outage、ns-concurrent、index-loss（删除 Qdrant 集合后 `Reindex`）串行执行。pg-outage 依赖 `with-stores.sh` 导出的容器名 `CS_MEMORY_PG_CONTAINER`，只暂停脚本自己启动的容器，未设置时跳过：
+
+  ```bash
+  orchestration/customer-service/scripts/with-stores.sh go test -p 1 -race -run TestMemoryFaults -v ./orchestration/customer-service/
+  ```
+
 ## 限制
 
 - 投递为至少一次，接收方按幂等键去重；飞书 `uuid` 去重只在约 1 小时内有效，发件箱以本地状态为准。
