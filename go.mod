@@ -6,9 +6,13 @@ require (
 	github.com/coder/acp-go-sdk v0.13.5
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
-	github.com/kart-io/goagent v0.53.0
+	github.com/jackc/pgx/v5 v5.10.0
+	github.com/kart-io/goagent v0.55.0
 	github.com/kart-io/goagent-contrib/acp v0.3.1-0.20261109034914-3831bc788521
+	github.com/kart-io/goagent-contrib/durable/pgstore v0.6.0
+	github.com/kart-io/goagent-contrib/memory/qdrant v0.1.0
 	github.com/mattn/go-sqlite3 v1.14.32
+	github.com/qdrant/go-client v1.16.0
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel/sdk v1.47.0
 	go.opentelemetry.io/otel/trace v1.47.0
@@ -33,7 +37,10 @@ require (
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
-	github.com/klauspost/compress v1.18.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
+	github.com/klauspost/compress v1.18.1 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/sashabaranov/go-openai v1.41.2 // indirect
 	github.com/standard-webhooks/standard-webhooks/libraries v0.0.1 // indirect
