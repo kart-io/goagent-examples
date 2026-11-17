@@ -191,10 +191,15 @@ func scanTicket(scan func(...any) error) (ticketRow, error) {
 	return r, err
 }
 
+// ticketNotFoundError 表示工单不存在；调用方用 errors.As 识别。
+type ticketNotFoundError struct{ id string }
+
+func (e ticketNotFoundError) Error() string { return fmt.Sprintf("工单 %s 不存在", e.id) }
+
 func (h *Host) ticket(ctx context.Context, q rowQuerier, id string) (ticketRow, error) {
 	r, err := scanTicket(q.QueryRowContext(ctx, "SELECT "+ticketColumns+" FROM tickets WHERE ticket_id = ?", id).Scan)
 	if errors.Is(err, sql.ErrNoRows) {
-		return r, fmt.Errorf("工单 %s 不存在", id)
+		return r, ticketNotFoundError{id}
 	}
 	return r, err
 }

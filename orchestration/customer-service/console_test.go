@@ -3,12 +3,16 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"path/filepath"
+	"slices"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/kart-io/goagent/core/durable"
+	"github.com/kart-io/goagent/multiagent"
 
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 )
@@ -118,4 +122,150 @@ func TestLedgerV1Rejected(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.Close())
 	require.ErrorContains(t, e.tryOpen(), "账本结构不兼容")
+}
+
+func (e *hostEnv) outboxCount() int {
+	e.t.Helper()
+	var n int
+	require.NoError(e.t, e.host.ledger.db.QueryRow("SELECT count(*) FROM outbox").Scan(&n))
+	return n
+}
+
+func (e *hostEnv) needsHuman(customer, ticketID string) bool {
+	e.t.Helper()
+	got, err := e.host.Tickets(context.Background(), customer)
+	require.NoError(e.t, err)
+	for _, s := range got {
+		if s.TicketID == ticketID {
+			return s.NeedsHuman
+		}
+	}
+	e.t.Fatalf("列表中没有工单 %s", ticketID)
+	return false
+}
+
+func manualReplies(ds []support.Delivery) []support.Delivery {
+	var out []support.Delivery
+	for _, d := range ds {
+		if d.Message.Title == "人工客服" {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+func TestReply(t *testing.T) {
+	ctx := context.Background()
+	t.Run("转人工后可回复", func(t *testing.T) {
+		e := newHostEnv(t, nil)
+		tk := e.message("m1", "c-1001", "乱码乱码")
+		require.Equal(t, statusDelivered, tk.Status)
+		require.True(t, e.needsHuman("c-1001", tk.TicketID))
+		res, err := e.host.Reply(ctx, tk.TicketID, "r1", "您好，我是人工客服")
+		require.NoError(t, err)
+		require.Equal(t, tk.TicketID+"/manual/r1", res.Key)
+		sent := manualReplies(e.sent(support.KindCustomerReply))
+		require.Len(t, sent, 1)
+		require.Equal(t, "您好，我是人工客服", sent[0].Message.Body)
+		conv := e.conversation("c-1001")
+		require.True(t, conv[len(conv)-1].Manual)
+		require.False(t, e.needsHuman("c-1001", tk.TicketID))
+	})
+	t.Run("重复提交只投递一次", func(t *testing.T) {
+		e := newHostEnv(t, nil)
+		tk := e.message("m1", "c-1001", "乱码乱码")
+		for range 2 {
+			_, err := e.host.Reply(ctx, tk.TicketID, "r1", "您好，我是人工客服")
+			require.NoError(t, err)
+		}
+		require.Len(t, manualReplies(e.sent(support.KindCustomerReply)), 1)
+	})
+	t.Run("未转人工拒绝", func(t *testing.T) {
+		e := newHostEnv(t, nil)
+		tk := e.message("m1", "c-1001", "订单 A1001 申请退款 30 元")
+		before := e.outboxCount()
+		_, err := e.host.Reply(ctx, tk.TicketID, "r1", "您好")
+		require.ErrorIs(t, err, errNotHandedOff)
+		require.Equal(t, before, e.outboxCount())
+		require.False(t, e.needsHuman("c-1001", tk.TicketID))
+	})
+	t.Run("工单不存在", func(t *testing.T) {
+		e := newHostEnv(t, nil)
+		e.message("m1", "c-1001", "乱码乱码")
+		before := e.outboxCount()
+		_, err := e.host.Reply(ctx, "tk-none", "r1", "您好")
+		var nf ticketNotFoundError
+		require.True(t, errors.As(err, &nf))
+		require.EqualError(t, err, "工单 tk-none 不存在")
+		require.Equal(t, before, e.outboxCount())
+	})
+	t.Run("空回复 ID 或内容", func(t *testing.T) {
+		e := newHostEnv(t, nil)
+		tk := e.message("m1", "c-1001", "乱码乱码")
+		before := e.outboxCount()
+		for _, c := range [][2]string{{"", "您好"}, {"r1", ""}} {
+			_, err := e.host.Reply(ctx, tk.TicketID, c[0], c[1])
+			require.Error(t, err)
+		}
+		require.Equal(t, before, e.outboxCount())
+	})
+	t.Run("运行失败也算转人工", func(t *testing.T) {
+		e := newHostEnv(t, nil)
+		r := e.message("m1", "c-1001", "订单 A1002 申请退款 800 元")
+		_, err := e.host.ledger.db.Exec("DELETE FROM orders WHERE order_id = 'A1002'")
+		require.NoError(t, err)
+		_, err = e.host.Answer(ctx, r.TicketID, "fin-1", true, "")
+		require.Error(t, err)
+		for range 2 {
+			e.clock.Advance(3 * time.Minute)
+			_, _ = e.host.Sweep(ctx)
+		}
+		var status string
+		require.NoError(t, e.host.ledger.db.QueryRow("SELECT status FROM tickets WHERE ticket_id = ?", r.TicketID).Scan(&status))
+		require.Equal(t, statusDelivered, status)
+		require.True(t, e.needsHuman("c-1001", r.TicketID))
+		_, err = e.host.Reply(ctx, r.TicketID, "r1", "人工跟进")
+		require.NoError(t, err)
+		require.False(t, e.needsHuman("c-1001", r.TicketID))
+	})
+}
+
+func TestTicketsAndTurns(t *testing.T) {
+	ctx := context.Background()
+	e := newHostEnv(t, nil)
+	a := e.message("m1", "c-1001", "订单 A1001 申请退款 30 元")
+	b := e.message("m2", "c-2002", "订单 A2001 申请退款 99 元")
+	all, err := e.host.Tickets(ctx, "")
+	require.NoError(t, err)
+	require.Len(t, all, 2)
+	only, err := e.host.Tickets(ctx, "c-2002")
+	require.NoError(t, err)
+	require.Len(t, only, 1)
+	require.Equal(t, b.TicketID, only[0].TicketID)
+	require.Equal(t, "c-2002", only[0].CustomerID)
+
+	turns, err := e.host.AgentTurns(ctx, a.TicketID)
+	require.NoError(t, err)
+	require.NotEmpty(t, turns)
+	require.True(t, slices.ContainsFunc(turns, func(tn multiagent.Turn) bool { return tn.Agent == triageName }))
+
+	_, err = e.host.AgentTurns(ctx, "tk-none")
+	var nf ticketNotFoundError
+	require.True(t, errors.As(err, &nf))
+}
+
+func TestTicketsOrderAndEmpty(t *testing.T) {
+	ctx := context.Background()
+	e := newHostEnv(t, nil)
+	got, err := e.host.Tickets(ctx, "")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	require.Empty(t, got)
+
+	first := e.message("m1", "c-1001", "订单 A1001 申请退款 30 元")
+	e.clock.Advance(time.Minute)
+	second := e.message("m2", "c-2002", "订单 A2001 申请退款 99 元")
+	got, err = e.host.Tickets(ctx, "")
+	require.NoError(t, err)
+	require.Equal(t, []string{second.TicketID, first.TicketID}, []string{got[0].TicketID, got[1].TicketID})
 }
