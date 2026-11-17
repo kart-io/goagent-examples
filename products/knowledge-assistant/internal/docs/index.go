@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"regexp"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -29,6 +31,22 @@ const writeBatch = 100
 // 或与 compose 每次 up 都会跑的 ingest 重叠时，重建会并发执行，后者的集合可能被前者的清理删掉。
 // 不与迁移锁（assistant.migrateLock = 80261116）共用，免得耗时数分钟的重建挡住实例启动时的迁移。
 const rebuildLock = 80261117
+
+// lockPoll 是等锁时的重试间隔。等待方不持连接，排队的重建再多也不会占满连接池。
+var lockPoll = 2 * time.Second
+
+var errLockBusy = agentErrors.New(agentErrors.CodeConflict, "重建索引锁被占用")
+
+// ContentKey 是重建的幂等键：由嵌入模型与全部文本块决定。ingest 与审批触发的重建共用它，
+// 语料未变时谁先重建都得到同一集合，后来者不再重新嵌入；换嵌入模型则必定重建。
+func ContentKey(modelID string, chunks []Chunk) string {
+	h := sha256.New()
+	fmt.Fprintf(h, "%q\x00", modelID)
+	for _, c := range chunks {
+		fmt.Fprintf(h, "%q\x00%q\x00%q\x00", c.ID, c.Source, c.Text)
+	}
+	return "content-" + hex.EncodeToString(h.Sum(nil))
+}
 
 // Index 是以 Qdrant alias 对外的文档索引：每次重建写入新集合，再原子切换 alias。
 type Index struct {
@@ -101,24 +119,39 @@ func (x *Index) Current(ctx context.Context) (string, error) {
 
 // Rebuild 把 chunks 写入由 key 决定的新集合并切换 alias，返回新集合名。
 // 同一 key 重放是幂等的：已是当前集合时不重写，只清理残留旧集合。
-// 并发调用（含其它进程）经 rebuildLock 排队依次执行；事务级锁在提交、回滚或连接断开时都会释放，进程崩溃也不会留下死锁。
+// 并发调用（含其它进程）经 rebuildLock 依次执行；事务级锁在提交、回滚或连接断开时都会释放，进程崩溃也不会留下死锁。
 func (x *Index) Rebuild(ctx context.Context, key string, chunks []Chunk) (string, error) {
 	if len(chunks) == 0 {
 		return "", agentErrors.New(agentErrors.CodeInvalidInput, "语料为空，拒绝重建索引（避免用空集合替换线上索引）")
 	}
-	var name string
-	err := pgx.BeginFunc(ctx, x.pool, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, rebuildLock); err != nil {
-			return agentErrors.Wrap(err, agentErrors.CodeInternal, "获取重建索引锁失败")
+	for {
+		var name string
+		err := pgx.BeginFunc(ctx, x.pool, func(tx pgx.Tx) error {
+			var got bool
+			if err := tx.QueryRow(ctx, `SELECT pg_try_advisory_xact_lock($1)`, rebuildLock).Scan(&got); err != nil {
+				return agentErrors.Wrap(err, agentErrors.CodeInternal, "获取重建索引锁失败")
+			}
+			if !got {
+				return errLockBusy
+			}
+			var err error
+			name, err = x.rebuild(ctx, tx, key, chunks)
+			return err
+		})
+		if !errors.Is(err, errLockBusy) {
+			return name, err
 		}
-		var err error
-		name, err = x.rebuild(ctx, key, chunks)
-		return err
-	})
-	return name, err
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(lockPoll):
+		}
+	}
 }
 
-func (x *Index) rebuild(ctx context.Context, key string, chunks []Chunk) (string, error) {
+// rebuild 在持锁事务 tx 内执行。锁随连接断开而释放，所以切换 alias 前先确认连接还在，
+// 免得失锁后与另一个重建同时切换；断开发生在确认之后的窗口仍靠 dropStale 不删线上集合兜底。
+func (x *Index) rebuild(ctx context.Context, tx pgx.Tx, key string, chunks []Chunk) (string, error) {
 	next := x.alias + "_" + keyHash(key)
 	cur := ""
 	switch c, err := x.Current(ctx); {
@@ -135,6 +168,9 @@ func (x *Index) rebuild(ctx context.Context, key string, chunks []Chunk) (string
 		ops := []*qdrant.AliasOperations{qdrant.NewAliasCreate(x.alias, next)}
 		if cur != "" {
 			ops = append([]*qdrant.AliasOperations{qdrant.NewAliasDelete(x.alias)}, ops...)
+		}
+		if _, err := tx.Exec(ctx, `SELECT 1`); err != nil {
+			return "", agentErrors.Wrap(err, agentErrors.CodeInternal, "重建索引锁已丢失，放弃切换 alias")
 		}
 		if err := x.client.UpdateAliases(ctx, ops); err != nil {
 			return "", agentErrors.Wrap(err, agentErrors.CodeInternal, "切换 Qdrant alias 失败")

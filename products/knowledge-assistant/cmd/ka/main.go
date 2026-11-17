@@ -3,8 +3,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -84,7 +82,7 @@ func newModel(c config.Config) (llm.ToolStreamClient, error) {
 	return chat.FromEnv()
 }
 
-// ingest 的幂等键由语料内容和嵌入模型共同决定：语料未变时重复执行不重写，换嵌入模型则必须重建。
+// ingest 以 docs.ContentKey 为幂等键：语料未变时重复执行不重写，换嵌入模型则必须重建。
 func ingest(ctx context.Context, c config.Config, _ []string) error {
 	e, err := newEmbedder(ctx, c)
 	if err != nil {
@@ -104,12 +102,7 @@ func ingest(ctx context.Context, c config.Config, _ []string) error {
 		return err
 	}
 	defer func() { _ = idx.Close() }()
-	h := sha256.New()
-	fmt.Fprintf(h, "%s\x00", embed.ModelID(e))
-	for _, ch := range chunks {
-		fmt.Fprintf(h, "%s\x00%s\x00%s\x00", ch.ID, ch.Source, ch.Text)
-	}
-	name, err := idx.Rebuild(ctx, "ingest-"+hex.EncodeToString(h.Sum(nil)), chunks)
+	name, err := idx.Rebuild(ctx, docs.ContentKey(embed.ModelID(e), chunks), chunks)
 	if err != nil {
 		return err
 	}

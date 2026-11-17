@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/kart-io/goagent/interfaces"
 	mg "github.com/kart-io/goagent/management"
 	"github.com/kart-io/goagent/memory"
 
@@ -58,6 +59,7 @@ func migrate(t *testing.T, c config.Config) {
 type env struct {
 	stores *Stores
 	svc    *mg.Service
+	deps   Deps
 }
 
 // newEnv 迁移、装配存储、重建一次测试专用 alias 的文档索引；worker 为真时另起 Worker。
@@ -93,21 +95,20 @@ func newEnv(t *testing.T, worker bool) *env {
 		t.Fatalf("Rebuild: %v", err)
 	}
 
+	deps := Deps{Stores: s, Model: model, Index: idx, CorpusDir: corpus, Embedder: e}
 	svc, err := mg.New(mg.Config{
 		Store:         s.Manage,
 		Sessions:      s.Sessions,
 		HistoryReader: s.Manage,
 		Authorizer:    mg.TenantAuthorizer{},
-		Factories: map[string]mg.Factory{RunnerKind: Factory(Deps{
-			Stores: s, Model: model, Index: idx, CorpusDir: corpus, Embedder: e,
-		})},
-		Report: func(stage string, err error) { t.Logf("管理诊断：%s %v", stage, err) },
+		Factories:     map[string]mg.Factory{RunnerKind: Factory(deps)},
+		Report:        func(stage string, err error) { t.Logf("管理诊断：%s %v", stage, err) },
 	})
 	if err != nil {
 		t.Fatalf("mg.New: %v", err)
 	}
 	if !worker {
-		return &env{stores: s, svc: svc}
+		return &env{stores: s, svc: svc, deps: deps}
 	}
 	w := mg.NewWorker(svc)
 	wctx, cancel := context.WithCancel(context.Background())
@@ -126,7 +127,7 @@ func newEnv(t *testing.T, worker bool) *env {
 			t.Errorf("Worker 退出：%v", err)
 		}
 	})
-	return &env{stores: s, svc: svc}
+	return &env{stores: s, svc: svc, deps: deps}
 }
 
 func actor(name string) mg.Actor { return mg.Actor{TenantID: name, Subject: name} }
@@ -324,5 +325,31 @@ func TestPurgeNeedsApproval(t *testing.T) {
 	}
 	if got := recall(t, e.stores.Memory, tenant, "k8s"); len(got) != 0 {
 		t.Errorf("Recall 应为空，实际 %+v", got)
+	}
+}
+
+// 审批触发的重建以语料内容为键：语料未变时不同任务重放得到同一集合，之后的 ingest 也不必重新嵌入。
+func TestRebuildToolKeyedByContent(t *testing.T) {
+	e := newEnv(t, false)
+	ctx := context.Background()
+	var rebuild approvalTool
+	for _, tool := range e.deps.approvalTools() {
+		if tool.name == "rebuild_docs_index" {
+			rebuild = tool
+		}
+	}
+	first, err := rebuild.run(ctx, &interfaces.ToolInput{ExecutionKey: "exec-1"})
+	if err != nil {
+		t.Fatalf("第一次重建: %v", err)
+	}
+	second, err := rebuild.run(ctx, &interfaces.ToolInput{ExecutionKey: "exec-2"})
+	if err != nil {
+		t.Fatalf("第二次重建: %v", err)
+	}
+	if first != second {
+		t.Fatalf("语料未变时两次重建的集合不同: %s / %s", first, second)
+	}
+	if cur, err := e.deps.Index.Current(ctx); err != nil || cur != first {
+		t.Fatalf("Current = %q, %v，期望 %s", cur, err, first)
 	}
 }

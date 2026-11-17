@@ -10,6 +10,7 @@ import (
 	"github.com/kart-io/goagent/tools"
 
 	"github.com/kart-io/goagent-examples/products/knowledge-assistant/internal/docs"
+	"github.com/kart-io/goagent-examples/products/knowledge-assistant/internal/embed"
 )
 
 const (
@@ -40,13 +41,13 @@ func (d Deps) approvalTools() []approvalTool {
 				}
 				return "已清空当前用户的全部记忆", nil
 			}},
-		{"rebuild_docs_index", "rebuild", "重新采集语料并重建文档索引，返回新集合名。", "重建文档索引需要人工审批",
-			func(ctx context.Context, in *interfaces.ToolInput) (string, error) {
+		{"rebuild_docs_index", "rebuild", "重新采集语料并重建文档索引，返回索引当前指向的集合名；语料未变时复用现有集合。", "重建文档索引需要人工审批",
+			func(ctx context.Context, _ *interfaces.ToolInput) (string, error) {
 				chunks, err := docs.Collect(d.CorpusDir)
 				if err != nil {
 					return "", err
 				}
-				return d.Index.Rebuild(ctx, in.ExecutionKey, chunks)
+				return d.Index.Rebuild(ctx, docs.ContentKey(embed.ModelID(d.Embedder), chunks), chunks)
 			}},
 	}
 }

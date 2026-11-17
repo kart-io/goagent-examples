@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"io"
 	"math/rand/v2"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,7 +18,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -28,7 +26,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/qdrant/go-client/qdrant"
 	goredis "github.com/redis/go-redis/v9"
 
 	mg "github.com/kart-io/goagent/management"
@@ -637,15 +634,19 @@ func TestAcceptance(t *testing.T) {
 		task, _ := approve(t, s.b, u1, "重建文档索引", "approve")
 		wantState(t, task, mg.Succeeded)
 
+		// 语料与 ingest 时相同，内容键一致：重建直接复用现有集合，不重新嵌入，之后的 ingest 也不会。
+		if n := s.toolRuns(t, "rebuild", u1); n != 1 {
+			t.Errorf("rebuild 执行了 %d 次，期望 1", n)
+		}
+		if got := resultText(task); !strings.Contains(got, old) {
+			t.Errorf("结果不含当前集合 %s：\n%s", old, got)
+		}
 		cur, err := idx.Current(ctx)
 		if err != nil {
 			t.Fatalf("Current：%v", err)
 		}
-		if cur == old {
-			t.Errorf("重建后 alias 仍指向 %s", old)
-		}
-		if exists := collectionExists(t, qd, old); exists {
-			t.Errorf("旧集合 %s 未删除", old)
+		if cur != old {
+			t.Errorf("语料未变时重建不应切换集合：%s → %s", old, cur)
 		}
 		task = ask(t, s.b.base, u1, "pgstore 怎么建表")
 		wantState(t, task, mg.Succeeded)
@@ -665,26 +666,4 @@ func TestAcceptance(t *testing.T) {
 	if t.Failed() {
 		dumpProcs(t)
 	}
-}
-
-func collectionExists(t *testing.T, addr, name string) bool {
-	t.Helper()
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		t.Fatalf("Qdrant 地址 %q 无效：%v", addr, err)
-	}
-	p, err := strconv.Atoi(port)
-	if err != nil {
-		t.Fatalf("Qdrant 端口 %q 无效：%v", port, err)
-	}
-	cli, err := qdrant.NewClient(&qdrant.Config{Host: host, Port: p})
-	if err != nil {
-		t.Fatalf("Qdrant 客户端：%v", err)
-	}
-	defer func() { _ = cli.Close() }()
-	exists, err := cli.CollectionExists(context.Background(), name)
-	if err != nil {
-		t.Fatalf("CollectionExists：%v", err)
-	}
-	return exists
 }

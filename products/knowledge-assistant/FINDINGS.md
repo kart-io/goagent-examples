@@ -281,7 +281,7 @@
 
 - **现象**：F10 迫使每个用户独占一个租户，审批项随任务落在发起人的租户里。`TenantAuthorizer` 只核对租户，所以能批准的只有发起人自己（或冒用同一用户名的人）。框架没有"审批人须持有某角色"或"审批落到另一个租户"的表达方式。
 - **证据**：`goagent:management/types.go:304-309`（`TenantAuthorizer.Authorize` 只比较 `TenantID`）；`internal/assistant/agent.go` 的 `approvalHook` 只能返回 `PreAsk`，无法指定审批人；e2e `TestRebuildIndexViaApproval` 中发起人批准了自己的重建。
-- **影响**：审批只能防模型误调用工具，不构成授权。任何用户都能让 `rebuild_docs_index` 执行：一次全量重新嵌入约 4200 次 Gemini 调用，还会与其它重建争用重建锁。`purge_my_memory` 只作用于本人，不受影响。
+- **影响**：审批只能防模型误调用工具，不构成授权。任何用户都能让 `rebuild_docs_index` 执行。语料或嵌入模型变化后，一次重建就是全量重新嵌入，约 4200 次 Gemini 调用，还会与其它重建争用重建锁。`purge_my_memory` 只作用于本人，不受影响。
 - **产品处理**：不加白名单，README"生产须替换的部分"写明这一点。
 - **建议**：修框架。审批项支持指定审批人角色或审批租户，由 Authorizer 校验决定者的角色；或让 `PreAsk` 携带审批策略。
 
@@ -290,7 +290,7 @@
 ## 产品侧已知限制（不属于框架）
 
 - `docs.Collect` 遇到一个无法解析的 `.go` 文件就整体失败。当前两个固定版本的语料都能解析。
-- 重建会并发执行：Worker 每个任务一个 goroutine，两个审批同时通过、或与 compose 每次 `up` 都会跑的 `ingest` 重叠都会撞上。现由 Postgres advisory 锁（`internal/docs/index.go` 的 `rebuildLock`）串行，清理旧集合时也不删 alias 当前指向的集合。代价是排在后面的重建要等前一个写完，期间占着一条 Postgres 连接。
+- 重建会并发执行：Worker 每个任务一个 goroutine，两个审批同时通过、或与 compose 每次 `up` 都会跑的 `ingest` 重叠都会撞上。现由 Postgres advisory 锁（`internal/docs/index.go` 的 `rebuildLock`）串行。等锁一方每 2 秒用 `pg_try_advisory_xact_lock` 重试，期间不占连接。ingest 与审批触发的重建共用内容键 `docs.ContentKey`（嵌入模型加全部文本块），语料未变时后来者直接复用现有集合，不重新嵌入。持锁连接中途断开时锁随之释放：重建在切换 alias 前确认连接仍在，否则放弃切换。确认之后到切换完成之间仍有很短的窗口，靠清理旧集合时不删 alias 当前指向的集合兜底。
 - e2e 用了 `Pdeathsig`（`e2e/e2e_test.go:117`、`:171`），文件带 `//go:build linux`，只在 Linux 上运行。其余包可在 macOS 上编译（`GOOS=darwin go vet ./...` 通过）。
 - 语料收录了仓库里给 AI 编码助手看的工作流文件，如 `CLAUDE.md`、`.github/*.md`。它们不是产品文档，却会被检索到并被引用：最新的真实验收报告 `verification/live-20261116T172839Z.json` 的记忆场景回答就引用了 `goagent:CLAUDE.md` 的几个小节。排除它们会改变语料和块数，现有真实验收结果随之作废，所以暂不改，留待下次重跑真实验收时一并处理。
 - `serve` 退出时，HTTP 排空、`worker.Shutdown` 和等待后台循环共用同一个 10 秒 ctx（`cmd/ka/main.go` 的 serve 收尾）。前一步耗时越久，后面可用的时间越少，进行中的任务可能来不及交还。
