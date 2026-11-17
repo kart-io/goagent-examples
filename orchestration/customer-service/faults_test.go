@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	qc "github.com/qdrant/go-client/qdrant"
 	"github.com/stretchr/testify/require"
 
@@ -31,7 +32,10 @@ var notePattern = regexp.MustCompile(`记下：([^"\n]+)`)
 
 // faultModel 包装离线脚本：抽取请求的对话含“记下：”时把其后的文本作为一条事实；整理请求先回调 onReconcile（可为 nil）。
 // 故障测试的事实放在测试里，不改 model.go 的离线话术表。
-func faultModel(onReconcile func()) *livemodel.Client {
+func faultModel(onReconcile func()) *livemodel.Client { return faultModelFor("", onReconcile) }
+
+// faultModelFor 与 faultModel 相同，但只在整理请求含 token 时回调 onReconcile：共用存储中其他命名空间的整理照常应答。
+func faultModelFor(token string, onReconcile func()) *livemodel.Client {
 	var calls atomic.Int64
 	return livemodel.Wrap(&demomodel.Model{Calls: &calls, Respond: func(req *llm.CompletionRequest) llm.StreamChunk {
 		system := req.Messages[0].Content
@@ -42,7 +46,7 @@ func faultModel(onReconcile func()) *livemodel.Client {
 					{"kind": "fact", "content": m[1], "keywords": []string{}, "entities": []string{}, "importance": 0.8},
 				}})
 			}
-		case strings.HasPrefix(system, "你维护长期记忆") && onReconcile != nil:
+		case strings.HasPrefix(system, "你维护长期记忆") && onReconcile != nil && strings.Contains(firstUser(req.Messages), token):
 			onReconcile()
 		}
 		return respond(req)
@@ -59,11 +63,13 @@ func faultStores(t *testing.T) (pg, qd string) {
 	return pg, qd
 }
 
-// newFaultEnvAt 在 dir 打开接入长期记忆、使用 faultModel 的宿主。
-func newFaultEnvAt(t *testing.T, dir string, onReconcile func()) *hostEnv {
+// newFaultEnvAt 在 dir 打开接入长期记忆的宿主；client 为 nil 时用 faultModel(nil)。
+func newFaultEnvAt(t *testing.T, dir string, client *livemodel.Client) *hostEnv {
 	t.Helper()
 	pg, qd := faultStores(t)
-	client := faultModel(onReconcile)
+	if client == nil {
+		client = faultModel(nil)
+	}
 	return newHostEnvAt(t, dir, func(c *HostConfig) {
 		c.Client, c.Memory = client, &MemoryConfig{PGURL: pg, QdrantAddr: qd}
 	})
@@ -93,17 +99,20 @@ func uniqueTickets(rs ...MessageResult) []string {
 	return out
 }
 
-// TestMemoryFaultCrashChild 只作为 crash 子测试的子进程运行：整理请求到达时创建标记文件并永久阻塞，等待父进程 SIGKILL。
+// TestMemoryFaultCrashChild 只作为 crash 子测试的子进程运行：含 CS_FAULT_CHILD_TOKEN 的整理请求到达时创建标记文件并永久阻塞，等待父进程 SIGKILL。
 func TestMemoryFaultCrashChild(t *testing.T) {
 	dir := os.Getenv("CS_FAULT_CHILD_DIR")
 	if dir == "" {
 		t.Skip("仅由 TestMemoryFaults/crash 以子进程方式运行")
 	}
-	mark := os.Getenv("CS_FAULT_CHILD_MARK")
-	e := newFaultEnvAt(t, dir, func() {
+	mark, token := os.Getenv("CS_FAULT_CHILD_MARK"), os.Getenv("CS_FAULT_CHILD_TOKEN")
+	if token == "" {
+		t.Fatal("缺少 CS_FAULT_CHILD_TOKEN")
+	}
+	e := newFaultEnvAt(t, dir, faultModelFor(token, func() {
 		_ = os.WriteFile(mark, nil, 0o600)
 		select {}
-	})
+	}))
 	_, err := e.host.Sweep(context.Background())
 	t.Fatalf("整理应阻塞直到被终止，Sweep 却返回：%v", err)
 }
@@ -203,7 +212,9 @@ const (
 func faultCrash(t *testing.T) {
 	e := newFaultEnvAt(t, t.TempDir(), nil)
 	c, cctx := newCustomer()
-	before := rememberPinned(t, e, cctx, c, "请记住：只用邮件联系我")
+	// token 写进钉住记录，本任务的整理请求在“已有记忆”中带上它，子进程只在这次整理中阻塞。
+	token := "T" + uuid.NewString()[:8]
+	before := rememberPinned(t, e, cctx, c, "请记住：只用邮件联系我（"+token+"）")
 	r := e.message(msgID(), c, "邮件或短信都可以")
 	keys, err := sessionJobKeys(context.Background(), e, memorySession(r.TicketID, generalName))
 	require.NoError(t, err)
@@ -221,7 +232,7 @@ func faultCrash(t *testing.T) {
 	mark := filepath.Join(t.TempDir(), "reconciling")
 	var out bytes.Buffer
 	cmd := exec.Command(os.Args[0], "-test.run", "^TestMemoryFaultCrashChild$", "-test.count", "1", "-test.v", "-test.timeout", "5m")
-	cmd.Env = append(os.Environ(), "CS_FAULT_CHILD_DIR="+e.dir, "CS_FAULT_CHILD_MARK="+mark)
+	cmd.Env = append(os.Environ(), "CS_FAULT_CHILD_DIR="+e.dir, "CS_FAULT_CHILD_MARK="+mark, "CS_FAULT_CHILD_TOKEN="+token)
 	cmd.Stdout, cmd.Stderr = &out, &out
 	require.NoError(t, cmd.Start())
 	exited := make(chan error, 1)
@@ -327,7 +338,7 @@ func faultPGOutage(t *testing.T) {
 	select {
 	case sweepErr = <-done:
 	case <-time.After(30 * time.Second):
-		t.Errorf("Postgres 暂停时 Sweep 超过上下文期限 20 秒仍未返回")
+		t.Errorf("Postgres 暂停时 Sweep 超过上下文期限 10 秒后 20 秒仍未返回")
 		require.NoError(t, docker("unpause", name))
 		sweepErr = <-done
 	}
@@ -405,8 +416,7 @@ func recallIDs(ctx context.Context, m *memory.Memory, text string) ([]string, er
 	return contents(got, func(s memory.Scored) string { return s.ID }), err
 }
 
-// deleteMemoryCollections 删除本示例前缀（cs_memory）下的全部 Qdrant 集合，返回删除的名称。
-func deleteMemoryCollections(ctx context.Context, addr string) ([]string, error) {
+func qdrantClient(addr string) (*qc.Client, error) {
 	host, portStr, err := net.SplitHostPort(addr)
 	if err != nil {
 		return nil, err
@@ -415,11 +425,11 @@ func deleteMemoryCollections(ctx context.Context, addr string) ([]string, error)
 	if err != nil {
 		return nil, err
 	}
-	client, err := qc.NewClient(&qc.Config{Host: host, Port: port, SkipCompatibilityCheck: true})
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = client.Close() }()
+	return qc.NewClient(&qc.Config{Host: host, Port: port, SkipCompatibilityCheck: true})
+}
+
+// deleteMemoryCollections 删除本示例前缀（cs_memory）下的全部 Qdrant 集合，返回删除的名称。
+func deleteMemoryCollections(ctx context.Context, client *qc.Client) ([]string, error) {
 	names, err := client.ListCollections(ctx)
 	if err != nil {
 		return nil, err
@@ -437,21 +447,30 @@ func deleteMemoryCollections(ctx context.Context, addr string) ([]string, error)
 	return deleted, nil
 }
 
-// 删除 Qdrant 集合后召回与收消息不崩溃；Reindex 后召回的记录 ID 集合与故障前相同。
+// 删除 Qdrant 集合后召回与收消息不崩溃；Reindex 后集合重建且点数不少于有效记录数，召回的记录 ID 集合与故障前相同。
+// 召回还按字符二元组打分，没有集合时也能命中，所以须直接检查集合与点数。
 func faultIndexLoss(t *testing.T) {
 	_, qd := faultStores(t)
+	if os.Getenv("CS_MEMORY_QDRANT_CONTAINER") == "" {
+		t.Skip("未设置 CS_MEMORY_QDRANT_CONTAINER，请经 scripts/with-stores.sh 运行：本场景删除 cs_memory_* 集合，只能用于脚本启动的 Qdrant")
+	}
+	client, err := qdrantClient(qd)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = client.Close() })
 	e := newFaultEnvAt(t, t.TempDir(), nil)
 	c, cctx := newCustomer()
-	r1 := e.message(msgID(), c, "记下：常住城市是杭州")
-	r2 := e.message(msgID(), c, "记下：偏好晚上联系")
-	_, err := settle(context.Background(), e, cctx, uniqueTickets(r1, r2))
+	var rs []MessageResult
+	for _, text := range []string{"记下：常住城市是杭州", "记下：公司在杭州滨江", "记下：杭州收货地址在西湖区", "记下：偏好晚上联系"} {
+		rs = append(rs, e.message(msgID(), c, text))
+	}
+	_, err = settle(context.Background(), e, cctx, uniqueTickets(rs...))
 	require.NoError(t, err)
 	m := e.host.memory.Memory
 	a, err := recallIDs(cctx, m, "杭州")
 	require.NoError(t, err)
-	require.NotEmpty(t, a, "故障前召回到记录")
+	require.GreaterOrEqual(t, len(a), 2, "故障前召回到多条记录：%v", a)
 
-	deleted, err := deleteMemoryCollections(context.Background(), qd)
+	deleted, err := deleteMemoryCollections(context.Background(), client)
 	require.NoError(t, err)
 	require.NotEmpty(t, deleted, "删除了本示例的集合")
 	t.Logf("已删除集合：%v", deleted)
@@ -468,6 +487,16 @@ func faultIndexLoss(t *testing.T) {
 	})
 
 	require.NoError(t, m.Reindex(cctx, true))
+	collection := fmt.Sprintf("cs_memory_d%d", hashDims)
+	exists, err := client.CollectionExists(context.Background(), collection)
+	require.NoError(t, err)
+	require.True(t, exists, "Reindex 后集合 %s 已重建", collection)
+	points, err := client.Count(context.Background(), &qc.CountPoints{CollectionName: collection, Exact: new(true)})
+	require.NoError(t, err)
+	recs, err := validRecords(cctx, m)
+	require.NoError(t, err)
+	t.Logf("Reindex 后集合 %s 有 %d 个点，有效记录 %d 条", collection, points, len(recs))
+	require.GreaterOrEqual(t, points, uint64(len(recs)), "Reindex 后点数不少于有效记录数")
 	b, err := recallIDs(cctx, m, "杭州")
 	require.NoError(t, err)
 	require.ElementsMatch(t, a, b, "Reindex 后召回的记录 ID 集合与故障前相同")

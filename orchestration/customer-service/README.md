@@ -280,7 +280,7 @@ scripts/with-stores.sh go run ./orchestration/customer-service serve -dir /tmp/c
     orchestration/customer-service/scripts/with-stores.sh go test -p 1 -parallel 3 -timeout 0 -run TestLiveMemoryScenarios -v ./orchestration/customer-service/
   ```
 
-- 故障与并发 `TestMemoryFaults`：离线脚本模型与哈希嵌入，结果确定，不产生费用。子测试 concurrent、replay、crash（子进程在整理中被 SIGKILL 后重启续跑）、pg-outage、ns-concurrent、index-loss（删除 Qdrant 集合后 `Reindex`）串行执行。pg-outage 依赖 `with-stores.sh` 导出的容器名 `CS_MEMORY_PG_CONTAINER`，只暂停脚本自己启动的容器，未设置时跳过：
+- 故障与并发 `TestMemoryFaults`：离线脚本模型与哈希嵌入，结果确定，不产生费用。子测试 concurrent、replay、crash（子进程在整理中被 SIGKILL 后重启续跑）、pg-outage、ns-concurrent、index-loss（删除 Qdrant 集合后 `Reindex`）串行执行。pg-outage 与 index-loss 依赖 `with-stores.sh` 导出的容器名 `CS_MEMORY_PG_CONTAINER`、`CS_MEMORY_QDRANT_CONTAINER`，只暂停或删除脚本自己启动的容器中的数据，未设置时跳过：
 
   ```bash
   orchestration/customer-service/scripts/with-stores.sh go test -p 1 -race -run TestMemoryFaults -v ./orchestration/customer-service/
