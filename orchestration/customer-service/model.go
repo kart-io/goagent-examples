@@ -16,7 +16,20 @@ import (
 var (
 	orderPattern  = regexp.MustCompile(`A\d{4}`)
 	amountPattern = regexp.MustCompile(`(\d+)\s*元`)
+	memoryLine    = regexp.MustCompile(`(?m)^- id=([^：\n]+)：(.*)$`)
 )
+
+const rememberPrefix = "请记住："
+
+// extractScripts 按对话中出现的说法给出抽取结果，顺序即匹配优先级。
+var extractScripts = []struct {
+	phrase string
+	facts  []string
+}{
+	{"只退回原支付方式", []string{"客户要求退款只退回原支付方式"}},
+	{"邮件或短信都可以", []string{"客户接受邮件或短信联系"}},
+	{"先说住杭州又改口", []string{"客户住在杭州", "客户不住在杭州"}},
+}
 
 // offlineModel 是有限的脚本化对话，不是自然语言模型：按 README 中的固定说法回答。
 // 真实 Builder、工具调度、持久日志与用量统计照常运行，只替换了传输层。
@@ -42,14 +55,67 @@ func respond(req *llm.CompletionRequest) llm.StreamChunk {
 		}
 	}
 	switch {
+	case strings.HasPrefix(system, "你从一轮对话中抽取"):
+		return extractTurn(req.Messages)
+	case strings.HasPrefix(system, "你维护长期记忆"):
+		return reconcileTurn(req.Messages)
 	case strings.HasPrefix(system, "customer-service-triage"):
 		return triageTurn(view)
 	case strings.HasPrefix(system, "customer-service-general"):
-		return text("您好，包裹已在配送途中，预计 1 至 2 天送达；账单与发票可在订单详情页下载。")
+		return generalTurn(view, req.Messages)
 	case strings.HasPrefix(system, "customer-service-refund"):
 		return refundTurn(view, req.Messages)
 	}
 	return text("离线脚本不支持该请求")
+}
+
+func generalTurn(v ticketView, msgs []llm.Message) llm.StreamChunk {
+	content, ok := strings.CutPrefix(v.Input, rememberPrefix)
+	if !ok {
+		return text("您好，包裹已在配送途中，预计 1 至 2 天送达；账单与发票可在订单详情页下载。")
+	}
+	for _, m := range msgs {
+		if m.Role == "tool" && m.ToolCallID == "mem-1" {
+			return text("好的，已记住。")
+		}
+	}
+	args, _ := json.Marshal(map[string]any{"content": content, "kind": "fact", "pinned": true})
+	return llm.StreamChunk{ToolCalls: []llm.ToolCall{demomodel.CallWith("mem-1", "memory_save", string(args))}}
+}
+
+// extractTurn 的输入是记忆 worker 拼出的对话文本，位于最后一条用户消息。
+func extractTurn(msgs []llm.Message) llm.StreamChunk {
+	transcript := msgs[len(msgs)-1].Content
+	if strings.Contains(transcript, "抽取坏回复") {
+		return text("这不是 JSON")
+	}
+	memories := []map[string]any{}
+	for _, sc := range extractScripts {
+		if !strings.Contains(transcript, sc.phrase) {
+			continue
+		}
+		for _, f := range sc.facts {
+			memories = append(memories, map[string]any{"kind": "fact", "content": f, "keywords": []string{}, "entities": []string{}, "importance": 0.8})
+		}
+		break
+	}
+	return jsonText(map[string]any{"memories": memories})
+}
+
+// reconcileTurn 从“已有记忆”行解析候选，按新信息决定更新、否定或新增。
+func reconcileTurn(msgs []llm.Message) llm.StreamChunk {
+	user := msgs[len(msgs)-1].Content
+	info, _, _ := strings.Cut(strings.TrimPrefix(user, "新信息："), "\n\n已有记忆：")
+	for _, m := range memoryLine.FindAllStringSubmatch(user, -1) {
+		id, content := m[1], m[2]
+		switch {
+		case strings.Contains(info, "邮件或短信") && strings.Contains(content, "邮件"):
+			return jsonText(map[string]string{"op": "update", "target": id, "content": "客户接受邮件或短信联系"})
+		case info == "客户不住在杭州" && content == "客户住在杭州":
+			return jsonText(map[string]string{"op": "invalidate", "target": id})
+		}
+	}
+	return jsonText(map[string]string{"op": "add"})
 }
 
 func triageTurn(v ticketView) llm.StreamChunk {
