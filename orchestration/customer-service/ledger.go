@@ -58,7 +58,7 @@ func openLedger(dir string) (*ledger, error) {
 
 func (l *ledger) Close() error { return l.db.Close() }
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 func (l *ledger) initialize() error {
 	tx, err := l.db.Begin()
@@ -100,12 +100,14 @@ func (l *ledger) initialize() error {
 		 last_progress TEXT NOT NULL, failures INTEGER NOT NULL DEFAULT 0);
 		CREATE INDEX tickets_customer ON tickets(customer_id, status);
 		CREATE TABLE ticket_messages (message_id TEXT PRIMARY KEY, ticket_id TEXT NOT NULL, seq INTEGER NOT NULL,
-		 text TEXT NOT NULL, handled INTEGER NOT NULL DEFAULT 0);
+		 text TEXT NOT NULL, handled INTEGER NOT NULL DEFAULT 0,
+		 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
 		CREATE TABLE outbox (idempotency_key TEXT PRIMARY KEY, ticket_id TEXT NOT NULL, channel TEXT NOT NULL,
 		 recipient_json BLOB NOT NULL, payload_json BLOB NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
-		 attempts INTEGER NOT NULL DEFAULT 0, seq INTEGER NOT NULL);
+		 attempts INTEGER NOT NULL DEFAULT 0, seq INTEGER NOT NULL,
+		 created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')));
 		CREATE TABLE events (event_key TEXT PRIMARY KEY, ticket_id TEXT NOT NULL);
-		PRAGMA user_version = 1;`)
+		PRAGMA user_version = 2;`)
 	if err != nil {
 		return err
 	}

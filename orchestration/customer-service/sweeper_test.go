@@ -411,7 +411,7 @@ func TestCustomerAnswerSurvivesResumeFailure(t *testing.T) {
 
 func TestPendingAnswerBoundToItsAsk(t *testing.T) {
 	pending := func(t *testing.T, e *hostEnv, id, ticketID, text string) {
-		_, err := e.host.ledger.db.Exec("INSERT INTO ticket_messages VALUES (?, ?, (SELECT COALESCE(MAX(seq),0)+1 FROM ticket_messages), ?, ?)",
+		_, err := e.host.ledger.db.Exec("INSERT INTO ticket_messages(message_id, ticket_id, seq, text, handled) VALUES (?, ?, (SELECT COALESCE(MAX(seq),0)+1 FROM ticket_messages), ?, ?)",
 			id, ticketID, text, answerPending)
 		require.NoError(t, err)
 	}
@@ -445,7 +445,7 @@ func TestPendingAnswerBoundToItsAsk(t *testing.T) {
 		var insertErr error
 		e.store.arm(func(*durable.Snapshot) bool { // 续跑的第一次保存时插入一条更晚的待确认回答
 			once.Do(func() {
-				_, insertErr = e.host.ledger.db.Exec("INSERT INTO ticket_messages VALUES ('fresh', ?, (SELECT COALESCE(MAX(seq),0)+1 FROM ticket_messages), '订单号是 A1003', ?)",
+				_, insertErr = e.host.ledger.db.Exec("INSERT INTO ticket_messages(message_id, ticket_id, seq, text, handled) VALUES ('fresh', ?, (SELECT COALESCE(MAX(seq),0)+1 FROM ticket_messages), '订单号是 A1003', ?)",
 					r.TicketID, answerPending)
 			})
 			return false

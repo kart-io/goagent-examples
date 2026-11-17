@@ -305,7 +305,7 @@ func (h *Host) Message(ctx context.Context, customerID, submitter, messageID, te
 		default:
 			action, handled = "queued", 0
 		}
-		_, err = tx.ExecContext(ctx, "INSERT INTO ticket_messages VALUES (?,?,(SELECT COALESCE(MAX(seq),0)+1 FROM ticket_messages),?,?)", messageID, row.ID, text, handled)
+		_, err = tx.ExecContext(ctx, "INSERT INTO ticket_messages(message_id, ticket_id, seq, text, handled) VALUES (?,?,(SELECT COALESCE(MAX(seq),0)+1 FROM ticket_messages),?,?)", messageID, row.ID, text, handled)
 		return err
 	})
 	if err != nil {
