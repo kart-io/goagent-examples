@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>客服台</title>
+<style>
+  body { font-family: sans-serif; margin: 0; background: #f2f3f5; font-size: 14px; }
+  #cols { display: grid; grid-template-columns: 260px 1fr 340px; gap: 8px; height: 100vh; padding: 8px; box-sizing: border-box; }
+  section { background: #fff; padding: 10px; overflow-y: auto; }
+  h2, h3 { margin: 4px 0 8px; font-size: 15px; }
+  .ticket { padding: 6px; border-bottom: 1px solid #eee; cursor: pointer; }
+  .ticket.sel { background: #e6f0ff; }
+  .tag { background: #d9822b; color: #fff; border-radius: 3px; padding: 0 4px; margin-left: 4px; font-size: 12px; }
+  .err { color: #c00; }
+  pre { white-space: pre-wrap; word-break: break-word; background: #f7f7f7; padding: 6px; margin: 4px 0; }
+  .box { border-top: 1px solid #ddd; margin-top: 10px; padding-top: 6px; }
+  .rec { border: 1px solid #ddd; padding: 4px; margin: 4px 0; word-break: break-word; }
+  textarea, input[type=text] { width: 100%; box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="cols">
+  <section>
+    <h2>工单</h2>
+    <button id="sweep">执行 sweep</button>
+    <pre id="sweepOut" hidden></pre>
+    <div id="tickets"></div>
+  </section>
+  <section id="detail"><p>从左侧选择一张工单。</p></section>
+  <section>
+    <h2>记忆</h2>
+    <div id="memHead">未选择工单</div>
+    <div class="err" id="memErr" hidden></div>
+    <p><button id="memPinned">钉住记录</button></p>
+    <p><input type="text" id="memQ" placeholder="召回文本"> <button id="memRecall">召回</button></p>
+    <p><input type="text" id="memId" placeholder="记录 ID"> <button id="memGet">按 ID 查看</button></p>
+    <div id="memOut"></div>
+  </section>
+</div>
+<script src="/web/app.js"></script>
+<script>
+const SUBMITTER = "agent-1";
+let selected = null; // 当前工单摘要
+let reply = null; // 发送失败待重试的人工回复：沿用同一个 reply_id
+let lastDetail = null;
+
+const $ = (id) => document.getElementById(id);
+
+function enc(s) { return encodeURIComponent(s); }
+
+async function refreshTickets() {
+  let data;
+  try {
+    data = await api("GET", "/api/tickets");
+  } catch (e) {
+    $("tickets").replaceChildren(el("div", { class: "err", text: e.message }));
+    return;
+  }
+  const nodes = data.tickets.map((t) => {
+    const row = el("div", { class: "ticket" + (selected && selected.ticket_id === t.ticket_id ? " sel" : ""), onclick: () => select(t) },
+      el("b", { text: t.ticket_id }),
+      t.needs_human ? el("span", { class: "tag", text: "待人工" }) : null,
+      el("div", { text: t.customer_id + " · " + t.status + " · 第 " + t.round + " 轮" }));
+    return row;
+  });
+  $("tickets").replaceChildren(...nodes);
+  if (selected) {
+    const cur = data.tickets.find((t) => t.ticket_id === selected.ticket_id);
+    if (cur) selected = cur;
+  }
+}
+
+function select(t) {
+  selected = t;
+  reply = null;
+  lastDetail = null;
+  $("detail").replaceChildren();
+  memoryHead();
+  refreshTickets();
+  refreshDetail();
+}
+
+async function refreshDetail() {
+  if (!selected) return;
+  const id = selected.ticket_id;
+  let d;
+  try {
+    d = await api("GET", "/api/tickets/" + enc(id));
+  } catch (e) {
+    $("detail").replaceChildren(el("div", { class: "err", text: e.message }));
+    return;
+  }
+  if (!selected || selected.ticket_id !== id) return;
+  // 回复与审核输入框正在编辑时不整体重绘，避免丢失输入。
+  const editing = $("detail").contains(document.activeElement) && document.activeElement.matches("textarea, input, select");
+  if (editing && lastDetail === id) return;
+  lastDetail = id;
+  renderDetail(d);
+}
+
+function renderDetail(d) {
+  const t = d.ticket;
+  const parts = [
+    el("h2", { text: t.ticket_id }),
+    el("div", { text: "客户 " + t.customer_id + " · 状态 " + t.status + " · 第 " + t.round + " 轮" + (t.deadline ? " · 截止 " + t.deadline : "") }),
+    el("h3", { text: "Agent turns" }),
+  ];
+  if (d.turns_busy) parts.push(el("div", { text: "运行中，暂时读不到 turns" }));
+  for (const turn of d.turns) parts.push(el("div", {}, el("b", { text: turn.Agent }), el("pre", { text: turn.Output })));
+  parts.push(el("h3", { text: "发件箱" }));
+  for (const o of t.outbox || []) parts.push(el("div", { text: o.channel + " · " + o.status + " · " + o.key }));
+
+  if (t.status === "waiting_review") parts.push(reviewBox(t, d.answer));
+  const handedOff = (t.outbox || []).some((o) => o.channel === "handoff");
+  if ((selected && selected.needs_human) || handedOff) parts.push(replyBox(t));
+  $("detail").replaceChildren(...parts);
+}
+
+function reviewBox(t, answer) {
+  const who = el("select", {}, ...(t.approvers || []).map((u) => el("option", { value: u.ID, text: u.Name ? u.Name + "（" + u.ID + "）" : u.ID })));
+  const note = el("input", { type: "text", placeholder: "审核说明（可选）" });
+  const msg = el("div", { class: "err", hidden: true });
+  const act = (approve) => async () => {
+    try {
+      await api("POST", "/api/tickets/" + enc(t.ticket_id) + "/answer", { approver: who.value, approve, note: note.value });
+      showError(msg, null);
+      lastDetail = null;
+      refreshDetail();
+    } catch (e) {
+      showError(msg, e);
+    }
+  };
+  const box = el("div", { class: "box" }, el("h3", { text: "审核" }), who, note,
+    el("button", { text: "批准", onclick: act(true) }), el("button", { text: "拒绝", onclick: act(false) }), msg);
+  if (answer && answer.running) box.append(el("div", { text: "审核处理中" }));
+  if (answer && answer.error) box.append(el("div", { class: "err", text: "审核失败：" + answer.error }));
+  return box;
+}
+
+function replyBox(t) {
+  const area = el("textarea", { rows: 3, placeholder: "人工回复内容" });
+  const msg = el("div", { class: "err", hidden: true });
+  const send = async () => {
+    const text = area.value;
+    if (!text.trim()) return;
+    if (!reply || reply.ticket !== t.ticket_id || reply.text !== text) reply = { ticket: t.ticket_id, text, id: newId() };
+    try {
+      await api("POST", "/api/tickets/" + enc(t.ticket_id) + "/reply", { reply_id: reply.id, text });
+      reply = null;
+      area.value = "";
+      showError(msg, null);
+      lastDetail = null;
+      refreshTickets();
+      refreshDetail();
+    } catch (e) {
+      showError(msg, e instanceof TypeError ? new Error("网络错误，再点发送会重试同一条回复") : e);
+      if (!(e instanceof TypeError)) reply = null;
+    }
+  };
+  return el("div", { class: "box" }, el("h3", { text: "人工回复（提交人 " + SUBMITTER + "）" }), area, el("button", { text: "发送回复", onclick: send }), msg);
+}
+
+$("sweep").addEventListener("click", async () => {
+  const out = $("sweepOut");
+  try {
+    out.textContent = JSON.stringify(await api("POST", "/api/sweep"), null, 1);
+  } catch (e) {
+    out.textContent = e.message;
+  }
+  out.hidden = false;
+  refreshTickets();
+  refreshDetail();
+});
+
+// 记忆面板：客户跟随所选工单。
+function memoryHead() {
+  $("memHead").textContent = selected ? "客户 " + selected.customer_id : "未选择工单";
+  $("memOut").replaceChildren();
+  showError($("memErr"), null);
+}
+
+function recordNode(r) {
+  return el("div", { class: "rec" }, el("div", { text: r.content }),
+    el("small", { text: r.id + " · pinned=" + Boolean(r.pinned) + " · invalid_at=" + (r.invalid_at || "") + " · superseded_by=" + (r.superseded_by || "") }));
+}
+
+async function memory(path, render) {
+  if (!selected) return;
+  try {
+    const data = await api("GET", "/api/customers/" + enc(selected.customer_id) + "/memories" + path);
+    showError($("memErr"), null);
+    $("memOut").replaceChildren(...render(data));
+  } catch (e) {
+    showError($("memErr"), e);
+  }
+}
+
+$("memPinned").addEventListener("click", () => memory("", (d) => d.pinned.map(recordNode)));
+$("memRecall").addEventListener("click", () => memory("?q=" + enc($("memQ").value), (d) => d.matches.map(recordNode)));
+$("memGet").addEventListener("click", () => memory("/" + enc($("memId").value.trim()), (r) => [recordNode(r)]));
+
+poll(async () => {
+  await refreshTickets();
+  await refreshDetail();
+});
+</script>
+</body>
+</html>

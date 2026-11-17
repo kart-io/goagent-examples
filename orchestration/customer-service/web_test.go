@@ -341,3 +341,73 @@ func TestWebIsolation(t *testing.T) {
 		require.NotEqual(t, "m1", p.MessageID)
 	}
 }
+
+func TestWebPages(t *testing.T) {
+	w := newWebEnv(t, nil)
+	for _, tc := range []struct{ path, ctype, body string }{
+		{"/customer", "text/html", "客户"},
+		{"/desk", "text/html", "客服台"},
+		{"/web/app.js", "javascript", ""},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			resp, err := http.Get(w.srv.URL + tc.path)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+			var buf bytes.Buffer
+			_, err = buf.ReadFrom(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			require.Contains(t, resp.Header.Get("Content-Type"), tc.ctype)
+			require.Contains(t, buf.String(), tc.body)
+		})
+	}
+	t.Run("根路径跳转", func(t *testing.T) {
+		client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+		resp, err := client.Get(w.srv.URL + "/")
+		require.NoError(t, err)
+		_ = resp.Body.Close()
+		require.Equal(t, http.StatusFound, resp.StatusCode)
+		require.Equal(t, "/customer", resp.Header.Get("Location"))
+	})
+}
+
+func TestWebMemory(t *testing.T) {
+	e, _ := newMemoryEnv(t)
+	ws := newWebServer(e.host)
+	srv := httptest.NewServer(ws.Handler())
+	t.Cleanup(func() {
+		srv.Close()
+		ws.Close(5 * time.Second)
+	})
+	w := &webEnv{hostEnv: e, srv: srv, ws: ws}
+	c, _ := newCustomer()
+	c2, _ := newCustomer()
+
+	code, raw := w.postJSON("/api/customers/"+c+"/messages", map[string]string{"message_id": strings.ReplaceAll(msgID(), "-", ""), "text": "请记住：只用邮件联系我"})
+	require.Equal(t, http.StatusAccepted, code, string(raw))
+	w.waitConversation(c, func(r convResp) bool { return hasService(r) && len(r.Pending) == 0 })
+
+	var mem struct {
+		Pinned []struct{ ID, Content string }
+	}
+	code, raw = w.getJSON("/api/customers/" + c + "/memories")
+	require.Equal(t, http.StatusOK, code, string(raw))
+	require.NoError(t, json.Unmarshal(raw, &mem))
+	require.Len(t, mem.Pinned, 1)
+	require.Contains(t, mem.Pinned[0].Content, "邮件")
+	id := mem.Pinned[0].ID
+
+	code, raw = w.getJSON("/api/customers/" + c + "/memories/" + id)
+	require.Equal(t, http.StatusOK, code, string(raw))
+	code, raw = w.getJSON("/api/customers/" + c2 + "/memories/" + id)
+	require.Equal(t, http.StatusNotFound, code, string(raw))
+	require.Equal(t, "not_found", errCode(t, raw))
+
+	code, raw = w.postJSON("/api/sweep", nil)
+	require.Equal(t, http.StatusOK, code, string(raw))
+	var rep struct {
+		MemoryJobs int `json:"memory_jobs"`
+	}
+	require.NoError(t, json.Unmarshal(raw, &rep))
+	require.Positive(t, rep.MemoryJobs)
+}

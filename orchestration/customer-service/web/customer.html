@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>客户对话</title>
+<style>
+  body { font-family: sans-serif; margin: 0; background: #f2f3f5; }
+  main { max-width: 720px; margin: 0 auto; height: 100vh; display: flex; flex-direction: column; }
+  header, form { padding: 10px; background: #fff; display: flex; gap: 8px; align-items: center; }
+  header a { margin-left: auto; font-size: 14px; }
+  #log { flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .bubble { max-width: 75%; padding: 8px 12px; border-radius: 10px; white-space: pre-wrap; word-break: break-word; background: #fff; }
+  .bubble.customer { align-self: flex-end; background: #95ec69; }
+  .bubble small { display: block; color: #666; margin-top: 4px; }
+  .bubble.manual { border-left: 4px solid #d9822b; }
+  .bubble.failed small { color: #c00; }
+  #error { color: #c00; padding: 4px 12px; background: #fff; }
+  #text { flex: 1; padding: 8px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <label>客户 <select id="pick"><option value="c-1001">c-1001</option><option value="c-2002">c-2002</option><option value="">其他…</option></select></label>
+    <input id="custom" placeholder="客户 ID" hidden>
+    <a href="/desk" target="_blank">客服台</a>
+  </header>
+  <div id="log"></div>
+  <div id="error" hidden></div>
+  <form id="form">
+    <input id="text" autocomplete="off" placeholder="输入消息">
+    <button id="send">发送</button>
+  </form>
+</main>
+<script src="/web/app.js"></script>
+<script>
+const pick = document.getElementById("pick");
+const custom = document.getElementById("custom");
+const log = document.getElementById("log");
+const errBox = document.getElementById("error");
+const text = document.getElementById("text");
+let draft = null; // 发送失败待重试的消息：重试沿用同一个 message_id
+
+function customerId() {
+  return (pick.value || custom.value).trim();
+}
+
+pick.addEventListener("change", () => {
+  custom.hidden = pick.value !== "";
+  draft = null;
+  refresh();
+});
+custom.addEventListener("change", () => { draft = null; refresh(); });
+
+function bubble(cls, body, note) {
+  return el("div", { class: "bubble " + cls }, el("span", { text: body }), note ? el("small", { text: note }) : null);
+}
+
+async function refresh() {
+  const c = customerId();
+  if (!c) return;
+  let data;
+  try {
+    data = await api("GET", "/api/customers/" + encodeURIComponent(c) + "/conversation");
+  } catch (e) {
+    showError(errBox, e);
+    return;
+  }
+  showError(errBox, null);
+  if (c !== customerId()) return;
+  const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 20;
+  const seen = new Set(data.entries.filter((e) => e.role === "customer").map((e) => e.message_id));
+  const nodes = data.entries.map((e) =>
+    e.role === "customer"
+      ? bubble("customer", e.text, fmtTime(e.at))
+      : bubble("service" + (e.manual ? " manual" : ""), e.text, (e.manual ? "人工客服 · " : e.title ? e.title + " · " : "") + fmtTime(e.at)));
+  for (const p of data.pending) {
+    if (p.error) nodes.push(bubble("customer failed", p.text, "处理失败：" + p.error));
+    else if (!seen.has(p.message_id)) nodes.push(bubble("customer", p.text, "处理中"));
+  }
+  log.replaceChildren(...nodes);
+  if (stick) log.scrollTop = log.scrollHeight;
+}
+
+document.getElementById("form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const c = customerId();
+  const t = text.value;
+  if (!c || !t.trim()) return;
+  if (!draft || draft.customer !== c || draft.text !== t) draft = { customer: c, text: t, id: newId() };
+  try {
+    await api("POST", "/api/customers/" + encodeURIComponent(c) + "/messages", { message_id: draft.id, text: t });
+    draft = null;
+    text.value = "";
+    showError(errBox, null);
+  } catch (e) {
+    showError(errBox, e instanceof TypeError ? new Error("网络错误，再点发送会重试同一条消息") : e);
+    if (!(e instanceof TypeError)) draft = null;
+  }
+  refresh();
+});
+
+poll(refresh);
+</script>
+</body>
+</html>

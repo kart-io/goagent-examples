@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,6 +18,16 @@ import (
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 )
+
+//go:embed web
+var webFiles embed.FS
+
+// pageRoutes 是静态页面路由：路径到嵌入文件与内容类型。
+var pageRoutes = []struct{ path, file, ctype string }{
+	{"GET /customer", "web/customer.html", "text/html; charset=utf-8"},
+	{"GET /desk", "web/desk.html", "text/html; charset=utf-8"},
+	{"GET /web/app.js", "web/app.js", "text/javascript; charset=utf-8"},
+}
 
 const (
 	webSubmitter  = "agent-1"
@@ -137,6 +148,20 @@ func newWebServer(h *Host) *webServer {
 			}
 		})
 	}
+	for _, p := range pageRoutes {
+		s.mux.HandleFunc(p.path, func(w http.ResponseWriter, r *http.Request) {
+			data, err := webFiles.ReadFile(p.file)
+			if err != nil {
+				writeError(w, err)
+				return
+			}
+			w.Header().Set("Content-Type", p.ctype)
+			_, _ = w.Write(data)
+		})
+	}
+	s.mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/customer", http.StatusFound)
+	})
 	go s.run()
 	return s
 }

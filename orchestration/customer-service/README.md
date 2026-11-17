@@ -240,6 +240,29 @@ cs memory -dir $DIR -memory -customer c-1001 -id <记录ID>
 - `sweep` 先投递发件箱，再处理抽取任务（`ProcessPending`）。抽取没有单独的总时限，耗时随积压线性增长。抽取任务重试耗尽后 `sweep` 不会报错，只能经 `Memory.Job` 按任务 Key 查任务状态（goagent 没有失败任务列表），命令行不提供。
 - `memory_dropped` 只统计本次 `sweep` 期间的丢弃。
 
+## 测试页面
+
+`serve` 启动一个浏览器测试页面，复用与命令行相同的宿主与账本：
+
+```bash
+# 离线（脚本化模型）
+go run ./orchestration/customer-service serve -dir /tmp/cs-web
+# 接入长期记忆与真实模型（会产生费用）；记忆需要容器，经 scripts/with-stores.sh 启动
+scripts/with-stores.sh go run ./orchestration/customer-service serve -dir /tmp/cs-web-live -memory -live
+```
+
+默认监听 `127.0.0.1:8090`，可用 `-addr` 修改；启动后打印一行 `{"event":"serve",...}`，含两个页面的地址。端口被占用时立即报错退出。`Ctrl-C` 先停止接收请求，再等待后台任务完成。
+
+- 用户页 `/customer`：选择或输入客户 ID，发送消息并查看对话；处理中的消息显示“处理中”，失败显示原因。网络错误后重发沿用同一个 `message_id`，不会重复处理。
+- 客服台 `/desk`：左列为工单列表（转人工后尚未回复的标“待人工”）与 `sweep` 按钮；中列为工单详情、Agent turns，工单处于 `waiting_review` 时可选审核人批准或拒绝，转过人工的工单可人工回复；右列为记忆面板（需要 `-memory`），可查看钉住记录、按文本召回、按 ID 查看（含 `superseded_by`、`invalid_at`、`pinned`），客户跟随所选工单。页面每 2 秒刷新。
+
+注意：
+
+- 人工回复只发给客户，不进入长期记忆。
+- 账本为 v2（新增对话与发件箱时间），旧版本创建的 `-dir` 不能直接使用，请换用新目录。
+- 页面与接口没有鉴权，只应监听本机；提交人固定为 `agent-1`，审核人由页面选择，仅供演示。
+- `serve` 运行期间，同一个 `-dir` 不要再运行 `message`、`answer`、`sweep` 等会写入的命令行命令。
+
 ## 测试覆盖
 
 `go test -race ./orchestration/customer-service/...` 覆盖：无争议直退、有争议批准/拒绝/超时、Agent 升级、判定固定、并发拆单、重复申请、订单归属、非审核人作答、作答与超时并发、自审自批、新工单再次申请、审核期间订单变化、退款已生效后重跑、登记半途退出、运行失败转人工、他人订单、无需退款与提议无效、运行中来消息、追问与追问超时（超时后不退款）、目录绑定模型、工具参数错误交还模型、代码块中的提议、分流在退款有结论后再派回退款、分流未派成员即结束、紧接着重复派同一成员、等待期间新消息、三种转人工、用量告警与扫描补偿、崩溃恢复与重启后不重复投递、审核人解析与目录故障、飞书适配器。

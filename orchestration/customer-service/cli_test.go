@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -80,6 +82,24 @@ func TestCLIRejectsInvalidUsage(t *testing.T) {
 	} {
 		_, _, err := cli(t, args...)
 		require.Error(t, err, strings.Join(args, " "))
+	}
+}
+
+func TestCLIServeRejectsBusyAddr(t *testing.T) {
+	t.Setenv("FEISHU_APP_ID", "")
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer func() { _ = ln.Close() }()
+	done := make(chan error, 1)
+	go func() {
+		_, _, err := cli(t, "serve", "-dir", t.TempDir(), "-addr", ln.Addr().String())
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		require.Error(t, err)
+	case <-time.After(10 * time.Second):
+		t.Fatal("端口被占用时 serve 没有返回")
 	}
 }
 

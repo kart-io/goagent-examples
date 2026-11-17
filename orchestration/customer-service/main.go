@@ -9,6 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"time"
@@ -28,12 +30,13 @@ func main() {
 	}
 }
 
-const usage = `用法：customer-service <message|answer|sweep|show|memory> -dir 目录 [选项]
+const usage = `用法：customer-service <message|answer|sweep|show|memory|serve> -dir 目录 [选项]
   message -customer 客户ID -text 内容 [-id 消息ID] [-submitter 客服账号]
   answer  -ticket 工单ID -approver 审核人 (-approve | -reject) [-note 说明]
   sweep   执行一次扫描（-now 指定时间可演示超时）
   show    -ticket 工单ID
   memory  -customer 客户ID [-q 召回文本 | -id 记录ID]   查看客户的长期记忆（需要 -memory）；-id 输出单条记录，含已失效的
+  serve   [-addr 127.0.0.1:8090]   启动测试页面（用户页 /customer，客服台 /desk）
   -memory [-pg URL] [-qdrant 地址] 接入长期记忆；-pg、-qdrant 默认取环境变量 CS_MEMORY_PG_URL、CS_MEMORY_QDRANT_ADDR`
 
 // printer 把通知与转人工打印为 JSON 行，代替真实 IM 渠道。
@@ -78,6 +81,7 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 	useMemory := flags.Bool("memory", false, "接入长期记忆（需要 Postgres 与 Qdrant）")
 	pgURL := flags.String("pg", os.Getenv("CS_MEMORY_PG_URL"), "记忆用 Postgres 连接串")
 	qdrantAddr := flags.String("qdrant", os.Getenv("CS_MEMORY_QDRANT_ADDR"), "记忆用 Qdrant gRPC 地址 host:port")
+	addr := flags.String("addr", "127.0.0.1:8090", "serve 的监听地址；页面没有鉴权，只应监听本机")
 	query := flags.String("q", "", "memory 命令的召回文本")
 	if err := flags.Parse(args[1:]); err != nil {
 		return fmt.Errorf("%w\n%s", err, usage)
@@ -172,6 +176,8 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 		default:
 			out, err = h.Memories(ctx, *customer, *query)
 		}
+	case "serve":
+		return serve(ctx, h, *addr, w)
 	default:
 		return fmt.Errorf("未知命令 %q\n%s", cmd, usage)
 	}
@@ -181,6 +187,38 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
+}
+
+// serve 在 addr 上提供测试页面，直到 ctx 结束。关闭顺序固定：先停 HTTP 服务，
+// 再排空后台任务（reply 与 sweep 检查 closed 后才取锁，两步不是原子的），宿主由调用方最后关闭。
+func serve(ctx context.Context, h *Host, addr string, w io.Writer) error {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return err
+	}
+	ws := newWebServer(h)
+	srv := &http.Server{Handler: ws.Handler()}
+	errc := make(chan error, 1)
+	go func() { errc <- srv.Serve(ln) }()
+	base := "http://" + ln.Addr().String()
+	if err := json.NewEncoder(w).Encode(map[string]string{"event": "serve", "customer": base + "/customer", "desk": base + "/desk"}); err != nil {
+		_ = srv.Close()
+		ws.Close(0)
+		return err
+	}
+	var serveErr error
+	select {
+	case <-ctx.Done():
+	case serveErr = <-errc:
+	}
+	shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(shutCtx)
+	ws.Close(h.cfg.LockTimeout)
+	if errors.Is(serveErr, http.ErrServerClosed) {
+		return nil
+	}
+	return serveErr
 }
 
 // TicketView 是 show 的输出：工单状态、等待的中断键、审核人与发件箱。
