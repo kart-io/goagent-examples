@@ -69,13 +69,13 @@
   - 客户消息取自 `ticket_messages`。每条消息（包括开单那条）都会写入这里，所以 `tickets.input` 被新一轮覆盖时不会丢消息。
   - 客服回复只取 outbox 中 `channel=notify` 且 recipient 为该客户的记录。`channel=handoff` 记录的 payload 是内部交接摘要，不能出现在客户页；客户看到的是同一次转人工时写入的 `handoff_notice` 通知。
   - 每条带工单 ID、时间和投递状态，另附后台尚未完成的消息 ID 及其错误。
-  - 排序：两张表没有共同的时间轴（各自独立的 `seq`），所以账本升到 `schemaVersion = 2`，给 `ticket_messages` 和 `outbox` 加 `created_at` 列（宿主时钟，RFC3339Nano）。按 `created_at` 排序；时间相同时客户消息在前，其次按各表 `seq`。旧的 v1 目录按现有规则报"账本结构不兼容，请换用新的演示目录"，不做迁移。
+  - 排序：两张表没有共同的时间轴（各自独立的 `seq`），所以账本升到 `schemaVersion = 2`，给 `ticket_messages` 和 `outbox` 加 `created_at` 列。取值是 SQLite 写入时的系统时间（列默认值，精确到毫秒），不取宿主时钟：测试和 CLI 的 `-now` 用固定时钟，所有记录时间会相同；这一列只用于显示排序。按 `created_at` 排序；时间相同时客户消息在前，其次按各表 `seq`。旧的 v1 目录按现有规则报"账本结构不兼容，请换用新的演示目录"，不做迁移。
 
 客服侧：
 - `GET /api/tickets[?customer=c]` → 工单列表：ID、客户、状态、轮次、最后进展时间，以及派生标记 `needs_human`（定义见第 4 节）。
 - `GET /api/tickets/{t}` → `Host.Show` 的内容，加上 Agent 处理过程（检查点里的 turns：哪个成员、输出什么），用于"看 Agent 怎么处理的"。
 - `POST /api/tickets/{t}/answer` `{approver, approve, note}` → 后台调用 `Host.Answer`，返回 202；审核人从工单的 approvers 中选。
-- `POST /api/tickets/{t}/reply` `{reply_id, staff, text}` → 人工回复（新增，见第 4 节），同步执行。
+- `POST /api/tickets/{t}/reply` `{reply_id, text}` → 人工回复（新增，见第 4 节），同步执行。
 - `POST /api/sweep` → `Host.Sweep`，返回 `SweepReport`。
 - `GET /api/customers/{c}/memories[?q=]`、`GET /api/customers/{c}/memories/{id}` → `Host.Memories`、`Host.MemoryRecord`；未开启 `-memory` 时返回明确的"未开启长期记忆"错误。
 
@@ -142,7 +142,7 @@
 
 - 默认监听 `127.0.0.1:8090`，页面每 2 秒刷新一次，submitter 固定为 `agent-1`。
 - 发消息和审核异步执行（202 + 轮询），人工回复和 sweep 同步执行；写操作共用一把锁，读操作不加锁。
-- 账本升到 v2，加 `created_at` 用于排序，旧目录不迁移（沿用现有"不兼容就换目录"的做法）。
+- 账本升到 v2，加 `created_at`（写入时的系统时间）用于排序，旧目录不迁移（沿用现有"不兼容就换目录"的做法）。
 - "待人工"由发件箱 handoff 记录派生，不改 `tickets.status`，不新增状态；failed 工单同样算待人工。
 - 人工回复的幂等键由页面提供的 `reply_id` 构成，kind 为 `KindCustomerReply`，标题为"人工客服"。
 - 通知器沿用 `printer`。
