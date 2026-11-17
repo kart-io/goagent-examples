@@ -70,6 +70,8 @@ const (
 	ReasonMaxRounds    HandoffReason = "max_rounds"
 	ReasonMaxRequests  HandoffReason = "max_requests"
 	ReasonRunFailed    HandoffReason = "run_failed"
+	// ReasonCustomerRequest 是客户明确要求人工，分流按 human 结束本轮。
+	ReasonCustomerRequest HandoffReason = "customer_request"
 )
 
 // HandoffContext 是交给人工客服的结构化上下文。

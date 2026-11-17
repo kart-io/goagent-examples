@@ -170,6 +170,8 @@ func triageTurn(v ticketView) llm.StreamChunk {
 		return jsonText(triageDecision{Route: "FINISH", Reply: "您的退款申请已批准"})
 	case strings.Contains(v.Input, "乱码"):
 		return text("抱歉我没看懂")
+	case strings.Contains(v.Input, "转人工"):
+		return jsonText(triageDecision{Route: routeHuman, Intent: "要求人工客服"})
 	case strings.Contains(v.Input, "反复咨询"): // 在两个成员之间来回派，由 MaxRounds 兜底
 		route := generalName
 		if last == generalName {

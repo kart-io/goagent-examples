@@ -239,6 +239,15 @@ func TestGraphGeneralFallbackAndRounds(t *testing.T) {
 		require.Equal(t, OutcomeHandoff, snap.State.Outcome)
 		require.Empty(t, snap.State.Route)
 	})
+	t.Run("客户要求人工不经成员直接结束", func(t *testing.T) {
+		e := newGraphEnv(t)
+		snap, err := e.start("r1", "c-1001", "我要投诉，请直接转人工客服")
+		require.NoError(t, err)
+		require.True(t, snap.Done)
+		require.Equal(t, OutcomeHumanRequested, snap.State.Outcome)
+		require.Equal(t, []string{triageName}, agentsOf(snap.State))
+		require.Equal(t, "要求人工客服", snap.State.Intent)
+	})
 	t.Run("轮数超限返回 ErrMaxSteps", func(t *testing.T) {
 		e := newGraphEnv(t)
 		snap, err := e.start("r1", "c-1001", "反复咨询物流")

@@ -183,13 +183,14 @@ func TestHostAskCustomer(t *testing.T) {
 
 func TestHostHandoff(t *testing.T) {
 	cases := []struct {
-		name, input string
-		mutate      func(*HostConfig)
-		reason      support.HandoffReason
+		name, input, intent string
+		mutate              func(*HostConfig)
+		reason              support.HandoffReason
 	}{
-		{"分流无效", "乱码乱码", nil, support.ReasonInvalidRoute},
-		{"轮数超限", "反复咨询物流", nil, support.ReasonMaxRounds},
-		{"请求上限", "反复咨询物流", func(c *HostConfig) { c.MaxModelRequests = 3 }, support.ReasonMaxRequests},
+		{"分流无效", "乱码乱码", "", nil, support.ReasonInvalidRoute},
+		{"轮数超限", "反复咨询物流", "反复咨询物流", nil, support.ReasonMaxRounds},
+		{"请求上限", "反复咨询物流", "反复咨询物流", func(c *HostConfig) { c.MaxModelRequests = 3 }, support.ReasonMaxRequests},
+		{"客户要求人工", "我要投诉，请直接转人工客服", "要求人工客服", nil, support.ReasonCustomerRequest},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -203,9 +204,7 @@ func TestHostHandoff(t *testing.T) {
 			require.Equal(t, r.TicketID, h.TicketID)
 			require.NotEmpty(t, h.Solutions, "交接上下文至少含一个方案")
 			require.Contains(t, h.Summary, c.input)
-			if c.reason != support.ReasonInvalidRoute {
-				require.Equal(t, "反复咨询物流", h.Intent)
-			}
+			require.Equal(t, c.intent, h.Intent)
 			require.Len(t, e.sent(support.KindHandoffNotice), 1, "告知客户已转人工")
 			require.Empty(t, e.sent(support.KindCustomerReply), "每种只发一条最终消息")
 		})

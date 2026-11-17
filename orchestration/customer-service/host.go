@@ -552,11 +552,17 @@ func (h *Host) wait(ctx context.Context, row ticketRow, p workflow.InterruptPoin
 	return err
 }
 
+// outcomeHandoffReasons 是图以转人工结束时的交接原因。
+var outcomeHandoffReasons = map[Outcome]support.HandoffReason{
+	OutcomeHandoff:        support.ReasonInvalidRoute,
+	OutcomeHumanRequested: support.ReasonCustomerRequest,
+}
+
 // finish 结束本轮：按 Outcome 只发一条最终消息（reply 回复客户；handoff 转人工并告知客户）。
 // 本轮运行期间有排队的消息且结果为回复时，开启新一轮咨询，运行 ID 随轮次变化，根预算随之更新。
 func (h *Host) finish(ctx context.Context, row ticketRow, t Ticket, reason support.HandoffReason, status string) error {
-	if reason == "" && t.Outcome == OutcomeHandoff {
-		reason, status = support.ReasonInvalidRoute, statusHandoff
+	if r, ok := outcomeHandoffReasons[t.Outcome]; reason == "" && ok {
+		reason, status = r, statusHandoff
 	}
 	if status == "" {
 		status = statusDone
