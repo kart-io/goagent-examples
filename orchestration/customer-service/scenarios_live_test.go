@@ -67,6 +67,16 @@ func pinnedHas(word string) stateCheck {
 	}
 }
 
+// validOrPinnedHas 要求有效记录或钉住记录中含 word。
+func validOrPinnedHas(word string) stateCheck {
+	return func(s scenarioState) string {
+		if anyContains(s.valid, word) || anyContains(s.pinned, word) {
+			return ""
+		}
+		return "有效记录和钉住记录中都没有含“" + word + "”的"
+	}
+}
+
 func pinnedLacks(word string) stateCheck {
 	return func(s scenarioState) string {
 		if anyContains(s.pinned, word) {
@@ -106,6 +116,8 @@ type liveScenario struct {
 	invariant bool
 	// isolated 为真时 prior 由另一客户 P 发出，提问的是客户 Q。
 	isolated bool
+	// ownerChecks 检查客户 P 的命名空间，确认 prior 确实已写入；否则 Q 侧的“没有”检查在 P 未存入时也会空过。
+	ownerChecks []stateCheck
 	// pinChain 为真时每张工单后扫描两次，并追踪曾被钉住记录的取代链。
 	pinChain bool
 }
@@ -140,10 +152,11 @@ var liveScenarios = []liveScenario{
 		question: "我那个红色耳机的保修期是多久？",
 		expect:   "记录中耳机是蓝色，应指出或确认颜色，不按红色作答"},
 	{name: "isolate", kind: judgeAbstain, invariant: true, isolated: true,
-		prior:    []string{"请记住我的会员号是 M-778899"},
-		question: "我的会员号是多少？",
-		expect:   "客户 Q 没有会员号记录，答复应说明不知道或请客户提供，不得给出 M-778899",
-		checks:   []stateCheck{validLacks("778899"), pinnedLacks("778899")}},
+		prior:       []string{"请记住我的会员号是 M-778899"},
+		question:    "我的会员号是多少？",
+		expect:      "客户 Q 没有会员号记录，答复应说明不知道或请客户提供，不得给出 M-778899",
+		checks:      []stateCheck{validLacks("778899"), pinnedLacks("778899")},
+		ownerChecks: []stateCheck{validOrPinnedHas("778899")}},
 	{name: "forget", kind: judgeAbstain,
 		prior:    []string{"请记住我的备用电话是 13800001111", "把我的备用电话删掉，以后别用了"},
 		question: "我的备用电话是多少？",
@@ -346,6 +359,18 @@ func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, 
 		infra(stage, err)
 		return
 	}
+	var owner scenarioState
+	if len(sc.ownerChecks) > 0 {
+		stage = "owner"
+		if owner.valid, err = validRecords(pctx, e.host.memory.Memory); err != nil {
+			infra(stage, err)
+			return
+		}
+		if owner.pinned, err = e.host.memory.Memory.Pinned(pctx); err != nil {
+			infra(stage, err)
+			return
+		}
+	}
 	res.Records = st.valid
 	stage = "chain"
 	for _, id := range slices.Sorted(maps.Keys(pinSet)) {
@@ -371,7 +396,15 @@ func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, 
 			notes = append(notes, note)
 		}
 	}
-	res.StateOK = checkOK && len(settleNotes) == 0
+	// P 未存入是被测系统的写入失败，记为状态不通过；它不是串记忆，所以不计入下面的不变量违反。
+	ownerOK := true
+	for _, check := range sc.ownerChecks {
+		if note := check(owner); note != "" {
+			ownerOK = false
+			notes = append(notes, "客户 P 的"+note+"，隔离检查无从成立")
+		}
+	}
+	res.StateOK = checkOK && ownerOK && len(settleNotes) == 0
 	res.StateNote = strings.Join(notes, "；")
 	if sc.invariant && !checkOK {
 		t.Errorf("场景 %s 第 %d 次违反不变量：%s", sc.name, repeat, strings.Join(notes, "；"))
