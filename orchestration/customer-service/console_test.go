@@ -79,13 +79,25 @@ func TestConversation(t *testing.T) {
 	})
 	t.Run("隔离", func(t *testing.T) {
 		e := newHostEnv(t, nil)
-		r1 := e.message("m1", "c-1001", "订单 A1001 申请退款 30 元")
-		r2 := e.message("m2", "c-2002", "订单 A2001 申请退款 30 元")
-		require.NotEqual(t, r1.TicketID, r2.TicketID)
-		got := e.conversation("c-2002")
-		require.NotEmpty(t, got)
-		for _, en := range got {
-			require.Equal(t, r2.TicketID, en.TicketID)
+		r1 := e.message("m1", "c-1001", "订单 A1002 申请退款 800 元") // 争议：审核人含 fin-1
+		r2 := e.message("m2", "c-2002", "订单 A2001 申请退款 99 元")  // 审核人为 lead-1
+		require.Equal(t, statusWaitingReview, r1.Status)
+		require.Equal(t, statusWaitingReview, r2.Status)
+		reviewer := func(ticketID, id string) int {
+			var n int
+			require.NoError(t, e.host.ledger.db.QueryRow(
+				"SELECT count(*) FROM outbox WHERE ticket_id = ? AND json_extract(recipient_json, '$.ID') = ?", ticketID, id).Scan(&n))
+			return n
+		}
+		require.Positive(t, reviewer(r1.TicketID, "fin-1"), "发件箱确有发给 fin-1 的记录")
+		require.Positive(t, reviewer(r2.TicketID, "lead-1"), "发件箱确有发给审核人的记录")
+		for customer, ticket := range map[string]string{"c-1001": r1.TicketID, "c-2002": r2.TicketID} {
+			got := e.conversation(customer)
+			require.NotEmpty(t, got)
+			for _, en := range got {
+				require.Equal(t, ticket, en.TicketID)
+				require.NotEqual(t, string(support.KindApprovalRequest), en.Kind, "不含审核人的通知")
+			}
 		}
 	})
 	t.Run("无数据", func(t *testing.T) {
