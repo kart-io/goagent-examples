@@ -6,12 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
+	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
+	agentErrors "github.com/kart-io/goagent/errors"
+	"github.com/kart-io/goagent/memory"
 )
 
 // SweepReport 汇总一次扫描做了什么。
@@ -20,6 +24,9 @@ type SweepReport struct {
 	Resolved int `json:"resolved"`  // 重新解析审核人的工单
 	Reminded int `json:"reminded"`  // 发出提醒的工单
 	TimedOut int `json:"timed_out"` // 以超时输入回应的工单
+	// MemoryJobs 是本次处理的记忆抽取任务数（含失败与丢弃），MemoryDropped 是其间丢弃的任务数；未接入记忆时省略。
+	MemoryJobs    int   `json:"memory_jobs,omitempty"`
+	MemoryDropped int64 `json:"memory_dropped,omitempty"`
 }
 
 // tickets 读取指定状态的工单；先读完再处理，单连接下边遍历边写会死锁。
@@ -64,7 +71,88 @@ func (h *Host) Sweep(ctx context.Context) (SweepReport, error) {
 		}
 	}
 	h.deliver(ctx)
+	if h.memory != nil { // 抽取要调用模型，放在投递之后：抽取失败或变慢不耽误客户收到回复
+		errs = append(errs, h.sweepMemory(ctx, &report))
+	}
 	return report, errors.Join(errs...)
+}
+
+// memoryScopes 是接入记忆的成员作用域，与 newGraph 一致。
+var memoryScopes = []string{generalName, refundAgentScope}
+
+// sweepMemory 处理待处理的记忆抽取任务。任务失败只记入任务，不作为 ProcessPending 的错误返回，
+// 所以按本账本各工单的会话查出重试耗尽的任务，每个只报告一次。
+func (h *Host) sweepMemory(ctx context.Context, report *SweepReport) error {
+	m := h.memory.Memory
+	dropped := m.DroppedJobs()
+	n, err := m.ProcessPending(ctx)
+	report.MemoryJobs, report.MemoryDropped = n, m.DroppedJobs()-dropped
+	if err != nil {
+		err = fmt.Errorf("记忆抽取: %w", err)
+	}
+	return errors.Join(err, h.memoryFailures(ctx))
+}
+
+// memoryFailures 报告本账本工单中新近失败的抽取任务；任务 Key 为 会话 ID/轮次起始序号。
+func (h *Host) memoryFailures(ctx context.Context) error {
+	rows, err := h.ledger.db.QueryContext(ctx, "SELECT ticket_id, customer_id FROM tickets ORDER BY ticket_id")
+	if err != nil {
+		return err
+	}
+	type owner struct{ ticket, customer string }
+	var owners []owner
+	for rows.Next() {
+		var o owner
+		if err := rows.Scan(&o.ticket, &o.customer); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		owners = append(owners, o)
+	}
+	if err := errors.Join(rows.Err(), rows.Close()); err != nil {
+		return err
+	}
+	var errs []error
+	for _, o := range owners {
+		nsCtx := memory.WithNamespace(ctx, memoryNS(o.customer)...)
+		for _, scope := range memoryScopes {
+			id := memorySession(o.ticket, scope)
+			events, err := h.memory.Sessions.Read(ctx, id, 0)
+			if errors.Is(err, agentErrors.ErrSessionNotFound) {
+				continue
+			}
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			for _, ev := range events {
+				if ev.Type != constants.SessionEventTurnStart {
+					continue
+				}
+				key := id + "/" + strconv.FormatInt(ev.Seq, 10)
+				job, ok, err := h.memory.Memory.Job(nsCtx, key)
+				if err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				if !ok || job.Status != memory.JobFailed {
+					continue
+				}
+				var first bool
+				err = h.write(ctx, func(tx *sql.Tx) (err error) {
+					first, err = claim(ctx, tx, "memory/failed/"+key, o.ticket)
+					return err
+				})
+				if err == nil && first {
+					err = fmt.Errorf("工单 %s 的记忆抽取任务 %s 重试 %d 次后失败: %s", o.ticket, key, job.Attempts, job.Error)
+				}
+				if err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (h *Host) sweepTicket(ctx context.Context, row ticketRow, now time.Time, report *SweepReport) error {

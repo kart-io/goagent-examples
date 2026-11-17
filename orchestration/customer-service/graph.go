@@ -13,8 +13,10 @@ import (
 	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/core/durable"
+	"github.com/kart-io/goagent/core/session"
 	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
+	"github.com/kart-io/goagent/memory"
 	"github.com/kart-io/goagent/multiagent"
 	"github.com/kart-io/goagent/tools"
 	"github.com/kart-io/goagent/workflow"
@@ -171,15 +173,55 @@ const (
 你只能提议，不能批准或执行退款。`
 )
 
+// generalMemoryRule 只在记忆开启时追加到通用成员提示词。
+const generalMemoryRule = "\n客户明确要求记住某件事时，调用 memory_save 并把 pinned 设为 true。"
+
+// memberMemory 是成员接入长期记忆的选项；tools 为真时模型可调用 memory_save 等工具。
+type memberMemory struct {
+	mem      *memory.Memory
+	sessions session.Store
+	tools    bool
+}
+
+type ticketKey struct{}
+
+// withTicket 由宿主注入工单 ID，成员据此确定会话日志 ID；只在记忆开启时注入。
+func withTicket(ctx context.Context, ticketID string) context.Context {
+	return context.WithValue(ctx, ticketKey{}, ticketID)
+}
+
+func ticketFrom(ctx context.Context) string {
+	id, _ := ctx.Value(ticketKey{}).(string)
+	return id
+}
+
+// memorySession 是成员的会话日志 ID，抽取任务的 Key 以它开头。
+func memorySession(ticketID, scope string) string { return ticketID + ":" + scope }
+
 // agentFactory 每次节点执行新建一个 Agent 会话；带工具时经独立 Dispatcher 包装，满足持久接入契约。
-func agentFactory(client *livemodel.Client, scope, prompt string, iterations int, newTools func() ([]interfaces.Tool, error)) multiagent.AgentFactory {
-	return func(context.Context) (tools.OwnedRunnable[any, *builder.AgentOutput], error) {
+// mm 非 nil 时会话记入日志 <工单ID>:<scope>，同一工单的同一成员跨轮次共用，抽取任务按轮次登记在宿主绑定的命名空间。
+func agentFactory(client *livemodel.Client, scope, prompt string, iterations int, newTools func() ([]interfaces.Tool, error), mm *memberMemory) multiagent.AgentFactory {
+	return func(ctx context.Context) (tools.OwnedRunnable[any, *builder.AgentOutput], error) {
 		b := builder.NewSimpleBuilder(client).WithAgentID(scope).WithDurableScope(scope).WithSystemPrompt(prompt).WithMaxIterations(iterations)
+		var list []interfaces.Tool
 		if newTools != nil {
-			list, err := newTools()
+			l, err := newTools()
 			if err != nil {
 				return tools.OwnedRunnable[any, *builder.AgentOutput]{}, err
 			}
+			list = l
+		}
+		if mm != nil {
+			ticketID := ticketFrom(ctx)
+			if ticketID == "" {
+				return tools.OwnedRunnable[any, *builder.AgentOutput]{}, errors.New("长期记忆需要宿主注入工单 ID")
+			}
+			b = b.WithSessionID(memorySession(ticketID, scope)).WithSessionLog(mm.sessions).WithLongTermMemory(mm.mem)
+			if mm.tools {
+				list = append(list, mm.mem.Tools()...)
+			}
+		}
+		if len(list) > 0 {
 			reg := tools.NewRegistry()
 			for _, tool := range list {
 				if err := reg.Register(tool); err != nil {
@@ -210,15 +252,24 @@ func handoffStep() multiagent.Step[Ticket] {
 }
 
 // newGraph 装配 RouterSupervisor：分流 Agent 为 Supervisor，成员为退款与通用咨询，Fallback 为转人工。
-func newGraph(ctx context.Context, store durable.Store, client *livemodel.Client, desk *refundDesk) (*workflow.DurableGraph[Ticket], error) {
+// mem 非 nil 时退款与通用成员接入长期记忆；分流只做路由，不接入。
+func newGraph(ctx context.Context, store durable.Store, client *livemodel.Client, desk *refundDesk, mem *memoryStores) (*workflow.DurableGraph[Ticket], error) {
 	if store == nil || client == nil || desk == nil {
 		return nil, errors.New("装配客服图需要存储、模型与退款台")
 	}
-	triage, err := multiagent.AgentStep(triageName, agentFactory(client, triageName, triagePrompt, 1, nil), render, parseTriage)
+	var generalMem, refundMem *memberMemory
+	prompt, iterations := generalPrompt, 1
+	if mem != nil {
+		generalMem = &memberMemory{mem: mem.Memory, sessions: mem.Sessions, tools: true}
+		refundMem = &memberMemory{mem: mem.Memory, sessions: mem.Sessions}
+		// 提示词与步数只在记忆开启时改变，未开启时模型请求与现在完全相同；memory_save 之后还要一步给出答复
+		prompt, iterations = generalPrompt+generalMemoryRule, 2
+	}
+	triage, err := multiagent.AgentStep(triageName, agentFactory(client, triageName, triagePrompt, 1, nil, nil), render, parseTriage)
 	if err != nil {
 		return nil, err
 	}
-	general, err := multiagent.AgentStep(generalName, agentFactory(client, generalName, generalPrompt, 1, nil), render,
+	general, err := multiagent.AgentStep(generalName, agentFactory(client, generalName, prompt, iterations, nil, generalMem), render,
 		func(t Ticket, o *builder.AgentOutput) (Ticket, error) {
 			text := resultText(o)
 			t = appendTurn(t, generalName, text)
@@ -230,7 +281,7 @@ func newGraph(ctx context.Context, store durable.Store, client *livemodel.Client
 	fallback := handoffStep()
 	g, err := multiagent.RouterSupervisor(workflow.Config{}, multiagent.RouterConfig[Ticket]{
 		Supervisor: triage,
-		Members:    []multiagent.Step[Ticket]{refundMember(desk, client), general},
+		Members:    []multiagent.Step[Ticket]{refundMember(desk, client, refundMem), general},
 		Next:       nextRoute,
 		MaxRounds:  maxRounds,
 		Fallback:   &fallback,

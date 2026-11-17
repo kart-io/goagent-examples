@@ -17,6 +17,7 @@ import (
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	agentErrors "github.com/kart-io/goagent/errors"
+	"github.com/kart-io/goagent/memory"
 	"github.com/kart-io/goagent/workflow"
 )
 
@@ -73,6 +74,7 @@ type HostConfig struct {
 	DisableUsageHook bool          // 关闭 UsageHook，只靠扫描补偿
 	Store            durable.Store // 可选：运行检查点与操作日志的存储，默认 Dir/runs
 	InspectOnly      bool          // 只用于 show 等只读查看：不检查目录绑定的模型，不得推进运行
+	Memory           *MemoryConfig // 长期记忆的存储配置，nil 时不接入记忆
 }
 
 func (c *HostConfig) defaults() error {
@@ -117,6 +119,7 @@ type Host struct {
 	desk    *refundDesk
 	graph   *workflow.DurableGraph[Ticket]
 	budgets durable.Store
+	memory  *memoryStores // 未接入记忆时为 nil
 
 	deliverMu sync.Mutex // 进程内串行化发件箱投递
 }
@@ -144,15 +147,29 @@ func OpenHost(ctx context.Context, cfg HostConfig) (*Host, error) {
 	if err != nil {
 		return fail(err)
 	}
+	var mem *memoryStores
+	if cfg.Memory != nil {
+		if mem, err = openMemory(ctx, *cfg.Memory, cfg.Client); err != nil {
+			return fail(err)
+		}
+	}
 	desk := newRefundDesk(l, cfg.Clock, cfg.Rules, cfg.ReviewTTL)
-	g, err := newGraph(ctx, cfg.Store, cfg.Client, desk)
+	g, err := newGraph(ctx, cfg.Store, cfg.Client, desk, mem)
 	if err != nil {
+		if mem != nil {
+			mem.Close()
+		}
 		return fail(err)
 	}
-	return &Host{cfg: cfg, ledger: l, desk: desk, graph: g, budgets: budgets}, nil
+	return &Host{cfg: cfg, ledger: l, desk: desk, graph: g, budgets: budgets, memory: mem}, nil
 }
 
-func (h *Host) Close() error { return h.ledger.Close() }
+func (h *Host) Close() error {
+	if h.memory != nil {
+		h.memory.Close()
+	}
+	return h.ledger.Close()
+}
 
 func (h *Host) now() time.Time { return h.cfg.Clock.Now().UTC() }
 
@@ -351,6 +368,10 @@ func (h *Host) step(ctx context.Context, row ticketRow, resume *workflow.ResumeR
 	runCtx, err := h.budgetContext(ctx, row)
 	if err != nil {
 		return nil, err
+	}
+	if h.memory != nil {
+		// 命名空间只取自工单行：新建、作答与扫描续跑都经这里，模型与请求无从改写
+		runCtx = withTicket(memory.WithNamespace(runCtx, memoryNS(row.CustomerID)...), row.ID)
 	}
 	if resume != nil {
 		return h.graph.Resume(runCtx, row.RunID, *resume)

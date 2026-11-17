@@ -195,9 +195,13 @@ func parseProposal(text string) (proposal, bool) {
 	return p, true
 }
 
+// refundAgentScope 是退款 Agent 的持久作用域与会话日志后缀。
+const refundAgentScope = "refund-agent"
+
 // refundMember 是退款成员：提议 → 登记（固定判定）→ 有争议时等待审核 → 执行（先查回执）。
 // 资金相关的每段都由持久操作固定，节点重入时回放。
-func refundMember(desk *refundDesk, client *livemodel.Client) multiagent.Step[Ticket] {
+// mm 非 nil 时退款 Agent 接入长期记忆（只召回与抽取，不提供记忆工具）。
+func refundMember(desk *refundDesk, client *livemodel.Client, mm *memberMemory) multiagent.Step[Ticket] {
 	return multiagent.Step[Ticket]{Name: refundName, Run: core.NewRunnableFunc(func(ctx context.Context, t Ticket) (_ Ticket, err error) {
 		done := func(text string, rc RefundCase, s support.Solution) (Ticket, error) {
 			t = appendTurn(t, refundName, text)
@@ -209,7 +213,7 @@ func refundMember(desk *refundDesk, client *livemodel.Client) multiagent.Step[Ti
 		}
 		ctx = withCustomer(ctx, t.CustomerID)
 		gate := &askGate{}
-		factory := agentFactory(client, "refund-agent", refundPrompt, 6, func() ([]interfaces.Tool, error) {
+		factory := agentFactory(client, refundAgentScope, refundPrompt, 6, func() ([]interfaces.Tool, error) {
 			order, err := orderTool(desk.ledger)
 			if err != nil {
 				return nil, err
@@ -219,7 +223,7 @@ func refundMember(desk *refundDesk, client *livemodel.Client) multiagent.Step[Ti
 				return nil, err
 			}
 			return []interfaces.Tool{order, ask}, nil
-		})
+		}, mm)
 		owned, err := factory(ctx)
 		if err != nil {
 			return t, err

@@ -29,7 +29,7 @@ type graphEnv struct {
 func newGraphEnv(t *testing.T) *graphEnv {
 	t.Helper()
 	e := &graphEnv{deskEnv: newDeskEnv(t), budgetDir: t.TempDir()}
-	g, err := newGraph(context.Background(), e.store, offlineModel(), e.desk)
+	g, err := newGraph(context.Background(), e.store, offlineModel(), e.desk, nil)
 	require.NoError(t, err)
 	e.graph = g
 	return e
