@@ -206,7 +206,7 @@ cs message -dir $DIR -live -customer c-1001 -text "订单 A1001 申请退款 30 
 
 - 存储：Postgres（pgvector，保存记忆与会话日志）与 Qdrant（向量索引）。命名空间固定为 `customer-service/<客户ID>`，由宿主依据工单行的客户 ID 绑定，客户之间互不可见。
 - 嵌入：默认离线哈希嵌入（无语义，仅供演示与测试）；加 `-live` 改用 Gemini 嵌入，需要 `GEMINI_API_KEY`，模型由 `GEMINI_EMBEDDING_MODEL` 指定（默认 `gemini-embedding-001`）。
-- 抽取：每轮对话登记抽取任务，由 `sweep` 处理；客户明确要求“请记住”时由 `memory_save` 钉住，钉住记录被新记录取代时新记录继承钉住。
+- 抽取：每轮对话登记抽取任务，由 `sweep` 处理；客户明确要求“请记住”时由 `memory_save` 钉住，更正已有的记忆时模型可调用 `memory_replace` 取代旧记录；钉住记录被新记录取代（整理或 `memory_replace`）时新记录继承钉住。
 
 编译方式见[依赖](#依赖)：须先 `make work CONTRIB=<contrib 工作树路径>`。
 
