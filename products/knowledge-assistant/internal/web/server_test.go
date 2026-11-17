@@ -314,6 +314,22 @@ func TestMemoryRoutes(t *testing.T) {
 
 func ptr[T any](v T) *T { return &v }
 
+// 页面直接对两个列表调用 map，没有记忆或没有命中时都须是 []，不能是 null。
+func TestMemoriesEmptyLists(t *testing.T) {
+	srv := newServer(t, false)
+	for _, q := range []string{"", "?q=" + url.QueryEscape("不存在的关键词")} {
+		var got map[string]json.RawMessage
+		if code := call(t, srv.URL, tenant("empty"), "GET", "/api/memories"+q, nil, &got); code != http.StatusOK {
+			t.Fatalf("GET /api/memories%s = %d", q, code)
+		}
+		for _, k := range []string{"pinned", "matches"} {
+			if string(got[k]) != "[]" {
+				t.Errorf("q=%q 时 %s = %s，期望 []", q, k, got[k])
+			}
+		}
+	}
+}
+
 func TestSources(t *testing.T) {
 	srv := newServer(t, false)
 	user := tenant("s1")

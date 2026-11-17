@@ -107,14 +107,18 @@ func (h *handler) memories(w http.ResponseWriter, r *http.Request, who mg.Actor)
 	if err != nil {
 		return err
 	}
-	matches := []memory.Scored{}
+	var matches []memory.Scored
 	if q := strings.TrimSpace(r.URL.Query().Get("q")); q != "" {
 		if matches, err = h.mem.Recall(ctx, memory.Query{Text: q, K: recallK}); err != nil {
 			return err
 		}
 	}
+	// 页面直接对两个列表调用 map，空时须编码为 [] 而不是 null。
 	if pinned == nil {
 		pinned = []memory.Record{}
+	}
+	if matches == nil {
+		matches = []memory.Scored{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"pinned": pinned, "matches": matches})
 	return nil
