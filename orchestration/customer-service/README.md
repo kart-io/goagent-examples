@@ -6,7 +6,7 @@
 
 ## 依赖
 
-本案例使用 goagent 的 `multiagent` 包与 `refund.Service.OnRegister`（v0.48.0 起），以及 Gemini 3 工具调用回放修复（v0.48.1）；`go.mod` 固定为 v0.49.0。按 `go.mod` 运行：
+本案例使用 goagent 的 `multiagent` 包与 `refund.Service.OnRegister`（v0.48.0 起），以及 Gemini 3 工具调用回放修复（v0.48.1）；长期记忆依赖本地 master（未发布）的 `memory` 包。`go.mod` 仍固定为 v0.53.0，离线案例按 `go.mod` 运行：
 
 ```bash
 make test-remote   # GOWORK=off go test -race ./...
@@ -196,6 +196,44 @@ cs message -dir $DIR -live -customer c-1001 -text "订单 A1001 申请退款 30 
 `-live` 与 `GOAGENT_LIVE=1` 都会产生费用，业务仍为模拟；提供方与模型见 `internal/livemodel`。离线回归、命令行演练与 7 个模型的实测结果及据此修复的问题见[验证报告](../../docs/evaluation/2026-11-05-customer-service/REPORT.md)。
 
 目录首次打开时绑定所用模型（离线脚本或 `提供方/模型`），记录在 `$DIR/model`。持久恢复会回放已记录的模型调用，换模型后旧工单无法续跑，因此同一目录的 `message`、`answer`、`sweep` 须使用相同的 `-live` 与模型配置，否则命令直接报错；要换模型请换用新目录。`show` 只读，不检查模型。
+
+## 长期记忆
+
+可选功能：用 goagent `memory` 记住客户偏好，跨工单召回。不给 `-memory` 时行为与输出不变，也不需要容器。
+
+- 存储：Postgres（pgvector，保存记忆与会话日志）与 Qdrant（向量索引）。命名空间固定为 `customer-service/<客户ID>`，由宿主依据工单行的客户 ID 绑定，客户之间互不可见。
+- 嵌入：默认离线哈希嵌入（无语义，仅供演示与测试）；加 `-live` 改用 Gemini 嵌入，需要 `GEMINI_API_KEY`，模型由 `GEMINI_EMBEDDING_MODEL` 指定（默认 `gemini-embedding-001`）。
+- 抽取：每轮对话登记抽取任务，由 `sweep` 处理；客户明确要求“请记住”时由 `memory_save` 钉住，钉住记录被新记录取代时新记录继承钉住。
+
+contrib 的 `memory/qdrant` 与 `durable/pgstore` 尚未发布，只能在工作区模式下编译；`make test-remote` 会失败。先用 `make work CONTRIB=<contrib 工作树路径>` 生成 `go.work`（把两个模块加入工作区）。
+
+容器脚本 `scripts/with-stores.sh` 启动专用的 Postgres 与 Qdrant 容器（默认端口 55450、56344，可用 `CS_MEMORY_PG_PORT`、`CS_MEMORY_QDRANT_PORT`、`CS_MEMORY_QDRANT_HTTP_PORT` 覆盖），导出 `CS_MEMORY_PG_URL` 与 `CS_MEMORY_QDRANT_ADDR`（gRPC，host:port）后执行命令，结束删除容器：
+
+```bash
+# 离线记忆测试
+scripts/with-stores.sh go test -p 1 ./orchestration/customer-service/
+# 真实模型验证（会产生费用）
+GOAGENT_LIVE=1 GEMINI_API_KEY=... DEEPSEEK_API_KEY=... scripts/with-stores.sh go test -p 1 -run TestLiveMemory -v ./orchestration/customer-service/
+```
+
+选项与命令（`-pg`、`-qdrant` 默认取上述环境变量）：
+
+```bash
+# 开启记忆发消息，再扫描抽取
+cs message -dir $DIR -memory -customer c-1001 -text "订单 A1001 申请退款 30 元，只退回原支付方式"
+cs sweep -dir $DIR -memory
+# 查看客户的钉住记录；-q 追加召回
+cs memory -dir $DIR -memory -customer c-1001 -q 支付方式
+```
+
+`sweep` 报告增加 `memory_jobs`（本次处理的抽取任务数）与 `memory_dropped`（其间丢弃的任务数）；未接入记忆时不出现这两个字段。
+
+已知限制：
+
+- 会话 ID `<工单ID>:<成员>` 只在单个账本目录内唯一，多个 `-dir` 共用同一个 Postgres 会串会话。
+- 同一 `-dir` 中途切换 `-memory` 没有拦截；开启后通用成员的提示词与步数不同，持久回放可能报意图不一致。
+- `sweep` 先投递发件箱，再处理抽取任务（`ProcessPending`）。抽取没有单独的总时限，耗时随积压线性增长。抽取任务重试耗尽后 `sweep` 不会报错，要用 `memory` 命令或任务状态查看，因为 goagent 不提供失败任务列表。
+- `memory_dropped` 只统计本次 `sweep` 期间的丢弃。
 
 ## 测试覆盖
 
