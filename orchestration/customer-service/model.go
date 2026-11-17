@@ -83,9 +83,19 @@ func generalTurn(v ticketView, msgs []llm.Message) llm.StreamChunk {
 	return llm.StreamChunk{ToolCalls: []llm.ToolCall{demomodel.CallWith("mem-1", "memory_save", string(args))}}
 }
 
-// extractTurn 的输入是记忆 worker 拼出的对话文本，位于最后一条用户消息。
+// firstUser 取第一条用户消息：worker 重试 JSON 时会在后面追加纠正提示，不能读最后一条。
+func firstUser(msgs []llm.Message) string {
+	for _, m := range msgs {
+		if m.Role == "user" {
+			return m.Content
+		}
+	}
+	return ""
+}
+
+// extractTurn 的输入是记忆 worker 拼出的对话文本。
 func extractTurn(msgs []llm.Message) llm.StreamChunk {
-	transcript := msgs[len(msgs)-1].Content
+	transcript := firstUser(msgs)
 	if strings.Contains(transcript, "抽取坏回复") {
 		return text("这不是 JSON")
 	}
@@ -104,7 +114,7 @@ func extractTurn(msgs []llm.Message) llm.StreamChunk {
 
 // reconcileTurn 从“已有记忆”行解析候选，按新信息决定更新、否定或新增。
 func reconcileTurn(msgs []llm.Message) llm.StreamChunk {
-	user := msgs[len(msgs)-1].Content
+	user := firstUser(msgs)
 	info, _, _ := strings.Cut(strings.TrimPrefix(user, "新信息："), "\n\n已有记忆：")
 	for _, m := range memoryLine.FindAllStringSubmatch(user, -1) {
 		id, content := m[1], m[2]
