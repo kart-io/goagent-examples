@@ -29,7 +29,7 @@ const (
 	generalName  = "general"
 	handoffName  = "handoff"
 	routeHuman   = "human" // 分流输出的转人工去向，不是成员
-	graphVersion = "customer-service-v2"
+	graphVersion = "customer-service-v3"
 	maxRounds    = 4
 )
 
@@ -270,8 +270,9 @@ func newGraph(ctx context.Context, store durable.Store, client *livemodel.Client
 	if mem != nil {
 		generalMem = &memberMemory{mem: mem.Memory, sessions: mem.Sessions, tools: true}
 		refundMem = &memberMemory{mem: mem.Memory, sessions: mem.Sessions}
-		// 提示词与步数只在记忆开启时改变，未开启时模型请求与现在完全相同；memory_save 之后还要一步给出答复
-		prompt, iterations = generalPrompt+generalMemoryRule, 2
+		// 提示词与步数只在记忆开启时改变，未开启时模型请求与现在完全相同；
+		// 留出查、写、答三步：最后一步没有工具，只剩两步时先查再写的模型会把调用写成正文
+		prompt, iterations = generalPrompt+generalMemoryRule, 3
 	}
 	triage, err := multiagent.AgentStep(triageName, agentFactory(client, triageName, triagePrompt, 1, nil, nil), render, parseTriage)
 	if err != nil {
