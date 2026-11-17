@@ -29,10 +29,16 @@ type hostEnv struct {
 
 func newHostEnv(t *testing.T, mutate func(*HostConfig)) *hostEnv {
 	t.Helper()
+	return newHostEnvAt(t, t.TempDir(), mutate)
+}
+
+// newHostEnvAt 与 newHostEnv 相同，只是数据目录由调用方给出。
+func newHostEnvAt(t *testing.T, dir string, mutate func(*HostConfig)) *hostEnv {
+	t.Helper()
 	d := support.NewMemoryDirectory()
 	d.SetLeader("agent-1", support.User{ID: "lead-1", Name: "组长"})
 	d.SetGroup("finance-reviewers", support.User{ID: "fin-1", Name: "财务一"}, support.User{ID: "fin-2", Name: "财务二"})
-	e := &hostEnv{t: t, dir: t.TempDir(), clock: support.NewManualClock(testStart), directory: d,
+	e := &hostEnv{t: t, dir: dir, clock: support.NewManualClock(testStart), directory: d,
 		notifier: &support.RecordingNotifier{}, handoff: &support.RecordingHandoff{}, mutate: mutate}
 	e.open()
 	t.Cleanup(func() { _ = e.host.Close() })

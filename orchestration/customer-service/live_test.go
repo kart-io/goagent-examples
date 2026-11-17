@@ -50,49 +50,12 @@ func TestLiveMemory(t *testing.T) {
 	c, cctx := newCustomer()
 	ctx := context.Background()
 
-	type ticketEvidence struct {
-		ID        string `json:"ticket_id"`
-		Status    string `json:"final_status"`
-		FollowUps int    `json:"follow_ups"`
-		Approvals int    `json:"approvals"`
-	}
 	var tickets []*ticketEvidence
 	// 每张工单先走到终态再发下一条，否则新消息会被当作追问回答归进旧工单。
 	say := func(text string) {
-		r, err := e.host.Message(ctx, c, "agent-1", msgID(), text)
+		ev, err := driveTicket(ctx, e, c, text)
 		require.NoError(t, err)
-		require.Equal(t, "started", r.Action, "新消息应开启新工单，实际 %s", r.Action)
-		ev := &ticketEvidence{ID: r.TicketID}
-		tickets = append(tickets, ev)
-		for ev.FollowUps+ev.Approvals < 4 {
-			switch status := e.row(r.TicketID).Status; status {
-			case statusWaitingCustomer:
-				require.Less(t, ev.FollowUps, 2, "工单 %s 追问超过 2 次仍未结束", r.TicketID)
-				_, err := e.host.Message(ctx, c, "agent-1", msgID(), "没有其他补充，按原支付方式退回即可")
-				require.NoError(t, err)
-				ev.FollowUps++
-			case statusWaitingReview:
-				var err error
-				for _, approver := range []string{"lead-1", "fin-1"} {
-					if _, err = e.host.Answer(ctx, r.TicketID, approver, true, "核实无误"); err == nil {
-						break
-					}
-				}
-				require.NoError(t, err)
-				ev.Approvals++
-			default:
-				ev.Status = status
-			}
-			if ev.Status != "" {
-				break
-			}
-		}
-		if ev.Status == "" {
-			ev.Status = e.row(r.TicketID).Status
-		}
-		if ev.Status != statusDone && ev.Status != statusHandoff && ev.Status != statusFailed && ev.Status != statusDelivered {
-			t.Fatalf("工单 %s 未到终态：%s", r.TicketID, ev.Status)
-		}
+		tickets = append(tickets, &ev)
 	}
 	var reports []SweepReport
 	sweep := func() {
@@ -117,7 +80,9 @@ func TestLiveMemory(t *testing.T) {
 			if _, err := e.host.memory.Sessions.Read(ctx, session, 0); errors.Is(err, agentErrors.ErrSessionNotFound) {
 				continue // 工单没派到该成员，没有会话
 			}
-			for _, key := range turnJobKeys(t, e, session) {
+			keys, err := sessionJobKeys(ctx, e, session)
+			require.NoError(t, err)
+			for _, key := range keys {
 				j, ok, err := e.host.memory.Memory.Job(cctx, key)
 				require.NoError(t, err)
 				if ok {

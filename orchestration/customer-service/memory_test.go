@@ -144,7 +144,8 @@ func sweepTicket(t *testing.T, e *hostEnv, ctx context.Context, customer, text s
 	r := e.message(msgID(), customer, text)
 	_, err := e.host.Sweep(context.Background())
 	require.NoError(t, err)
-	keys := turnJobKeys(t, e, memorySession(r.TicketID, generalName))
+	keys, err := sessionJobKeys(context.Background(), e, memorySession(r.TicketID, generalName))
+	require.NoError(t, err)
 	require.Len(t, keys, 1)
 	j, ok, err := e.host.memory.Memory.Job(ctx, keys[0])
 	require.NoError(t, err)
@@ -213,18 +214,19 @@ func TestFollowUpKeepsNamespace(t *testing.T) {
 	require.Equal(t, statusDelivered, a.Status)
 }
 
-// turnJobKeys 按 builder 的规则（会话 ID/turn/start 序号）拼出会话中各轮的抽取任务 Key；goagent 没有导出构造方式。
-func turnJobKeys(t *testing.T, e *hostEnv, sessionID string) []string {
-	t.Helper()
-	events, err := e.host.memory.Sessions.Read(context.Background(), sessionID, 0)
-	require.NoError(t, err)
+// sessionJobKeys 按 builder 的规则（会话 ID/turn/start 序号）拼出会话中各轮的抽取任务 Key；goagent 没有导出构造方式。
+func sessionJobKeys(ctx context.Context, e *hostEnv, sessionID string) ([]string, error) {
+	events, err := e.host.memory.Sessions.Read(ctx, sessionID, 0)
+	if err != nil {
+		return nil, err
+	}
 	var keys []string
 	for _, ev := range events {
 		if ev.Type == constants.SessionEventTurnStart {
 			keys = append(keys, sessionID+"/"+strconv.FormatInt(ev.Seq, 10))
 		}
 	}
-	return keys
+	return keys, nil
 }
 
 func TestSweepMemoryFailure(t *testing.T) {
@@ -236,7 +238,8 @@ func TestSweepMemoryFailure(t *testing.T) {
 	require.Empty(t, e.sent(support.KindCustomerReply), "回复留在发件箱")
 	e.notifier.Fail(nil)
 
-	keys := turnJobKeys(t, e, memorySession(r.TicketID, generalName))
+	keys, err := sessionJobKeys(context.Background(), e, memorySession(r.TicketID, generalName))
+	require.NoError(t, err)
 	require.Len(t, keys, 1)
 	job := func() memory.Job {
 		j, ok, err := e.host.memory.Memory.Job(cctx, keys[0])
