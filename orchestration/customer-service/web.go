@@ -58,6 +58,7 @@ var apiErrors = []struct {
 	{http.StatusNotFound, "not_found", func(err error) bool { var e ticketNotFoundError; return errors.As(err, &e) }},
 	{http.StatusNotFound, "not_found", func(err error) bool { return agentErrors.IsCode(err, agentErrors.CodeStoreNotFound) }},
 	{http.StatusConflict, "conflict", func(err error) bool { return errors.Is(err, errNotHandedOff) }},
+	{http.StatusConflict, "conflict", func(err error) bool { return errors.Is(err, errMessageIDTaken) }},
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
@@ -112,14 +113,15 @@ type webServer struct {
 
 	mu sync.Mutex // 串行化所有写操作；读接口不加锁
 
-	jobsMu sync.Mutex
-	jobs   map[string]*jobState
-	queue  []queuedJob // 先进先出，由唯一的 worker 按入队顺序执行
-	closed bool
-	wake   chan struct{}
-	done   chan struct{} // worker 退出后关闭
-	base   context.Context
-	cancel context.CancelFunc
+	jobsMu    sync.Mutex
+	jobs      map[string]*jobState
+	queue     []queuedJob // 先进先出，由唯一的 worker 按入队顺序执行
+	closed    bool
+	closeOnce sync.Once
+	wake      chan struct{}
+	done      chan struct{} // worker 退出后关闭
+	base      context.Context
+	cancel    context.CancelFunc
 }
 
 type queuedJob struct {
@@ -169,7 +171,12 @@ func newWebServer(h *Host) *webServer {
 func (s *webServer) Handler() http.Handler { return s.mux }
 
 // Close 不再接受新任务，让 worker 在 wait 内排空队列；超时则取消 base，再等 worker 退出。
+// worker 退出后取走写锁且不释放：已越过 checkOpen 的同步写请求从此阻塞，不会在宿主关闭后执行。可重复调用。
 func (s *webServer) Close(wait time.Duration) {
+	s.closeOnce.Do(func() { s.close(wait) })
+}
+
+func (s *webServer) close(wait time.Duration) {
 	s.jobsMu.Lock()
 	s.closed = true
 	s.jobsMu.Unlock()
@@ -181,6 +188,7 @@ func (s *webServer) Close(wait time.Duration) {
 		<-s.done
 	}
 	s.cancel()
+	s.mu.Lock()
 }
 
 func (s *webServer) signal() {

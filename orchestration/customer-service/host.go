@@ -252,6 +252,9 @@ func notify(ctx context.Context, tx *sql.Tx, ticketID string, to support.User, k
 	return enqueue(ctx, tx, ticketID, channelNotify, to, support.Message{Kind: kind, IdempotencyKey: key, Title: title, Body: body}, key)
 }
 
+// errMessageIDTaken 表示消息 ID 已属于其他客户的工单；消息 ID 全局去重，不能借此触碰他人工单。
+var errMessageIDTaken = errors.New("消息 ID 已被其他客户使用")
+
 // MessageResult 是一次客户消息的处理结果。
 type MessageResult struct {
 	TicketID string `json:"ticket_id"`
@@ -274,6 +277,9 @@ func (h *Host) Message(ctx context.Context, customerID, submitter, messageID, te
 		if err == nil {
 			action = "duplicate"
 			row, err = h.ticket(ctx, tx, ticketID)
+			if err == nil && row.CustomerID != customerID {
+				return errMessageIDTaken
+			}
 			if err == nil && prev == answerPending && row.Status == statusWaitingCustomer {
 				action = "answered" // 上次续跑失败、回答未固定：重投时再次续跑
 			}

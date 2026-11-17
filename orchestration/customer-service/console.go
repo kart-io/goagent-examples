@@ -35,7 +35,8 @@ func (h *Host) Conversation(ctx context.Context, customerID string) ([]Conversat
 		UNION ALL
 		SELECT ticket_id, 1, seq, '', CAST(payload_json AS TEXT), '', created_at, status, idempotency_key FROM outbox
 		 WHERE channel = ? AND json_extract(recipient_json, '$.ID') = ?
-		ORDER BY 7, 2, 3`, customerID, channelNotify, customerID)
+		   AND ticket_id IN (SELECT ticket_id FROM tickets WHERE customer_id = ?)
+		ORDER BY 7, 2, 3`, customerID, channelNotify, customerID, customerID)
 	if err != nil {
 		return nil, err
 	}

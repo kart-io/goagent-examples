@@ -103,6 +103,9 @@ func TestConversation(t *testing.T) {
 				require.NotEqual(t, string(support.KindApprovalRequest), en.Kind, "不含审核人的通知")
 			}
 		}
+		for _, staff := range []string{"lead-1", "fin-1"} {
+			require.Empty(t, e.conversation(staff), "审核人 ID 充当客户 ID 也看不到他人通知")
+		}
 	})
 	t.Run("无数据", func(t *testing.T) {
 		e := newHostEnv(t, nil)
@@ -110,6 +113,20 @@ func TestConversation(t *testing.T) {
 		require.NotNil(t, got)
 		require.Empty(t, got)
 	})
+}
+
+func TestMessageIDTakenByOtherCustomer(t *testing.T) {
+	e := newHostEnv(t, nil)
+	r1 := e.message("m1", "c-1001", "订单 A1002 申请退款 800 元")
+	before := e.outboxCount()
+	_, err := e.host.Message(context.Background(), "c-2002", "web", "m1", "订单 A2001 申请退款 99 元")
+	require.ErrorIs(t, err, errMessageIDTaken)
+	require.Equal(t, before, e.outboxCount(), "不触碰他人工单")
+	require.Empty(t, e.conversation("c-2002"))
+	own, err := e.host.Tickets(context.Background(), "c-2002")
+	require.NoError(t, err)
+	require.Empty(t, own)
+	require.Equal(t, r1.TicketID, e.conversation("c-1001")[0].TicketID)
 }
 
 func TestLedgerV1Rejected(t *testing.T) {

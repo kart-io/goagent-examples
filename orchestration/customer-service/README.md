@@ -251,7 +251,7 @@ go run ./orchestration/customer-service serve -dir /tmp/cs-web
 scripts/with-stores.sh go run ./orchestration/customer-service serve -dir /tmp/cs-web-live -memory -live
 ```
 
-默认监听 `127.0.0.1:8090`，可用 `-addr` 修改；启动后打印一行 `{"event":"serve",...}`，含两个页面的地址。端口被占用时立即报错退出。`Ctrl-C` 先停止接收请求，再等待后台任务完成。
+默认监听 `127.0.0.1:8090`，可用 `-addr` 修改；启动后打印一行 `{"event":"serve",...}`，含两个页面的地址。端口被占用时立即报错退出。`Ctrl-C` 先停止接收请求，再等待后台任务完成：最长等待一个 `LockTimeout`（离线 30 秒，`-live` 时 10 分钟），期间再按一次 `Ctrl-C` 不会缩短等待。
 
 - 用户页 `/customer`：选择或输入客户 ID，发送消息并查看对话；处理中的消息显示“处理中”，失败显示原因。网络错误后重发沿用同一个 `message_id`，不会重复处理。
 - 客服台 `/desk`：左列为工单列表（转人工后尚未回复的标“待人工”）与 `sweep` 按钮；中列为工单详情、Agent turns，工单处于 `waiting_review` 时可选审核人批准或拒绝，转过人工的工单可人工回复；右列为记忆面板（需要 `-memory`），可查看钉住记录、按文本召回、按 ID 查看（含 `superseded_by`、`invalid_at`、`pinned`），客户跟随所选工单。页面每 2 秒刷新。

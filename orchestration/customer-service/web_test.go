@@ -342,6 +342,27 @@ func TestWebIsolation(t *testing.T) {
 	}
 }
 
+func TestWebMessageIDTaken(t *testing.T) {
+	w := newWebEnv(t, nil)
+	code, _ := w.postJSON("/api/customers/c-1001/messages", map[string]string{"message_id": "m1", "text": "订单 A1001 申请退款 30 元"})
+	require.Equal(t, http.StatusAccepted, code)
+	w.waitConversation("c-1001", func(c convResp) bool { return hasService(c) && len(c.Pending) == 0 })
+	// 消息是异步任务，冲突只能经待处理项的 error 暴露
+	code, _ = w.postJSON("/api/customers/c-2002/messages", map[string]string{"message_id": "m1", "text": "订单 A2001 申请退款 99 元"})
+	require.Equal(t, http.StatusAccepted, code)
+	c := w.waitConversation("c-2002", func(c convResp) bool { return len(c.Pending) == 1 && c.Pending[0].Error != "" })
+	require.Contains(t, c.Pending[0].Error, "消息 ID 已被其他客户使用")
+	require.Empty(t, c.Entries)
+	require.Equal(t, []string{"m1"}, roleIDs(w.conv("c-1001"), "customer"))
+}
+
+func TestWebCloseDrainsWrites(t *testing.T) {
+	w := newWebEnv(t, nil)
+	w.ws.Close(time.Second)
+	require.False(t, w.ws.mu.TryLock(), "Close 后写锁不再可取，越过 checkOpen 的写请求不会执行")
+	w.ws.Close(time.Second) // 重复调用不死锁
+}
+
 func TestWebPages(t *testing.T) {
 	w := newWebEnv(t, nil)
 	for _, tc := range []struct{ path, ctype, body string }{
