@@ -16,6 +16,7 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support/feishu"
+	"github.com/kart-io/goagent/memory"
 )
 
 func main() {
@@ -27,11 +28,13 @@ func main() {
 	}
 }
 
-const usage = `用法：customer-service <message|answer|sweep|show> -dir 目录 [选项]
+const usage = `用法：customer-service <message|answer|sweep|show|memory> -dir 目录 [选项]
   message -customer 客户ID -text 内容 [-id 消息ID] [-submitter 客服账号]
   answer  -ticket 工单ID -approver 审核人 (-approve | -reject) [-note 说明]
   sweep   执行一次扫描（-now 指定时间可演示超时）
-  show    -ticket 工单ID`
+  show    -ticket 工单ID
+  memory  -customer 客户ID [-q 召回文本]   查看客户的长期记忆（需要 -memory）
+  -memory [-pg URL] [-qdrant 地址] 接入长期记忆；-pg、-qdrant 默认取环境变量 CS_MEMORY_PG_URL、CS_MEMORY_QDRANT_ADDR`
 
 // printer 把通知与转人工打印为 JSON 行，代替真实 IM 渠道。
 type printer struct{ w io.Writer }
@@ -72,6 +75,10 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 	approve := flags.Bool("approve", false, "批准")
 	reject := flags.Bool("reject", false, "拒绝")
 	note := flags.String("note", "", "审核说明")
+	useMemory := flags.Bool("memory", false, "接入长期记忆（需要 Postgres 与 Qdrant）")
+	pgURL := flags.String("pg", os.Getenv("CS_MEMORY_PG_URL"), "记忆用 Postgres 连接串")
+	qdrantAddr := flags.String("qdrant", os.Getenv("CS_MEMORY_QDRANT_ADDR"), "记忆用 Qdrant gRPC 地址 host:port")
+	query := flags.String("q", "", "memory 命令的召回文本")
 	if err := flags.Parse(args[1:]); err != nil {
 		return fmt.Errorf("%w\n%s", err, usage)
 	}
@@ -81,7 +88,13 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 	if err := os.MkdirAll(*dir, 0o700); err != nil {
 		return err
 	}
-	cfg := HostConfig{Dir: *dir, Notifier: printer{w}, Handoff: printer{w}, Operator: support.User{ID: "ops-1"}, InspectOnly: cmd == "show"}
+	cfg := HostConfig{Dir: *dir, Notifier: printer{w}, Handoff: printer{w}, Operator: support.User{ID: "ops-1"}, InspectOnly: cmd == "show" || cmd == "memory"}
+	if *useMemory {
+		if *pgURL == "" || *qdrantAddr == "" {
+			return errors.New("-memory 需要 -pg 与 -qdrant（或环境变量 CS_MEMORY_PG_URL、CS_MEMORY_QDRANT_ADDR）")
+		}
+		cfg.Memory = &MemoryConfig{PGURL: *pgURL, QdrantAddr: *qdrantAddr, Live: *live}
+	}
 	if *at != "" {
 		now, err := time.Parse(time.RFC3339, *at)
 		if err != nil {
@@ -144,6 +157,14 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 			return errors.New("show 需要 -ticket")
 		}
 		out, err = h.Show(ctx, *ticket)
+	case "memory":
+		if *customer == "" {
+			return errors.New("memory 需要 -customer")
+		}
+		if h.memory == nil {
+			return errors.New("memory 需要 -memory")
+		}
+		out, err = h.Memories(ctx, *customer, *query)
 	default:
 		return fmt.Errorf("未知命令 %q\n%s", cmd, usage)
 	}
@@ -202,4 +223,33 @@ func (h *Host) Show(ctx context.Context, ticketID string) (TicketView, error) {
 		v.Outbox = append(v.Outbox, o)
 	}
 	return v, rows.Err()
+}
+
+// MemoryView 是 memory 的输出；空列表编码为 [] 而不是 null。
+type MemoryView struct {
+	Pinned  []memory.Record `json:"pinned"`
+	Matches []memory.Scored `json:"matches"`
+}
+
+// Memories 读取客户的置顶记忆与按文本召回的记忆；只读，命名空间仅取自客户 ID。
+func (h *Host) Memories(ctx context.Context, customerID, query string) (MemoryView, error) {
+	ctx = memory.WithNamespace(ctx, memoryNS(customerID)...)
+	v := MemoryView{Pinned: []memory.Record{}, Matches: []memory.Scored{}}
+	pinned, err := h.memory.Memory.Pinned(ctx)
+	if err != nil {
+		return MemoryView{}, err
+	}
+	if pinned != nil {
+		v.Pinned = pinned
+	}
+	if query != "" {
+		matches, err := h.memory.Memory.Recall(ctx, memory.Query{Text: query, K: 10})
+		if err != nil {
+			return MemoryView{}, err
+		}
+		if matches != nil {
+			v.Matches = matches
+		}
+	}
+	return v, nil
 }

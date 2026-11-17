@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )
 
@@ -79,4 +81,45 @@ func TestCLIRejectsInvalidUsage(t *testing.T) {
 		_, _, err := cli(t, args...)
 		require.Error(t, err, strings.Join(args, " "))
 	}
+}
+
+func TestCLIMemoryRequiresStores(t *testing.T) {
+	t.Setenv("FEISHU_APP_ID", "")
+	t.Setenv("CS_MEMORY_PG_URL", "")
+	t.Setenv("CS_MEMORY_QDRANT_ADDR", "")
+	const want = "-memory 需要 -pg 与 -qdrant（或环境变量 CS_MEMORY_PG_URL、CS_MEMORY_QDRANT_ADDR）"
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"缺 pg 与 qdrant", []string{"-memory"}},
+		{"缺 pg", []string{"-memory", "-qdrant", "127.0.0.1:1"}},
+		{"缺 qdrant", []string{"-memory", "-pg", "postgres://x"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			args := append([]string{"message", "-dir", t.TempDir(), "-customer", "c-1", "-text", "你好"}, tc.args...)
+			_, _, err := cli(t, args...)
+			require.EqualError(t, err, want)
+		})
+	}
+}
+
+func TestCLIMemoryShow(t *testing.T) {
+	t.Setenv("FEISHU_APP_ID", "")
+	pg, qd := os.Getenv("CS_MEMORY_PG_URL"), os.Getenv("CS_MEMORY_QDRANT_ADDR")
+	if pg == "" || qd == "" {
+		t.Skipf("未设置 CS_MEMORY_PG_URL 与 CS_MEMORY_QDRANT_ADDR，请经 scripts/with-stores.sh 运行")
+	}
+	dir, customer := t.TempDir(), "c-"+uuid.NewString()
+	mem := []string{"-memory", "-pg", pg, "-qdrant", qd}
+	_, _, err := cli(t, append([]string{"message", "-dir", dir, "-id", msgID(), "-customer", customer, "-text", "请记住：只用邮件联系我"}, mem...)...)
+	require.NoError(t, err)
+
+	res, _, err := cli(t, append([]string{"memory", "-dir", dir, "-customer", customer}, mem...)...)
+	require.NoError(t, err)
+	require.Len(t, res["pinned"], 1)
+	require.Equal(t, []any{}, res["matches"])
+
+	_, _, err = cli(t, "memory", "-dir", dir, "-customer", customer)
+	require.Error(t, err, "未给 -memory 时 memory 命令应报错")
 }
