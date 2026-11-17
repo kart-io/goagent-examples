@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/memory"
 )
 
@@ -111,7 +113,11 @@ func TestLiveMemory(t *testing.T) {
 	for _, tk := range tickets {
 		tk := tk.ID
 		for _, scope := range []string{refundName, generalName} {
-			for _, key := range turnJobKeys(t, e, memorySession(tk, scope)) {
+			session := memorySession(tk, scope)
+			if _, err := e.host.memory.Sessions.Read(ctx, session, 0); errors.Is(err, agentErrors.ErrSessionNotFound) {
+				continue // 工单没派到该成员，没有会话
+			}
+			for _, key := range turnJobKeys(t, e, session) {
 				j, ok, err := e.host.memory.Memory.Job(cctx, key)
 				require.NoError(t, err)
 				if ok {
@@ -120,6 +126,7 @@ func TestLiveMemory(t *testing.T) {
 			}
 		}
 	}
+	require.NotEmpty(t, statuses, "至少查到一个抽取任务")
 	for key, st := range statuses {
 		require.NotEqual(t, memory.JobFailed, st, "抽取任务 %s 不应失败", key)
 	}
