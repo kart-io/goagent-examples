@@ -210,7 +210,7 @@ cs message -dir $DIR -live -customer c-1001 -text "订单 A1001 申请退款 30 
 
 编译方式见[依赖](#依赖)：须先 `make work CONTRIB=<contrib 工作树路径>`。
 
-容器脚本 `scripts/with-stores.sh` 启动专用的 Postgres 与 Qdrant 容器（默认端口 55450、56344，可用 `CS_MEMORY_PG_PORT`、`CS_MEMORY_QDRANT_PORT`、`CS_MEMORY_QDRANT_HTTP_PORT` 覆盖），导出 `CS_MEMORY_PG_URL` 与 `CS_MEMORY_QDRANT_ADDR`（gRPC，host:port）后执行命令，结束删除容器：
+容器脚本 `scripts/with-stores.sh` 启动专用的 Postgres 与 Qdrant 容器（默认端口 55450、56344，可用 `CS_MEMORY_PG_PORT`、`CS_MEMORY_QDRANT_PORT`、`CS_MEMORY_QDRANT_HTTP_PORT` 覆盖），导出 `CS_MEMORY_PG_URL` 与 `CS_MEMORY_QDRANT_ADDR`（gRPC，host:port）后执行命令，结束删除容器；另导出 `CS_MEMORY_PG_CONTAINER`、`CS_MEMORY_QDRANT_CONTAINER` 供故障测试只操作本次启动的容器：
 
 ```bash
 # 离线记忆测试

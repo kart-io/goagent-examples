@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # 启动 Postgres(pgvector) 与 Qdrant 专用容器，导出 CS_MEMORY_PG_URL、CS_MEMORY_QDRANT_ADDR 后执行给定命令，结束后删除容器。
+# 另导出 CS_MEMORY_PG_CONTAINER、CS_MEMORY_QDRANT_CONTAINER，故障测试只暂停或删除这两个容器。
 # 用法：scripts/with-stores.sh <命令> [参数...]，如 scripts/with-stores.sh go test ./orchestration/customer-service/
 # 端口可用 CS_MEMORY_PG_PORT、CS_MEMORY_QDRANT_PORT、CS_MEMORY_QDRANT_HTTP_PORT 覆盖。
 set -euo pipefail
@@ -38,5 +39,7 @@ wait_for Qdrant curl -fsS "http://127.0.0.1:$qdrant_http_port/readyz"
 
 export CS_MEMORY_PG_URL="postgres://postgres:test@127.0.0.1:$pg_port/postgres?sslmode=disable"
 export CS_MEMORY_QDRANT_ADDR="127.0.0.1:$qdrant_port"
+export CS_MEMORY_PG_CONTAINER="$pg"
+export CS_MEMORY_QDRANT_CONTAINER="$qdrant"
 
 "$@"
