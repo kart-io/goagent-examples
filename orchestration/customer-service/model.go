@@ -11,6 +11,7 @@ import (
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/demomodel"
 	"github.com/kart-io/goagent/llm"
+	"github.com/kart-io/goagent/memory"
 )
 
 var (
@@ -45,15 +46,29 @@ func jsonText(v any) llm.StreamChunk {
 	return text(string(data))
 }
 
-func respond(req *llm.CompletionRequest) llm.StreamChunk {
-	system := req.Messages[0].Content
-	var view ticketView
-	for _, m := range req.Messages {
-		if m.Role == "user" {
-			_ = json.Unmarshal([]byte(m.Content), &view)
-			break
+// recallBlock 报告 m 是否为长期记忆注入的召回块。
+func recallBlock(m llm.Message) bool {
+	return m.Role == "user" && strings.HasPrefix(m.Content, memory.RecallPrefix)
+}
+
+// currentTurn 返回本轮的工单视图与它之后的本轮消息。开启记忆后请求依次为：前几轮的会话历史、本轮工单 JSON、
+// 本轮的工具调用与结果、末尾的召回块；所以本轮从最后一条能解析为工单 JSON 的 user 消息开始。
+func currentTurn(msgs []llm.Message) (ticketView, []llm.Message) {
+	for i := len(msgs) - 1; i >= 0; i-- {
+		if msgs[i].Role != "user" || recallBlock(msgs[i]) {
+			continue
+		}
+		var v ticketView
+		if json.Unmarshal([]byte(msgs[i].Content), &v) == nil {
+			return v, msgs[i+1:]
 		}
 	}
+	return ticketView{}, nil
+}
+
+func respond(req *llm.CompletionRequest) llm.StreamChunk {
+	system := req.Messages[0].Content
+	view, turn := currentTurn(req.Messages)
 	switch {
 	case strings.HasPrefix(system, "你从一轮对话中抽取"):
 		return extractTurn(req.Messages)
@@ -62,19 +77,20 @@ func respond(req *llm.CompletionRequest) llm.StreamChunk {
 	case strings.HasPrefix(system, "customer-service-triage"):
 		return triageTurn(view)
 	case strings.HasPrefix(system, "customer-service-general"):
-		return generalTurn(view, req.Messages)
+		return generalTurn(view, turn)
 	case strings.HasPrefix(system, "customer-service-refund"):
-		return refundTurn(view, req.Messages)
+		return refundTurn(view, turn)
 	}
 	return text("离线脚本不支持该请求")
 }
 
-func generalTurn(v ticketView, msgs []llm.Message) llm.StreamChunk {
+// generalTurn 的 turn 只含本轮消息：历史轮次的 memory_save 结果不算本轮已记住。
+func generalTurn(v ticketView, turn []llm.Message) llm.StreamChunk {
 	content, ok := strings.CutPrefix(v.Input, rememberPrefix)
 	if !ok {
 		return text("您好，包裹已在配送途中，预计 1 至 2 天送达；账单与发票可在订单详情页下载。")
 	}
-	for _, m := range msgs {
+	for _, m := range turn {
 		if m.Role == "tool" && m.ToolCallID == "mem-1" {
 			return text("好的，已记住。")
 		}
@@ -156,7 +172,8 @@ func triageTurn(v ticketView) llm.StreamChunk {
 	return jsonText(triageDecision{Route: generalName, Intent: "咨询物流或账单"})
 }
 
-func refundTurn(v ticketView, msgs []llm.Message) llm.StreamChunk {
+// refundTurn 的 turn 只含本轮消息，末尾可能是召回块。
+func refundTurn(v ticketView, turn []llm.Message) llm.StreamChunk {
 	input := v.Input
 	switch {
 	case strings.Contains(input, "胡乱提议"):
@@ -164,9 +181,13 @@ func refundTurn(v ticketView, msgs []llm.Message) llm.StreamChunk {
 	case strings.Contains(input, "不用退") || strings.Contains(input, "反复咨询"):
 		return jsonText(proposal{Action: "no_refund", Reason: "客户表示不需要退款"})
 	}
+	end := len(turn)
+	for end > 0 && recallBlock(turn[end-1]) {
+		end--
+	}
 	var results []llm.Message
-	for i := len(msgs) - 1; i >= 0 && msgs[i].Role == "tool"; i-- {
-		results = append(results, msgs[i])
+	for i := end - 1; i >= 0 && turn[i].Role == "tool"; i-- {
+		results = append(results, turn[i])
 	}
 	if len(results) == 0 {
 		if strings.Contains(input, "漏参数") { // 与实测的真实模型一样：第一次调用漏掉必填参数

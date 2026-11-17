@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -177,24 +178,74 @@ func TestFollowUpKeepsNamespace(t *testing.T) {
 	require.Equal(t, statusDelivered, a.Status)
 }
 
+// turnJobKeys 按 builder 的规则（会话 ID/turn/start 序号）拼出会话中各轮的抽取任务 Key；goagent 没有导出构造方式。
+func turnJobKeys(t *testing.T, e *hostEnv, sessionID string) []string {
+	t.Helper()
+	events, err := e.host.memory.Sessions.Read(context.Background(), sessionID, 0)
+	require.NoError(t, err)
+	var keys []string
+	for _, ev := range events {
+		if ev.Type == constants.SessionEventTurnStart {
+			keys = append(keys, sessionID+"/"+strconv.FormatInt(ev.Seq, 10))
+		}
+	}
+	return keys
+}
+
 func TestSweepMemoryFailure(t *testing.T) {
 	e, _ := newMemoryEnv(t)
-	c, _ := newCustomer()
+	c, cctx := newCustomer()
 
 	e.notifier.Fail(errors.New("通知服务不可用"))
 	r := e.message(msgID(), c, "抽取坏回复")
 	require.Empty(t, e.sent(support.KindCustomerReply), "回复留在发件箱")
+	e.notifier.Fail(nil)
 
-	// 抽取每次扫描失败一次，最后一次尝试失败之前不报错。
-	for range constants.DefaultMemoryJobAttempts - 1 {
+	keys := turnJobKeys(t, e, memorySession(r.TicketID, generalName))
+	require.Len(t, keys, 1)
+	job := func() memory.Job {
+		j, ok, err := e.host.memory.Memory.Job(cctx, keys[0])
+		require.NoError(t, err)
+		require.True(t, ok, "通用成员的轮次登记了抽取任务")
+		return j
+	}
+
+	report := e.sweep()
+	require.GreaterOrEqual(t, report.MemoryJobs, 1)
+	require.Len(t, e.sent(support.KindCustomerReply), 1, "第一次扫描在抽取之前投递了发件箱")
+	require.Equal(t, statusDelivered, e.row(r.TicketID).Status)
+
+	for i := 1; i < constants.DefaultMemoryJobAttempts && job().Status != memory.JobFailed; i++ {
 		e.sweep()
 	}
-	e.notifier.Fail(nil)
-	_, err := e.host.Sweep(context.Background())
-	require.Error(t, err, "抽取重试耗尽时扫描返回错误")
-	require.Contains(t, err.Error(), r.TicketID)
-	require.Len(t, e.sent(support.KindCustomerReply), 1, "同一次扫描照常投递了发件箱")
-	require.Equal(t, statusDelivered, e.row(r.TicketID).Status)
+	j := job()
+	require.Equal(t, memory.JobFailed, j.Status, "抽取按 JobAttempts 重试耗尽后标记失败")
+	require.Equal(t, constants.DefaultMemoryJobAttempts, j.Attempts)
+	require.Len(t, e.sent(support.KindCustomerReply), 1, "抽取失败不影响投递，也不重复投递")
+}
+
+func TestRefundRecallsMemory(t *testing.T) {
+	e, log := newMemoryEnv(t)
+	c, _ := newCustomer()
+	for _, order := range []string{"A7001", "A7002"} {
+		_, err := e.host.ledger.db.Exec("INSERT INTO orders VALUES (?,?,9900,'CNY',3,1)", order, c)
+		require.NoError(t, err)
+	}
+
+	e.message(msgID(), c, "订单 A7001 申请退款 30 元，只退回原支付方式")
+	require.Equal(t, 1, e.refunds("A7001"))
+	e.sweep()
+
+	r := e.message(msgID(), c, "订单 A7002 申请退款 30 元")
+	require.Equal(t, statusDelivered, r.Status)
+	require.Equal(t, 1, e.refunds("A7002"), "召回块在末尾时退款成员仍读到本轮的 get_order 结果并提议退款")
+	replies := e.sent(support.KindCustomerReply)
+	require.Len(t, replies, 2)
+	require.Contains(t, replies[1].Message.Body, "已退款 3000 分")
+	recalled := slices.ContainsFunc(log.userMessages("customer-service-refund"), func(s string) bool {
+		return strings.HasPrefix(s, memory.RecallPrefix) && strings.Contains(s, "只退回原支付方式")
+	})
+	require.True(t, recalled, "第二张工单的退款成员请求带上了召回块")
 }
 
 func TestNoMemoryUnchanged(t *testing.T) {
