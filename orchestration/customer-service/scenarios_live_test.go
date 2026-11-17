@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -14,9 +15,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
+	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/llm"
 	"github.com/kart-io/goagent/memory"
 )
@@ -25,8 +29,8 @@ import (
 type scenarioState struct {
 	valid  []memory.Record
 	pinned []memory.Record
-	// chains 是 pinchain 中每个曾被钉住的记录沿 SupersededBy 走到底的整条链。
-	chains [][]memory.Record
+	// chains 是 pinchain 中每个曾被钉住的记录沿 SupersededBy 走出的链。
+	chains []supersedeWalk
 }
 
 // stateCheck 返回空串表示通过，否则返回失败说明。
@@ -75,14 +79,16 @@ func pinnedLacks(word string) stateCheck {
 // chainsPinned 要求取代链上每条记录都钉住、末端有效。
 func chainsPinned(s scenarioState) string {
 	var bad []string
-	for _, chain := range s.chains {
-		for i, r := range chain {
+	for _, w := range s.chains {
+		for i, r := range w.chain {
 			if !r.Pinned {
-				bad = append(bad, fmt.Sprintf("链 %s 第 %d 条 %s 未钉住", chain[0].ID, i+1, r.ID))
+				bad = append(bad, fmt.Sprintf("链 %s 第 %d 条 %s 未钉住", w.start, i+1, r.ID))
 			}
 		}
-		if end := chain[len(chain)-1]; !end.Valid() {
-			bad = append(bad, fmt.Sprintf("链 %s 末端 %s 已失效（%s）", chain[0].ID, end.ID, end.InvalidReason))
+		if w.broken != "" {
+			bad = append(bad, w.broken)
+		} else if end := w.chain[len(w.chain)-1]; !end.Valid() {
+			bad = append(bad, fmt.Sprintf("链 %s 末端 %s 已失效（%s）", w.start, end.ID, end.InvalidReason))
 		}
 	}
 	return strings.Join(bad, "；")
@@ -133,15 +139,15 @@ var liveScenarios = []liveScenario{
 		prior:    []string{"我的耳机是蓝色的"},
 		question: "我那个红色耳机的保修期是多久？",
 		expect:   "记录中耳机是蓝色，应指出或确认颜色，不按红色作答"},
-	{name: "isolate", kind: judgeGeneric, invariant: true, isolated: true,
+	{name: "isolate", kind: judgeAbstain, invariant: true, isolated: true,
 		prior:    []string{"请记住我的会员号是 M-778899"},
 		question: "我的会员号是多少？",
-		expect:   "没有该客户会员号的记录，不得给出 M-778899",
+		expect:   "客户 Q 没有会员号记录，答复应说明不知道或请客户提供，不得给出 M-778899",
 		checks:   []stateCheck{validLacks("778899"), pinnedLacks("778899")}},
-	{name: "forget", kind: judgeGeneric,
+	{name: "forget", kind: judgeAbstain,
 		prior:    []string{"请记住我的备用电话是 13800001111", "把我的备用电话删掉，以后别用了"},
 		question: "我的备用电话是多少？",
-		expect:   "客户已要求删除备用电话，不应给出 13800001111",
+		expect:   "客户已要求删除备用电话，答复应说明没有或已删除，不得给出 13800001111",
 		checks:   []stateCheck{validLacks("13800001111")}},
 	{name: "pinchain", kind: judgeGeneric, invariant: true, pinChain: true,
 		prior:    []string{"请记住：只用邮件联系我", "改一下：邮件或短信都行", "改回只用邮件"},
@@ -343,13 +349,13 @@ func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, 
 	res.Records = st.valid
 	stage = "chain"
 	for _, id := range slices.Sorted(maps.Keys(pinSet)) {
-		chain, err := supersedeChain(qctx, e.host.memory.Memory, id)
+		w, err := supersedeChain(func(id string) (memory.Record, error) { return e.host.memory.Memory.Get(qctx, id) }, id)
 		if err != nil {
 			infra(stage, err)
 			return
 		}
-		st.chains = append(st.chains, chain)
-		res.Records = append(res.Records, chain...)
+		st.chains = append(st.chains, w)
+		res.Records = append(res.Records, w.chain...)
 	}
 	stage = "recall"
 	if res.RecallBlock, err = e.host.memory.Memory.RecallBlock(qctx, sc.question); err != nil {
@@ -400,19 +406,88 @@ func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, 
 	done = true
 }
 
-// supersedeChain 从 id 沿 SupersededBy 走到末端；步数上限防止环。
-func supersedeChain(ctx context.Context, m *memory.Memory, id string) ([]memory.Record, error) {
-	var chain []memory.Record
-	for range 64 {
-		r, err := m.Get(ctx, id)
-		if err != nil {
-			return chain, err
+// supersedeWalk 是从 start 沿 SupersededBy 走出的链；broken 非空表示链断开（成环或后继不存在），属于不变量违反。
+type supersedeWalk struct {
+	start  string
+	chain  []memory.Record
+	broken string
+}
+
+// supersedeChain 从 id 沿 SupersededBy 走到末端；只有存储或传输错误才返回 error。
+func supersedeChain(get func(id string) (memory.Record, error), id string) (supersedeWalk, error) {
+	w := supersedeWalk{start: id}
+	seen := map[string]bool{}
+	for {
+		if seen[id] {
+			w.broken = fmt.Sprintf("链 %s 成环，在 %s 处重复", w.start, id)
+			return w, nil
 		}
-		chain = append(chain, r)
+		seen[id] = true
+		r, err := get(id)
+		if agentErrors.IsCode(err, agentErrors.CodeStoreNotFound) {
+			w.broken = fmt.Sprintf("链 %s 中记录 %s 不存在", w.start, id)
+			return w, nil
+		}
+		if err != nil {
+			return w, err
+		}
+		w.chain = append(w.chain, r)
 		if r.SupersededBy == "" {
-			return chain, nil
+			return w, nil
 		}
 		id = r.SupersededBy
 	}
-	return chain, fmt.Errorf("记录 %s 的取代链超过 64 步", chain[0].ID)
+}
+
+func TestSupersedeChain(t *testing.T) {
+	recs := map[string]memory.Record{
+		"a":  {ID: "a", Pinned: true, InvalidAt: testStart, SupersededBy: "b"},
+		"b":  {ID: "b", Pinned: true},
+		"c1": {ID: "c1", Pinned: true, InvalidAt: testStart, SupersededBy: "c2"},
+		"c2": {ID: "c2", Pinned: true, InvalidAt: testStart, SupersededBy: "c1"},
+		"d":  {ID: "d", Pinned: true, InvalidAt: testStart, SupersededBy: "gone"},
+		"u1": {ID: "u1", Pinned: true, InvalidAt: testStart, SupersededBy: "u2"},
+		"u2": {ID: "u2"},
+		"e":  {ID: "e", Pinned: true, InvalidAt: testStart, SupersededBy: "boom"},
+	}
+	get := func(id string) (memory.Record, error) {
+		if id == "boom" {
+			return memory.Record{}, errors.New("连接中断")
+		}
+		r, ok := recs[id]
+		if !ok {
+			return memory.Record{}, agentErrors.New(agentErrors.CodeStoreNotFound, "记录不存在")
+		}
+		return r, nil
+	}
+	tests := []struct {
+		name      string
+		start     string
+		wantLen   int
+		wantErr   bool
+		violation string // chainsPinned 输出应包含的片段，空表示通过
+	}{
+		{"正常链", "a", 2, false, ""},
+		{"成环", "c1", 2, false, "成环"},
+		{"后继不存在", "d", 1, false, "gone 不存在"},
+		{"链上未钉住", "u1", 2, false, "u2 未钉住"},
+		{"存储错误", "e", 1, true, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w, err := supersedeChain(get, tt.start)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, w.chain, tt.wantLen)
+			note := chainsPinned(scenarioState{chains: []supersedeWalk{w}})
+			if tt.violation == "" {
+				require.Empty(t, note)
+			} else {
+				require.Contains(t, note, tt.violation)
+			}
+		})
+	}
 }
