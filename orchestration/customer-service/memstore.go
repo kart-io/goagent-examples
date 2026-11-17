@@ -100,11 +100,11 @@ func openMemory(ctx context.Context, c MemoryConfig, model llm.Client) (_ *memor
 
 	host, portStr, err := net.SplitHostPort(c.QdrantAddr)
 	if err != nil {
-		return nil, fmt.Errorf("Qdrant 地址须为 host:port: %w", err)
+		return nil, fmt.Errorf("解析 Qdrant 地址（须为 host:port）: %w", err)
 	}
 	port, err := strconv.Atoi(portStr)
 	if err != nil {
-		return nil, fmt.Errorf("Qdrant 端口无效: %w", err)
+		return nil, fmt.Errorf("解析 Qdrant 端口: %w", err)
 	}
 	client, err := qc.NewClient(&qc.Config{Host: host, Port: port, SkipCompatibilityCheck: true})
 	if err != nil {
