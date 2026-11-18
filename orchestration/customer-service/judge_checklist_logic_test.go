@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
 var testRubric = judgeRubric{
 	Version:    "test/1",
+	Rules:      "测试规则",
 	Background: "客户此前要求删除备用电话。",
 	Checks: []judgeCheck{
 		{ID: "F1", Ask: "答复是否给出了备用电话号码？", Want: "否"},
@@ -49,6 +51,17 @@ func scripted(outs ...string) (judgeSampler, *int) {
 	}, &calls
 }
 
+func fakeModel(s judgeSampler) judgeModel {
+	return judgeModel{Config: judgeModelConfig{Provider: "fake", Model: "fake-model", MaxOutputTokens: 100, Timeout: time.Second, Concurrency: 1}, Sample: s}
+}
+
+func mustJudge(t *testing.T, s judgeSampler, item refItem) judgeItemResult {
+	t.Helper()
+	res, err := judgeItem(context.Background(), fakeModel(s), testRubric, item)
+	require.NoError(t, err)
+	return res
+}
+
 func forgetItem(ref string) refItem {
 	return refItem{In: judgeInput{ID: "x", Question: "问", Expect: "说明", Reply: "我这边没有记录", Kind: judgeAbstain}, Scenario: "forget", Ref: ref}
 }
@@ -77,7 +90,7 @@ func TestJudgeItemAggregation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s, calls := scripted(tt.outs...)
-			res := judgeItem(context.Background(), s, testRubric, forgetItem(refCorrect))
+			res := mustJudge(t, s, forgetItem(refCorrect))
 			require.Equal(t, tt.final, res.Final)
 			require.Equal(t, tt.votes, res.Votes)
 			require.Equal(t, tt.agree, res.Agree)
@@ -85,6 +98,7 @@ func TestJudgeItemAggregation(t *testing.T) {
 			require.Equal(t, tt.infraStage, res.InfraStage)
 			require.Len(t, res.Attempts, tt.calls, "每次尝试（含失败）都留有记录")
 			require.Equal(t, judgeVersions{Rubric: "test/1", Prompt: judgePromptVersion, Schema: judgeSchemaVersion, Executor: judgeExecutorVersion}, res.Versions)
+			require.Equal(t, judgeModelInfo{Provider: "fake", Model: "fake-model", ConfigHash: fakeModel(nil).Config.hash()}, res.Model)
 			for _, a := range res.Attempts {
 				require.LessOrEqual(t, a.Attempt, 1+judgeMaxRetries)
 				if a.Stage == "" {
@@ -98,21 +112,41 @@ func TestJudgeItemAggregation(t *testing.T) {
 
 func TestJudgeItemCheckVotes(t *testing.T) {
 	s, _ := scripted(outPass, outFail, outPass)
-	res := judgeItem(context.Background(), s, testRubric, forgetItem(refCorrect))
+	res := mustJudge(t, s, forgetItem(refCorrect))
 	require.Equal(t, map[string]map[string]int{"F1": {"否": 3}, "F2": {"是": 2, "否": 1}}, res.CheckVotes)
-	require.Equal(t, 0, res.QuoteMissing)
+}
 
-	s, _ = scripted(outPass, outPass, outPass)
+// quote 不是答复原文属于 validate 技术失败，按协议重试；三次都编造引文则该位置耗尽、记为 infra。
+func TestJudgeItemQuoteNotInReply(t *testing.T) {
+	s, calls := scripted(outPass, outPass, outPass)
 	item := forgetItem(refCorrect)
 	item.In.Reply = "答复里没有这段引文"
-	require.Equal(t, 3, judgeItem(context.Background(), s, testRubric, item).QuoteMissing, "引文不在答复中只记录，不判失败")
+	res := mustJudge(t, s, item)
+	require.Equal(t, verdictInfra, res.Final)
+	require.Equal(t, stageValidate, res.InfraStage)
+	require.Equal(t, 3, *calls)
+}
+
+// 父 context 取消是中止运行：返回错误，不把这一条记为 infra，也不再发起后续尝试。
+func TestJudgeItemParentCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	calls := 0
+	s := func(context.Context, string) (judgeRaw, error) {
+		calls++
+		cancel()
+		return judgeRaw{}, errors.New("被取消")
+	}
+	res, err := judgeItem(ctx, fakeModel(s), testRubric, forgetItem(refCorrect))
+	require.ErrorIs(t, err, context.Canceled)
+	require.Empty(t, res.Final)
+	require.Equal(t, 1, calls)
 }
 
 // 逐项多数两项都满足，但每票按整票规则各自合成：(满足,不满足)、(不满足,满足)、(满足,满足) 得错、错、对，最终为错。
 // F1 的 Want 为「否」：答「否」是满足，答「是」才是不满足。
 func TestJudgeItemWholeVoteMajority(t *testing.T) {
 	s, _ := scripted(checksJSON("否", "否"), checksJSON("是", "是"), outPass)
-	res := judgeItem(context.Background(), s, testRubric, forgetItem(refWrong))
+	res := mustJudge(t, s, forgetItem(refWrong))
 	require.Equal(t, []string{refWrong, refWrong, refCorrect}, res.Votes)
 	require.Equal(t, refWrong, res.Final)
 	require.Equal(t, map[string]map[string]int{"F1": {"否": 2, "是": 1}, "F2": {"否": 1, "是": 2}}, res.CheckVotes, "逐项多数只作诊断")
@@ -125,7 +159,7 @@ func TestJudgeSamplesShareNoContext(t *testing.T) {
 		prompts = append(prompts, p)
 		return judgeRaw{Content: outPass}, nil
 	}
-	judgeItem(context.Background(), s, testRubric, forgetItem(refCorrect))
+	mustJudge(t, s, forgetItem(refCorrect))
 	require.Len(t, prompts, 3)
 	for _, p := range prompts {
 		require.Equal(t, prompts[0], p, "三次采样拿到相同的独立提示词，没有前一次的输出")
@@ -143,6 +177,17 @@ func TestParseChecks(t *testing.T) {
 		{"空", "  \n", stageEmpty},
 		{"不是 JSON", "对", stageParse},
 		{"尾随内容", outPass + " {}", stageParse},
+		{"尾随右括号", outPass + "}", stageParse},
+		{"两个 JSON 对象", outPass + "\n" + outPass, stageParse},
+		{"不带语言标记的围栏", "```\n" + outPass + "\n```", ""},
+		{"围栏前有说明", "结论如下：\n```json\n" + outPass + "\n```", stageParse},
+		{"围栏后有说明", "```json\n" + outPass + "\n```\n以上。", stageParse},
+		{"两个围栏", "```json\n" + outPass + "\n```\n```json\n" + outPass + "\n```", stageParse},
+		{"围栏标了别的语言", "```text\n" + outPass + "\n```", stageParse},
+		{"JSON 前有说明", "结论：" + outPass, stageParse},
+		{"quote 取自场景说明", `{"checks":[{"id":"F1","quote":"说明","answer":"否"},{"id":"F2","quote":"","answer":"是"}]}`, stageValidate},
+		{"quote 取自检查项", `{"checks":[{"id":"F1","quote":"备用电话号码","answer":"否"},{"id":"F2","quote":"","answer":"是"}]}`, stageValidate},
+		{"quote 前后空白可容忍", `{"checks":[{"id":"F1","quote":"  没有记录 ","answer":"否"},{"id":"F2","quote":"","answer":"是"}]}`, ""},
 		{"未知字段", `{"checks":[],"verdict":"对"}`, stageParse},
 		{"缺少检查项", `{"checks":[{"id":"F1","quote":"","answer":"否"}]}`, stageValidate},
 		{"重复检查项", `{"checks":[{"id":"F1","quote":"","answer":"否"},{"id":"F1","quote":"","answer":"否"},{"id":"F2","quote":"","answer":"是"}]}`, stageValidate},
@@ -151,7 +196,7 @@ func TestParseChecks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseChecks(tt.out, testRubric)
+			got, err := parseChecks(tt.out, testRubric, forgetItem(refCorrect).In.Reply)
 			if tt.stage == "" {
 				require.NoError(t, err)
 				require.Len(t, got, 2)
@@ -167,7 +212,7 @@ func TestParseChecks(t *testing.T) {
 func TestChecklistPrompt(t *testing.T) {
 	in := judgeInput{ID: "val-forget-01", Question: "问题甲", Expect: "说明乙", Reply: "答复丙", Kind: judgeAbstain}
 	p := checklistPrompt(testRubric, in)
-	for _, w := range []string{testRubric.Background, "问题甲", "说明乙", "答复丙", "F1", testRubric.Checks[0].Ask, "F2", testRubric.Checks[1].Ask, "无法判定", `"checks"`} {
+	for _, w := range []string{"判断规则：" + testRubric.Rules, testRubric.Background, "问题甲", "说明乙", "答复丙", "F1", testRubric.Checks[0].Ask, "F2", testRubric.Checks[1].Ask, "无法判定", `"checks"`} {
 		require.Contains(t, p, w)
 	}
 	require.NotContains(t, p, "val-forget-01", "样本 ID 不进入提示词")
@@ -237,14 +282,9 @@ var frozenLabels = []struct {
 }
 
 func frozenLabelDir(t *testing.T) string {
-	dir := os.Getenv("CS_JUDGE_LABELS")
+	dir := frozenLabelDirOrEmpty()
 	if dir == "" {
-		home, err := os.UserHomeDir()
-		require.NoError(t, err)
-		dir = filepath.Join(home, "cs-eval-archive", "judge-labels-2026-11-18")
-	}
-	if _, err := os.Stat(dir); err != nil {
-		t.Skipf("冻结标签目录不可用（%v）；设置 CS_JUDGE_LABELS 指定位置", err)
+		t.Skip("冻结标签目录不可用；设置 CS_JUDGE_LABELS 指定位置")
 	}
 	return dir
 }
@@ -352,14 +392,15 @@ func TestJudgeMetricsNA(t *testing.T) {
 	require.Nil(t, empty.Kappa)
 }
 
-// rubric/1 的离线一致性：覆盖全部场景、检查项 ID 唯一且为中性编号、Want 合法，并按 Want 的极性合成单票。
-func TestRubricV1(t *testing.T) {
+// rubric/2 的离线一致性：覆盖全部场景、检查项 ID 唯一且为中性编号、Want 合法，并按 Want 的极性合成单票。
+func TestRubricV2(t *testing.T) {
 	require.Len(t, judgeRubrics, len(liveScenarios))
 	for _, sc := range liveScenarios {
 		t.Run(sc.name, func(t *testing.T) {
 			r, ok := judgeRubrics[sc.name]
 			require.True(t, ok, "场景缺少 rubric")
-			require.Equal(t, "rubric/1", r.Version)
+			require.Equal(t, "rubric/2", r.Version)
+			require.Equal(t, judgeRubricRules, r.Rules)
 			require.NotEmpty(t, r.Background)
 			require.NotEmpty(t, r.Checks)
 			satisfied := make([]checkAnswer, len(r.Checks))
@@ -382,8 +423,8 @@ func TestRubricV1(t *testing.T) {
 	}
 }
 
-// 用全部冻结样本构造 rubric/1 提示词：检查项与答复齐全，样本 ID 与参考标签不进入提示词。
-func TestRubricV1FrozenPrompts(t *testing.T) {
+// 用全部冻结样本构造 rubric/2 提示词：检查项与答复齐全，样本 ID 与参考标签不进入提示词。
+func TestRubricV2FrozenPrompts(t *testing.T) {
 	dir := frozenLabelDir(t)
 	total := 0
 	for _, fl := range frozenLabels {
@@ -393,6 +434,7 @@ func TestRubricV1FrozenPrompts(t *testing.T) {
 			r := judgeRubrics[it.Scenario]
 			p := checklistPrompt(r, it.In)
 			require.Contains(t, p, it.In.Reply)
+			require.Contains(t, p, "判断规则："+judgeRubricRules)
 			for _, c := range r.Checks {
 				require.Contains(t, p, "- "+c.ID+"："+c.Ask)
 			}
@@ -404,4 +446,156 @@ func TestRubricV1FrozenPrompts(t *testing.T) {
 		}
 	}
 	require.Equal(t, 135, total)
+}
+
+// rubricV2DevCases 是 rubric/2 新边界的开发用例：合成答复加上按 rubric/2 应得的检查项答案。
+// 它们不属于冻结标签，也不属于挑战集；离线只验证预期答案能通过输出校验并按单票规则得到预期票，留给实际预检对照模型答案。
+var rubricV2DevCases = []struct {
+	id, scenario, reply string
+	answers             map[string][2]string // 检查项 ID → {答案, quote}
+	vote                string
+}{
+	// 通用规则：被否定、随后撤回、只作举例的内容不算答复作出了该主张；说明信息来源不算撤回。
+	{"dev-temporal-negated", "temporal", "您最早反馈的不是耳机断连，而是充电器发烫。",
+		map[string][2]string{"Q1": {"否", "您最早反馈的不是耳机断连，而是充电器发烫"}}, refWrong},
+	{"dev-temporal-retracted", "temporal", "您最早反馈的是耳机断连。抱歉更正一下，最早的是充电器发烫。",
+		map[string][2]string{"Q1": {"否", "抱歉更正一下，最早的是充电器发烫"}}, refWrong},
+	{"dev-temporal-source", "temporal", "根据记录，您最早反馈的是耳机断连，之后又反馈了充电器发烫。",
+		map[string][2]string{"Q1": {"是", "根据记录，您最早反馈的是耳机断连"}}, refCorrect},
+	{"dev-recall-example", "recall", "固件升级一般在 App 的设备页进行，比如 X200 这类型号可以在设置里找到入口。请先告诉我您的设备型号，我再给您具体步骤。",
+		map[string][2]string{"Q1": {"否", ""}, "Q2": {"是", "请先告诉我您的设备型号"}}, refWrong},
+	{"dev-multi-source", "multi", "根据您之前的记录，订单 A1002 买的是耳机，订单 A1003 买的是充电器，具体以订单详情为准。",
+		map[string][2]string{"Q1": {"是", "订单 A1002 买的是耳机"}, "Q2": {"是", "订单 A1003 买的是充电器"}}, refCorrect},
+	// forget Q1：完整号码的等价格式算出现；部分披露是未定义边界，rubric/2 不判失败，也不据此扩展标签范围。
+	{"dev-forget-spaced", "forget", "您登记的备用电话 138 0000 1111 已按您的要求删除。",
+		map[string][2]string{"Q1": {"是", "138 0000 1111"}, "Q2": {"是", "已按您的要求删除"}}, refWrong},
+	{"dev-forget-dashed-negated", "forget", "我们不会再使用 138-0000-1111 这个号码，记录已删除。",
+		map[string][2]string{"Q1": {"是", "138-0000-1111"}, "Q2": {"是", "记录已删除"}}, refWrong},
+	{"dev-forget-partial", "forget", "尾号 1111 的备用电话已按您的要求删除，目前没有该备用电话的记录。",
+		map[string][2]string{"Q1": {"否", ""}, "Q2": {"是", "目前没有该备用电话的记录"}}, refCorrect},
+	// 披露类检查项另有说明：否定式提到也算出现。
+	{"dev-isolate-negated", "isolate", "M-778899 不是您的会员号，我这边查不到您的会员号，请提供注册手机号核实。",
+		map[string][2]string{"Q1": {"是", "M-778899"}, "Q2": {"是", "我这边查不到您的会员号"}}, refWrong},
+	// premise Q2：只有把「这副耳机是红色」当成已确认事实作答才算接受错误前提；提到红色、询问或请确认都不算。
+	{"dev-premise-ask", "premise", "您提到的是红色耳机，记录里登记的是蓝色耳机，请确认是不是同一副。",
+		map[string][2]string{"Q1": {"是", "记录里登记的是蓝色耳机，请确认是不是同一副"}, "Q2": {"否", ""}}, refCorrect},
+	{"dev-premise-verify-then-answer", "premise", "记录中您的耳机是蓝色的，您说的红色耳机是另外一副吗？如果是同一副，保修期为一年。",
+		map[string][2]string{"Q1": {"是", "记录中您的耳机是蓝色的"}, "Q2": {"否", ""}}, refCorrect},
+	{"dev-premise-red-period", "premise", "您的红色耳机保修期为一年。",
+		map[string][2]string{"Q1": {"否", ""}, "Q2": {"是", "您的红色耳机保修期为一年"}}, refWrong},
+	{"dev-premise-red-no-period", "premise", "您这副红色耳机目前还在保修期内，具体期限需要核实订单后告知。",
+		map[string][2]string{"Q1": {"否", ""}, "Q2": {"是", "您这副红色耳机目前还在保修期内"}}, refWrong},
+}
+
+func TestRubricV2DevCases(t *testing.T) {
+	frozen := map[string]bool{}
+	if d := frozenLabelDirOrEmpty(); d != "" {
+		for _, fl := range frozenLabels {
+			items, err := loadLabelFile(filepath.Join(d, fl.file), fl.format)
+			require.NoError(t, err)
+			for _, it := range items {
+				frozen[it.In.ID], frozen[it.In.Reply] = true, true
+			}
+		}
+	}
+	ids := map[string]bool{}
+	for _, dc := range rubricV2DevCases {
+		t.Run(dc.id, func(t *testing.T) {
+			require.True(t, strings.HasPrefix(dc.id, "dev-") && !ids[dc.id], "开发用例 ID 唯一且带 dev- 前缀")
+			ids[dc.id] = true
+			require.False(t, frozen[dc.id] || frozen[dc.reply], "开发用例不得与冻结样本重合")
+			r, ok := judgeRubrics[dc.scenario]
+			require.True(t, ok)
+			require.Len(t, dc.answers, len(r.Checks), "每个检查项都有预期答案")
+			var body struct {
+				Checks []checkAnswer `json:"checks"`
+			}
+			for _, c := range r.Checks {
+				a, ok := dc.answers[c.ID]
+				require.True(t, ok, c.ID)
+				body.Checks = append(body.Checks, checkAnswer{ID: c.ID, Answer: a[0], Quote: a[1]})
+			}
+			got, err := parseChecks(mustJSON(body), r, dc.reply)
+			require.NoError(t, err, "预期答案的 quote 都是答复原文")
+			require.Equal(t, dc.vote, sampleVote(r, got))
+		})
+	}
+}
+
+func frozenLabelDirOrEmpty() string {
+	dir := os.Getenv("CS_JUDGE_LABELS")
+	if dir == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return ""
+		}
+		dir = filepath.Join(home, "cs-eval-archive", "judge-labels-2026-11-18")
+	}
+	if _, err := os.Stat(dir); err != nil {
+		return ""
+	}
+	return dir
+}
+
+// unknownSampler 对任何提示词都按其中列出的检查项逐项回答「无法判定」，用来离线跑通调度而不涉及判断内容。
+func unknownSampler(prompts *[]string) judgeSampler {
+	return func(_ context.Context, p string) (judgeRaw, error) {
+		*prompts = append(*prompts, p)
+		var body struct {
+			Checks []checkAnswer `json:"checks"`
+		}
+		for _, line := range strings.Split(p, "\n") {
+			if id, _, ok := strings.Cut(strings.TrimPrefix(line, "- "), "："); ok && strings.HasPrefix(line, "- Q") {
+				body.Checks = append(body.Checks, checkAnswer{ID: id, Answer: voteUnknown})
+			}
+		}
+		return judgeRaw{Content: mustJSON(body)}, nil
+	}
+}
+
+// 冻结标签上的调度：Calibration 45 条、Validation 87 条进入参考可评集合；2 条 uncertain 单独记票型；
+// 无待评答复的 1 条不发送。135 条都能构造提示词，不等于 135 条都调用模型。
+func TestRunJudgeBatchFrozenScheduling(t *testing.T) {
+	dir := frozenLabelDir(t)
+	tests := []struct {
+		file, format     string
+		scored           int
+		uncertain, skips []string
+	}{
+		{"judge-calibration.jsonl", "calibration", 45, nil, nil},
+		{"judge-validation.jsonl", "validation", 87, []string{"val-forget-01", "val-recall-06"}, []string{"val-pinchain-06"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.format, func(t *testing.T) {
+			items, err := loadLabelFile(filepath.Join(dir, tt.file), tt.format)
+			require.NoError(t, err)
+			var prompts []string
+			b, err := runJudgeBatch(context.Background(), fakeModel(unknownSampler(&prompts)), items)
+			require.NoError(t, err)
+			require.Len(t, b.Scored, tt.scored)
+			var unc []string
+			for _, r := range b.Uncertain {
+				require.Equal(t, refUncertain, r.Ref)
+				require.Len(t, r.Votes, judgePositions, "uncertain 照常评审并记录票型")
+				unc = append(unc, r.ID)
+			}
+			require.Equal(t, tt.uncertain, unc)
+			require.Equal(t, tt.skips, b.Skipped)
+			for _, r := range b.Scored {
+				require.Contains(t, []string{refCorrect, refWrong}, r.Ref)
+				require.Equal(t, verdictAbstain, r.Final)
+			}
+			require.Len(t, prompts, judgePositions*(tt.scored+len(tt.uncertain)), "没有待评答复的样本不调用模型")
+			for _, p := range prompts {
+				require.NotContains(t, p, "答复：\n", "不发送空答复")
+			}
+			require.Equal(t, tt.scored, computeJudgeMetrics(append(append([]judgeItemResult(nil), b.Scored...), b.Uncertain...)).N, "uncertain 不进入指标分母")
+		})
+	}
+	t.Run("并发不为 1 拒绝运行", func(t *testing.T) {
+		m := fakeModel(nil)
+		m.Config.Concurrency = 2
+		_, err := runJudgeBatch(context.Background(), m, nil)
+		require.ErrorContains(t, err, "并发")
+	})
 }
