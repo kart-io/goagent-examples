@@ -358,3 +358,33 @@ func TestGraphRedispatchWithoutReplyUsesMemberConclusion(t *testing.T) {
 	require.Equal(t, 1, e.refundCount("A1001"))
 	require.Contains(t, finalReply(snap.State), "已退款 3000 分")
 }
+
+// 分流没有长期记忆，复述通用成员的答复会删掉其中引用记忆得出的结论，所以通用成员的答复原样发给客户。
+func TestFinalReply(t *testing.T) {
+	finish := func(reply string) multiagent.Turn {
+		return multiagent.Turn{Agent: triageName, Output: `{"route":"FINISH","reply":"` + reply + `"}`}
+	}
+	route := func(r string) multiagent.Turn {
+		return multiagent.Turn{Agent: triageName, Output: `{"route":"` + r + `"}`}
+	}
+	cases := []struct {
+		name  string
+		turns []multiagent.Turn
+		want  string
+	}{
+		{"通用成员答复原样发出", []multiagent.Turn{route(generalName), {Agent: generalName, Output: "记录中您的耳机是蓝色的，保修期一年。"}, finish("耳机保修期一年。")},
+			"记录中您的耳机是蓝色的，保修期一年。"},
+		{"通用成员答复为空时用分流回复", []multiagent.Turn{route(generalName), {Agent: generalName}, finish("请补充问题细节。")},
+			"请补充问题细节。"},
+		{"退款成员输出 JSON，用分流回复", []multiagent.Turn{route(refundName), {Agent: refundName, Output: `{"action":"refund"}`}, finish("已退款 3000 分。")},
+			"已退款 3000 分。"},
+		{"再派按结束处理时用最近的成员结论", []multiagent.Turn{route(refundName), {Agent: refundName, Output: "退款结论"}, route(refundName)},
+			"退款结论"},
+		{"没有回复时用兜底话术", []multiagent.Turn{route(generalName)}, "您的问题已处理。"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, finalReply(Ticket{Turns: tc.turns}))
+		})
+	}
+}
