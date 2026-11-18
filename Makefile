@@ -6,7 +6,7 @@ CONTRIB ?=
 work:
 	test -f go.work || go work init . ../goagent
 ifeq ($(CONTRIB),)
-	go work edit -go=1.26.0
+	go work edit -go=1.27.0
 else
 	go work use $(CONTRIB)/durable/pgstore $(CONTRIB)/memory/qdrant
 	go work edit -go=1.27.0
