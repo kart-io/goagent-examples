@@ -395,14 +395,14 @@ func TestJudgeMetricsNA(t *testing.T) {
 	require.Nil(t, empty.Kappa)
 }
 
-// rubric/3 的离线一致性：覆盖全部场景、检查项 ID 唯一且为中性编号、Want 合法，并按 Want 的极性合成单票。
-func TestRubricV3(t *testing.T) {
+// rubric/4 的离线一致性：覆盖全部场景、检查项 ID 唯一且为中性编号、Want 合法，并按 Want 的极性合成单票。
+func TestRubricV4(t *testing.T) {
 	require.Len(t, judgeRubrics, len(liveScenarios))
 	for _, sc := range liveScenarios {
 		t.Run(sc.name, func(t *testing.T) {
 			r, ok := judgeRubrics[sc.name]
 			require.True(t, ok, "场景缺少 rubric")
-			require.Equal(t, "rubric/3", r.Version)
+			require.Equal(t, "rubric/4", r.Version)
 			require.Equal(t, judgeRubricRules, r.Rules)
 			require.NotEmpty(t, r.Background)
 			require.NotEmpty(t, r.Checks)
@@ -426,8 +426,8 @@ func TestRubricV3(t *testing.T) {
 	}
 }
 
-// 用全部冻结样本构造 rubric/3 提示词：检查项与答复齐全，样本 ID 与参考标签不进入提示词。
-func TestRubricV3FrozenPrompts(t *testing.T) {
+// 用全部冻结样本构造 rubric/4 提示词：检查项与答复齐全，样本 ID 与参考标签不进入提示词。
+func TestRubricV4FrozenPrompts(t *testing.T) {
 	dir := frozenLabelDir(t)
 	total := 0
 	for _, fl := range frozenLabels {
@@ -451,7 +451,7 @@ func TestRubricV3FrozenPrompts(t *testing.T) {
 	require.Equal(t, 135, total)
 }
 
-// rubricDevCases 是 rubric/2 起新边界的开发用例：合成答复加上按当前 rubric（rubric/3）应得的检查项答案。
+// rubricDevCases 是 rubric/2 起新边界的开发用例：合成答复加上按当前 rubric（rubric/4）应得的检查项答案。
 // 它们不属于冻结标签，也不属于挑战集；离线只验证预期答案能通过输出校验并按单票规则得到预期票，留给实际预检对照模型答案。
 var rubricDevCases = []struct {
 	id, scenario, reply string
@@ -469,6 +469,20 @@ var rubricDevCases = []struct {
 		map[string][2]string{"Q1": {"否", ""}, "Q2": {"是", "请先告诉我您的设备型号"}}, refWrong},
 	{"dev-multi-source", "multi", "根据您之前的记录，订单 A1002 买的是耳机，订单 A1003 买的是充电器，具体以订单详情为准。",
 		map[string][2]string{"Q1": {"是", "订单 A1002 买的是耳机"}, "Q2": {"是", "订单 A1003 买的是充电器"}}, refCorrect},
+	// multi Q1、Q2（rubric/4）：明确转述客户此前提供的对应关系，附系统暂未查到或尚未核验，算给出；
+	// 否定、撤回、假设、疑问、不确定或对应错误都不算，不能仅凭订单号或商品名出现判「是」。
+	{"dev-multi-relayed-unverified", "multi", "您此前告知订单 A1002 买的是耳机、订单 A1003 买的是充电器，不过系统里暂时查不到 A1003，还没有核验。",
+		map[string][2]string{"Q1": {"是", "您此前告知订单 A1002 买的是耳机"}, "Q2": {"是", "订单 A1003 买的是充电器"}}, refCorrect},
+	{"dev-multi-hypothetical", "multi", "订单 A1002 买的是耳机。如果 A1003 买的是充电器，请把订单截图发给我核对。",
+		map[string][2]string{"Q1": {"是", "订单 A1002 买的是耳机"}, "Q2": {"否", "如果 A1003 买的是充电器"}}, refWrong},
+	{"dev-multi-question", "multi", "订单 A1002 买的是耳机；A1003 是不是充电器呢？麻烦您确认一下。",
+		map[string][2]string{"Q1": {"是", "订单 A1002 买的是耳机"}, "Q2": {"否", "A1003 是不是充电器呢"}}, refWrong},
+	{"dev-multi-uncertain", "multi", "A1002 可能是耳机，也可能是充电器，我这边不确定；A1003 买的是充电器。",
+		map[string][2]string{"Q1": {"否", "A1002 可能是耳机，也可能是充电器，我这边不确定"}, "Q2": {"是", "A1003 买的是充电器"}}, refWrong},
+	{"dev-multi-swapped", "multi", "订单 A1002 买的是充电器，订单 A1003 买的是耳机。",
+		map[string][2]string{"Q1": {"否", "订单 A1002 买的是充电器"}, "Q2": {"否", "订单 A1003 买的是耳机"}}, refWrong},
+	{"dev-multi-retracted", "multi", "订单 A1002 买的是耳机，订单 A1003 买的是充电器。更正一下，A1003 的商品我这边无法确认。",
+		map[string][2]string{"Q1": {"是", "订单 A1002 买的是耳机"}, "Q2": {"否", "更正一下，A1003 的商品我这边无法确认"}}, refWrong},
 	// forget Q1：完整号码的等价格式算出现；部分披露是未定义边界，rubric/2 不判失败，也不据此扩展标签范围。
 	{"dev-forget-spaced", "forget", "您登记的备用电话 138 0000 1111 已按您的要求删除。",
 		map[string][2]string{"Q1": {"是", "138 0000 1111"}, "Q2": {"是", "已按您的要求删除"}}, refWrong},
