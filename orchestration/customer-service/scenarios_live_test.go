@@ -243,6 +243,10 @@ func TestLiveMemoryScenarios(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	budget, err := generationBudgetFromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
 	out, err := scenarioOutDir()
 	if err != nil {
 		t.Fatal(err)
@@ -253,7 +257,7 @@ func TestLiveMemoryScenarios(t *testing.T) {
 	}
 	defer f.Close()
 	sink := &scenarioSink{f: f}
-	t.Logf("场景输出目录：%s", out)
+	t.Logf("场景输出目录：%s；HTTP 上限 %d，截止 %s", out, budget.limit, budget.deadline.Format(time.RFC3339))
 
 	t.Run("group", func(t *testing.T) {
 		for _, sc := range scenarios {
@@ -261,7 +265,7 @@ func TestLiveMemoryScenarios(t *testing.T) {
 				t.Parallel()
 				for r := 1; r <= repeats; r++ {
 					t.Run(fmt.Sprintf("r%02d", r), func(t *testing.T) {
-						runScenario(t, sc, r, filepath.Join(out, fmt.Sprintf("%s-%02d", sc.name, r)), pg, qd, judge, sink)
+						runScenario(t, sc, r, filepath.Join(out, fmt.Sprintf("%s-%02d", sc.name, r)), pg, qd, judge, budget, sink)
 					})
 				}
 			})
@@ -273,13 +277,30 @@ func TestLiveMemoryScenarios(t *testing.T) {
 		t.Error(err)
 	}
 	t.Log("\n" + md)
+	acct := accountGeneration(budget, sink.results)
+	if b, err := json.MarshalIndent(acct, "", "  "); err != nil || os.WriteFile(filepath.Join(out, "generation.json"), b, 0o644) != nil {
+		t.Errorf("写入 generation.json 失败")
+	}
+	if acct.Exhausted {
+		t.Errorf("生成预算用完：%d 次重复受影响，%d 次请求被拒；请决定是否续跑", acct.BudgetHit, acct.HTTPRefused)
+	}
 }
 
 // runScenario 跑一次重复；中途出错记为 infra 并写入结果，不终止测试。
-func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, judge *livemodel.Client, sink *scenarioSink) {
+func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, judgeBase *livemodel.Client, budget *generationBudget, sink *scenarioSink) {
 	start := time.Now()
 	res := scenarioResult{Scenario: sc.name, Repeat: repeat, Question: sc.question, Expect: sc.expect, Invariant: sc.invariant}
+	if budget.exhausted() {
+		res.Budget = "未开始：生成预算已用完"
+		if err := sink.add(res); err != nil {
+			t.Errorf("写入结果：%v", err)
+		}
+		return
+	}
 	var client *livemodel.Client
+	var sutCap *cappedClient
+	judgeCap := &cappedClient{ToolStreamClient: judgeBase.ToolStreamClient, budget: budget}
+	judge := livemodel.Wrap(judgeCap, judgeBase.Live)
 	stage, done := "open", false
 	defer func() {
 		// newHostEnvAt 打开失败会 Goexit，此时也要留下一条结果。
@@ -288,6 +309,10 @@ func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, 
 		}
 		if client != nil {
 			res.ModelCalls = client.Calls()
+		}
+		res.JudgeCalls = judge.Calls()
+		if sutCap != nil && sutCap.refused.Load() > 0 {
+			res.Budget = fmt.Sprintf("运行中被测请求被预算拒绝 %d 次", sutCap.refused.Load())
 		}
 		res.Seconds = time.Since(start).Seconds()
 		if err := sink.add(res); err != nil {
@@ -300,11 +325,14 @@ func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, 
 	}
 
 	var err error
-	// 每次重复单独创建被测客户端，并行场景之间不混算调用次数。
-	if client, err = livemodel.FromEnv(); err != nil {
+	// 每次重复单独创建被测客户端，并行场景之间不混算调用次数；所有请求先经过全局预算。
+	base, err := livemodel.FromEnv()
+	if err != nil {
 		infra("client", err)
 		return
 	}
+	sutCap = &cappedClient{ToolStreamClient: base.ToolStreamClient, budget: budget}
+	client = livemodel.Wrap(sutCap, base.Live)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		infra("open", err)
 		return
@@ -441,15 +469,16 @@ func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, 
 		done = true
 		return
 	}
+	// 旧评审失败只记在 JudgeInfra，答复照常保留。
+	done = true
 	resp, err := llm.Complete(ctx, judge, &llm.CompletionRequest{Messages: []llm.Message{llm.UserMessage(judgePrompt(sc.kind, sc.question, sc.expect, res.Reply))}})
 	if err != nil {
-		infra(stage, err)
+		res.JudgeInfra = livemodel.Redact(err.Error())
 		return
 	}
 	if res.JudgeOK, res.JudgeReason, err = parseVerdict(resp.Content); err != nil {
-		res.Infra = "judge: " + livemodel.Redact(err.Error()) + "；原始输出：" + truncateRunes(livemodel.Redact(resp.Content), 200)
+		res.JudgeInfra = livemodel.Redact(err.Error()) + "；原始输出：" + truncateRunes(livemodel.Redact(resp.Content), 200)
 	}
-	done = true
 }
 
 // supersedeWalk 是从 start 沿 SupersededBy 走出的链；broken 非空表示链断开（成环或后继不存在），属于不变量违反。

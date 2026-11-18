@@ -96,8 +96,13 @@ type scenarioResult struct {
 	JudgeOK     bool             `json:"judge_ok"`
 	JudgeReason string           `json:"judge_reason"`
 	Infra       string           `json:"infra"`
-	ModelCalls  int64            `json:"model_calls"`
-	Seconds     float64          `json:"seconds"`
+	// JudgeInfra 是旧评审自身的失败，与被测系统的 Infra 分开；它不影响答复是否保留。
+	JudgeInfra string `json:"judge_infra,omitempty"`
+	// Budget 非空表示这次重复因生成预算未开始，或运行中有被测请求被预算拒绝。
+	Budget     string  `json:"budget,omitempty"`
+	ModelCalls int64   `json:"model_calls"`
+	JudgeCalls int64   `json:"judge_calls"`
+	Seconds    float64 `json:"seconds"`
 }
 
 type scenarioRow struct {
@@ -127,7 +132,7 @@ func summarizeScenarios(rs []scenarioResult) []scenarioRow {
 			row = &scenarioRow{Scenario: r.Scenario}
 			byName[r.Scenario] = row
 		}
-		if r.Infra != "" {
+		if r.Infra != "" || r.JudgeInfra != "" || r.Budget != "" {
 			row.Infra++
 			continue
 		}
