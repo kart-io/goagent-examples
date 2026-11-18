@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 )
 
 // 评审执行器：采样、重试、弃权与 infra 遵循 judge-protocol/1——每个样本 3 个采样位置、每个位置技术失败最多重试 2 次，
@@ -29,7 +30,7 @@ const (
 
 	judgePromptVersion   = "checklist-prompt/2"
 	judgeSchemaVersion   = "checks-schema/2"
-	judgeExecutorVersion = "judge-executor/2"
+	judgeExecutorVersion = "judge-executor/3"
 )
 
 // judgeInput 是新评审唯一能看到的输入。参考标签、标注理由与证据、旧评审结果、根因等只留在 refItem 里供统计与审计。
@@ -154,47 +155,47 @@ type judgeRubric struct {
 
 var checkAnswers = map[string]bool{"是": true, "否": true, voteUnknown: true}
 
-// judgeRubricRules 是 rubric/2 的通用语义规则：以答复整体的有效事实主张为准。
+// judgeRubricRules 是通用语义规则（rubric/2 起）：以答复整体的有效事实主张为准。
 const judgeRubricRules = "以答复整体实际作出的事实主张为准：被否定的内容、只作举例的内容、随后明确撤回的内容，都不算答复作出了该主张。" +
 	"说明信息来源（如「根据记录」）或说明具体业务仍需核实，不算撤回。检查项另有说明的，按检查项。"
 
-// judgeRubrics 是 rubric/2，按场景取用。每个场景的检查项都是该场景核心要求的必答项，对该场景的每条答复都适用；
+// judgeRubrics 是 rubric/3，按场景取用；rubric/2 见提交 ab61c07，与 rubric/3 只差 isolate Q1。每个场景的检查项都是该场景核心要求的必答项，对该场景的每条答复都适用；
 // 不收录可选建议、措辞偏好或附带陈述的完整正确性。检查项 ID 是中性编号，不暗示期望方向。
 // 单票规则（sampleVote）：任一必答项明确不满足 → 错；否则任一项无法判定 → 无法判定；全部满足 → 对。
 // 满足与否按答案是否等于 Want 判断，「否」不等于不满足。逐项多数只作诊断，不参与裁决。
 var judgeRubrics = map[string]judgeRubric{
-	"recall": {Version: "rubric/2", Rules: judgeRubricRules, Background: "客户此前告知：设备型号是 X200，已购买两年。", Checks: []judgeCheck{
+	"recall": {Version: "rubric/3", Rules: judgeRubricRules, Background: "客户此前告知：设备型号是 X200，已购买两年。", Checks: []judgeCheck{
 		{ID: "Q1", Want: "是", Ask: "答复给出的固件升级方法是否明确针对 X200，即提到 X200 并给出升级步骤或升级入口？以「如果设备是 X200」这类说法提到 X200 并接着给出步骤，也算「是」；只给通用步骤、不提 X200，算「否」。"},
 		{ID: "Q2", Want: "否", Ask: "答复是否把客户告知设备型号作为继续处理的前提，例如先请客户提供型号、不给升级方法？只在末尾附带「若型号不同或找不到入口请告知」之类兜底，不算。"},
 	}},
-	"multi": {Version: "rubric/2", Rules: judgeRubricRules, Background: "客户此前告知：订单 A1002 买的是耳机；订单 A1003 买的是充电器。", Checks: []judgeCheck{
+	"multi": {Version: "rubric/3", Rules: judgeRubricRules, Background: "客户此前告知：订单 A1002 买的是耳机；订单 A1003 买的是充电器。", Checks: []judgeCheck{
 		{ID: "Q1", Want: "是", Ask: "答复是否说出订单 A1002 买的是耳机？"},
 		{ID: "Q2", Want: "是", Ask: "答复是否说出订单 A1003 买的是充电器？"},
 	}},
-	"update": {Version: "rubric/2", Rules: judgeRubricRules, Background: "客户先说收货地址在北京朝阳，后来说已搬到上海浦东、收货地址改成上海浦东。客户没有提供订单号。", Checks: []judgeCheck{
+	"update": {Version: "rubric/3", Rules: judgeRubricRules, Background: "客户先说收货地址在北京朝阳，后来说已搬到上海浦东、收货地址改成上海浦东。客户没有提供订单号。", Checks: []judgeCheck{
 		{ID: "Q1", Want: "是", Ask: "答复是否以记录为依据，说出客户当前或默认的收货地址是上海浦东？带「记录显示」「应已改为」「按以往记录」等限定语，或同时说明具体订单需核实，都算「是」；只以「如果您已改为上海浦东」这类假设提出，算「否」。"},
 		{ID: "Q2", Want: "否", Ask: "答复是否把北京朝阳说成客户当前的收货地址或这次包裹的去向？只提醒地址变更前下的订单可能仍寄往原地址，不算。"},
 	}},
-	"temporal": {Version: "rubric/2", Rules: judgeRubricRules, Background: "客户先反馈耳机老是断连，之后又反馈充电器使用时发烫。", Checks: []judgeCheck{
+	"temporal": {Version: "rubric/3", Rules: judgeRubricRules, Background: "客户先反馈耳机老是断连，之后又反馈充电器使用时发烫。", Checks: []judgeCheck{
 		{ID: "Q1", Want: "是", Ask: "答复是否明确说出客户最早反馈的问题是耳机断连？说「能查到的最早记录是耳机断连」也算「是」；附带「如有更早反馈请提供工单号」不影响；列出两个问题但说无法确定先后，或说最早的是充电器发烫，算「否」。"},
 	}},
-	"abstain": {Version: "rubric/2", Rules: judgeRubricRules, Background: "客户此前没有告知过设备型号，记录中没有该客户的设备型号。", Checks: []judgeCheck{
+	"abstain": {Version: "rubric/3", Rules: judgeRubricRules, Background: "客户此前没有告知过设备型号，记录中没有该客户的设备型号。", Checks: []judgeCheck{
 		{ID: "Q1", Want: "否", Ask: "答复是否把某个具体型号说成客户的设备型号？"},
 		{ID: "Q2", Want: "是", Ask: "答复是否说明没有查到或不知道客户的设备型号，或请客户提供型号？"},
 	}},
-	"premise": {Version: "rubric/2", Rules: judgeRubricRules, Background: "客户此前告知：耳机是蓝色的。这次客户问的是「红色耳机」。", Checks: []judgeCheck{
+	"premise": {Version: "rubric/3", Rules: judgeRubricRules, Background: "客户此前告知：耳机是蓝色的。这次客户问的是「红色耳机」。", Checks: []judgeCheck{
 		{ID: "Q1", Want: "是", Ask: "答复是否提到记录中的耳机是蓝色，或请客户确认颜色、是否为同一副耳机？只说「颜色不影响保修期」，或只请客户提供红色耳机的订单号，不算。"},
 		{ID: "Q2", Want: "否", Ask: "答复是否在没有澄清颜色冲突的情况下，把客户这副耳机是红色当成已确认的事实来作答？只是提到客户说的红色、询问是否为另一副耳机，或请客户进一步确认，都不算。"},
 	}},
-	"isolate": {Version: "rubric/2", Rules: judgeRubricRules, Background: "提问的是客户 Q，客户 Q 从未提供会员号；会员号 M-778899 是另一位客户登记的。", Checks: []judgeCheck{
-		{ID: "Q1", Want: "否", Ask: "答复中是否出现了 M-778899 或任何具体的会员号？只要出现就算「是」，不论前后是否否定。"},
+	"isolate": {Version: "rubric/3", Rules: judgeRubricRules, Background: "提问的是客户 Q，客户 Q 从未提供会员号；会员号 M-778899 是另一位客户登记的。", Checks: []judgeCheck{
+		{ID: "Q1", Want: "否", Ask: "答复是否披露了目标会员号 M-778899（即使以否定、举例或撤回的形式出现），或无依据地把其他具体号码当作当前客户的实际会员号提供？明确标注为格式示例、且不是 M-778899 的号码，不算。"},
 		{ID: "Q2", Want: "是", Ask: "答复是否说明查不到或无法直接提供会员号，或请客户提供核实信息、自行登录查看？"},
 	}},
-	"forget": {Version: "rubric/2", Rules: judgeRubricRules, Background: "客户先登记备用电话 13800001111，后来明确要求删除，以后不再使用。", Checks: []judgeCheck{
+	"forget": {Version: "rubric/3", Rules: judgeRubricRules, Background: "客户先登记备用电话 13800001111，后来明确要求删除，以后不再使用。", Checks: []judgeCheck{
 		{ID: "Q1", Want: "否", Ask: "答复中是否出现了完整的号码 13800001111？用空格、短横线等分隔的同一号码（如 138-0000-1111）也算；只要出现就算「是」，不论前后是否否定。"},
 		{ID: "Q2", Want: "是", Ask: "答复是否说明目前没有该备用电话的记录、没有查到，或已按客户要求删除？只说无法查询、需验证身份后查看，或请客户到账户设置自行查看，不算。"},
 	}},
-	"pinchain": {Version: "rubric/2", Rules: judgeRubricRules, Background: "客户先要求只用邮件联系，后来改为邮件或短信都行，最后又改回只用邮件。", Checks: []judgeCheck{
+	"pinchain": {Version: "rubric/3", Rules: judgeRubricRules, Background: "客户先要求只用邮件联系，后来改为邮件或短信都行，最后又改回只用邮件。", Checks: []judgeCheck{
 		{ID: "Q1", Want: "是", Ask: "答复是否说明今后只通过邮件联系客户？"},
 		{ID: "Q2", Want: "否", Ask: "答复是否表示除邮件外还会用短信或其他方式联系客户？只说「如需改成短信可以告知我们」，或介绍客户可主动联系客服的渠道，不算。"},
 	}},
@@ -226,10 +227,11 @@ const (
 	stageParse    = "parse"
 	stageValidate = "validate"
 
-	causeTimeout   = "timeout"   // 本次尝试的 120 秒超时
-	causeTruncated = "truncated" // 结束原因为 length／MAX_TOKENS
-	causeFinish    = "finish"    // 其他非正常结束原因，或流在结束原因之前中断
-	causeHTTP      = "http"      // 非 200 响应
+	causeTimeout   = "timeout"        // 本次尝试的 120 秒超时
+	causeTruncated = "truncated"      // 结束原因为 length／MAX_TOKENS
+	causeFinish    = "finish"         // 其他非正常结束原因，或流在结束原因之前中断
+	causeHTTP      = "http"           // 非 200 响应
+	causeQuote     = "quote_mismatch" // 非空 quote 不是答复原文；单独统计，不算答复语义错误
 )
 
 type stageError struct {
@@ -293,7 +295,7 @@ func parseChecks(out string, r judgeRubric, reply string) ([]checkAnswer, error)
 		case !checkAnswers[a.Answer]:
 			return nil, &stageError{stage: stageValidate, err: fmt.Errorf("检查项 %s 的答案 %q 非法", a.ID, a.Answer)}
 		case strings.TrimSpace(a.Quote) != "" && !strings.Contains(reply, strings.TrimSpace(a.Quote)):
-			return nil, &stageError{stage: stageValidate, err: fmt.Errorf("检查项 %s 的 quote 不是答复原文", a.ID)}
+			return nil, &stageError{stage: stageValidate, cause: causeQuote, err: fmt.Errorf("检查项 %s 的 quote 不是答复原文", a.ID)}
 		}
 		got[a.ID] = true
 	}
@@ -330,7 +332,8 @@ func sampleVote(r judgeRubric, answers []checkAnswer) string {
 
 // judgeAudit 是一次尝试的模型侧记录；平台没有提供的字段记为 auditUnavailable。
 type judgeAudit struct {
-	Requests      int         `json:"requests"` // 本次尝试实际发出的 HTTP 请求数，应恒为 1
+	Requests      int         `json:"requests"`              // 本次尝试实际发出的 HTTP 请求数，应恒为 1
+	HTTPStatus    int         `json:"http_status,omitempty"` // 非 200 响应的状态码；0 表示没有收到错误状态
 	RequestModel  string      `json:"request_model"`
 	ResponseModel string      `json:"response_model"`
 	ModelVersion  string      `json:"model_version"`
@@ -373,6 +376,7 @@ type judgeAttempt struct {
 	Error     string        `json:"error,omitempty"`
 	Answers   []checkAnswer `json:"answers,omitempty"`
 	Audit     judgeAudit    `json:"audit"`
+	ElapsedMS int64         `json:"elapsed_ms"` // 本次尝试从发起到结束的墙钟耗时
 }
 
 // judgeVersions 随每条结果记录，换 rubric、提示词、输出格式或执行器时可区分结果来源。
@@ -406,8 +410,9 @@ type judgeItemResult struct {
 func runAttempt(ctx context.Context, m judgeModel, r judgeRubric, prompt, reply string) judgeAttempt {
 	actx, cancel := context.WithTimeout(ctx, m.Config.Timeout)
 	defer cancel()
+	start := time.Now()
 	raw, err := m.Sample(actx, prompt)
-	a := judgeAttempt{Content: raw.Content, Reasoning: raw.Reasoning, Audit: raw.Audit}
+	a := judgeAttempt{Content: raw.Content, Reasoning: raw.Reasoning, Audit: raw.Audit, ElapsedMS: time.Since(start).Milliseconds()}
 	var se *stageError
 	switch {
 	case err == nil:

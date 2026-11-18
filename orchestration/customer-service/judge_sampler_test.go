@@ -214,6 +214,7 @@ func deepSeekSampler(cfg judgeModelConfig, baseURL, apiKey string, client *http.
 		}
 		defer resp.Body.Close()
 		if resp.StatusCode != http.StatusOK {
+			raw.Audit.HTTPStatus = resp.StatusCode
 			msg, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 			return raw, &stageError{stage: stageCall, cause: causeHTTP, err: fmt.Errorf("HTTP %d：%s", resp.StatusCode, redact(string(msg), apiKey))}
 		}
@@ -312,6 +313,7 @@ func geminiSampler(cfg judgeModelConfig, baseURL, apiKey string, client *http.Cl
 				raw.Content, raw.Reasoning = content.String(), reasoning.String()
 				var apiErr genai.APIError
 				if errors.As(err, &apiErr) {
+					raw.Audit.HTTPStatus = apiErr.Code
 					return raw, &stageError{stage: stageCall, cause: causeHTTP, err: fmt.Errorf("HTTP %d：%s", apiErr.Code, redact(apiErr.Message, apiKey))}
 				}
 				return raw, errors.New(redact(err.Error(), apiKey))

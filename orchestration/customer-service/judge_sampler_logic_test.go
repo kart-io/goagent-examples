@@ -374,24 +374,23 @@ func TestJudgeSamplerAbnormalEnd(t *testing.T) {
 	}
 	for _, p := range providerFixtures {
 		t.Run(p.name, func(t *testing.T) {
-			tests := []struct {
-				name  string
-				step  http.HandlerFunc
-				cause string
-			}{
-				{"503", status(http.StatusServiceUnavailable), causeHTTP},
-				{"429", status(http.StatusTooManyRequests), causeHTTP},
-				{"内容过滤", p.stream("", []string{forgetPassJSON}, p.filtered), causeFinish},
-				{"缺少结束原因", p.stream("", []string{forgetPassJSON}, ""), causeFinish},
+			type abnormal struct {
+				name   string
+				step   http.HandlerFunc
+				cause  string
+				status int
+			}
+			tests := []abnormal{
+				{"503", status(http.StatusServiceUnavailable), causeHTTP, http.StatusServiceUnavailable},
+				{"429", status(http.StatusTooManyRequests), causeHTTP, http.StatusTooManyRequests},
+				{"401", status(http.StatusUnauthorized), causeHTTP, http.StatusUnauthorized},
+				{"内容过滤", p.stream("", []string{forgetPassJSON}, p.filtered), causeFinish, 0},
+				{"缺少结束原因", p.stream("", []string{forgetPassJSON}, ""), causeFinish, 0},
 			}
 			if p.name == "deepseek" {
-				tests = append(tests, struct {
-					name  string
-					step  http.HandlerFunc
-					cause string
-				}{"流在 DONE 之前结束", func(w http.ResponseWriter, _ *http.Request) {
+				tests = append(tests, abnormal{"流在 DONE 之前结束", func(w http.ResponseWriter, _ *http.Request) {
 					writeSSE(w, mustJSON(map[string]any{"choices": []any{map[string]any{"delta": map[string]any{"content": forgetPassJSON}, "finish_reason": "stop"}}}))
-				}, causeFinish})
+				}, causeFinish, 0})
 			}
 			for _, tt := range tests {
 				t.Run(tt.name, func(t *testing.T) {
@@ -404,6 +403,7 @@ func TestJudgeSamplerAbnormalEnd(t *testing.T) {
 					requireAuditMatchesServer(t, res, f)
 					for _, a := range res.Attempts {
 						require.Equal(t, tt.cause, a.Cause, a.Error)
+						require.Equal(t, tt.status, a.Audit.HTTPStatus)
 						require.NotContains(t, a.Error, testJudgeKey, "错误信息不含密钥")
 					}
 				})
@@ -440,6 +440,7 @@ func TestJudgeSamplerAttemptTimeout(t *testing.T) {
 			a := res.Attempts[0]
 			require.Equal(t, [2]string{stageCall, causeTimeout}, [2]string{a.Stage, a.Cause})
 			require.Equal(t, `{"checks":[`, a.Content)
+			require.GreaterOrEqual(t, a.ElapsedMS, int64(300), "记录本次尝试耗时")
 			require.Len(t, entries, 4)
 			for i, e := range entries {
 				require.NoError(t, e.err, "第 %d 次尝试开始时 context 未过期", i+1)
