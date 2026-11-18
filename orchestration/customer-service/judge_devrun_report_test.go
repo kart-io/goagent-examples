@@ -52,7 +52,7 @@ func fmtPoint(p *float64) string {
 
 // attemptStats 是一组尝试的技术统计。
 type attemptStats struct {
-	Attempts, Requests, Retries, Truncated, Timeout, QuoteMismatch int
+	Attempts, Requests, Retries, Truncated, Timeout, QuoteMismatch, BoldQuotes int
 	ElapsedMS                                                      []int64
 	Prompt, Output, Reasoning, ReasoningReported, UsageMissing     int
 	Finish                                                         map[string]int
@@ -75,6 +75,11 @@ func collectStats(recs []runRecord) attemptStats {
 				s.Timeout++
 			case causeQuote:
 				s.QuoteMismatch++
+			}
+			for _, q := range a.Quotes {
+				if q.Method == quoteBold {
+					s.BoldQuotes++
+				}
 			}
 			s.ElapsedMS = append(s.ElapsedMS, a.ElapsedMS)
 			s.Finish[a.Audit.FinishReason]++
@@ -203,13 +208,13 @@ func buildDevRunReport(sum runSummary, recs []runRecord, items map[string]refIte
 		}
 	}
 
-	b.WriteString("\n## 4. 技术统计（按模型、数据集）\n\n| 模型 | 数据集 | 尝试 | HTTP | 重试 | 截断 | 超时 | quote_mismatch | 耗时 ms（中位/最大/合计） | usage 输入/输出/思考 | 思考 token 已报告 | usage 缺失 |\n|---|---|---|---|---|---|---|---|---|---|---|---|\n")
+	b.WriteString("\n## 4. 技术统计（按模型、数据集）\n\n| 模型 | 数据集 | 尝试 | HTTP | 重试 | 截断 | 超时 | quote_mismatch | 加粗容忍匹配的引文 | 耗时 ms（中位/最大/合计） | usage 输入/输出/思考 | 思考 token 已报告 | usage 缺失 |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
 	var audits strings.Builder
 	for _, model := range models {
 		for _, ds := range []string{"calibration", "validation"} {
 			s := collectStats(byKey[ds+"|"+model])
 			if s.Attempts == 0 {
-				fmt.Fprintf(&b, "| %s | %s | 0 | 0 | | | | | | | | |\n", model, ds)
+				fmt.Fprintf(&b, "| %s | %s | 0 | 0 | | | | | | | | | |\n", model, ds)
 				continue
 			}
 			ms := slices.Clone(s.ElapsedMS)
@@ -218,7 +223,7 @@ func buildDevRunReport(sum runSummary, recs []runRecord, items map[string]refIte
 			for _, v := range ms {
 				total += v
 			}
-			fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %d | %d | %d | %d / %d / %d | %d / %d / %d | %d/%d | %d |\n", model, ds, s.Attempts, s.Requests, s.Retries, s.Truncated, s.Timeout, s.QuoteMismatch,
+			fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %d | %d | %d | %d | %d / %d / %d | %d / %d / %d | %d/%d | %d |\n", model, ds, s.Attempts, s.Requests, s.Retries, s.Truncated, s.Timeout, s.QuoteMismatch, s.BoldQuotes,
 				ms[len(ms)/2], ms[len(ms)-1], total, s.Prompt, s.Output, s.Reasoning, s.ReasoningReported, s.Attempts, s.UsageMissing)
 		}
 		s := collectStats(append(append([]runRecord(nil), byKey["calibration|"+model]...), byKey["validation|"+model]...))
@@ -347,6 +352,7 @@ func TestBuildDevRunReport(t *testing.T) {
 		{Dataset: "validation", Group: "scored", Model: "b", Result: res("split", refCorrect, verdictAbstain)},
 		{Dataset: "validation", Group: "uncertain", Model: "a", Result: res("unc", refUncertain, refWrong)},
 	}
+	recs[2].Result.Attempts[0].Quotes = []quoteMatch{{ID: "F1", Method: quoteBold}}
 	sum := runSummary{Status: runComplete, Models: []runModelSummary{{Name: "a"}, {Name: "b"}}}
 	out := buildDevRunReport(sum, recs, items)
 	section := func(title string) string {
@@ -364,6 +370,7 @@ func TestBuildDevRunReport(t *testing.T) {
 		{"不一致案例含两模型漏判与弃权，不含一致样本", "## 5.", []string{"validation / miss：a 判 对（参考 错）", "validation / miss", "validation / split", "引文-miss"}, []string{"validation / same", "unc"}},
 		{"模型分歧只列判定不同的样本", "## 6.", []string{"validation / split"}, []string{"validation / miss", "validation / same"}},
 		{"uncertain 单列且不进入语义指标", "## 3.", []string{"unc / a"}, []string{"split"}},
+		{"技术统计计入加粗容忍匹配的引文", "## 4.", []string{"| a | validation | 4 | 0 | 0 | 0 | 0 | 0 | 1 |", "| b | validation | 3 | 0 | 0 | 0 | 0 | 0 | 0 |"}, nil},
 		{"Validation 指标分母只含参考可评样本", "### validation / a", []string{"N = 3", "TP=0", "FN=1", "TN=2"}, nil},
 	}
 	for _, c := range cases {
