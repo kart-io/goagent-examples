@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/stretchr/testify/require"
 

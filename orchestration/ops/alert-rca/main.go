@@ -5,10 +5,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/ops/internal/opscase"
@@ -185,7 +186,7 @@ func main() {
 		os.Exit(1)
 	}
 	out, err := Run(context.Background(), client, *dir)
-	data, _ := json.MarshalIndent(out, "", "  ")
+	data, _ := json.Marshal(out, json.Indent("  "))
 	fmt.Println(string(data))
 	fmt.Println("期望根因：" + ExpectedRootCause)
 	if err != nil {

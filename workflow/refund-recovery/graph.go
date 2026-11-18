@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"time"
 
+	"github.com/kart-io/goagent/codec/json"
 	"github.com/kart-io/goagent/constants"
 	"github.com/kart-io/goagent/core/durable"
 	agentErrors "github.com/kart-io/goagent/errors"
@@ -154,7 +154,7 @@ func runGraphCLI(ctx context.Context, store durable.Store, ledger *refundLedger,
 	} else if err != nil {
 		return err
 	}
-	return json.NewEncoder(output).Encode(struct {
+	return json.Encode(output, struct {
 		Status   string                               `json:"status"`
 		Snapshot *workflow.GraphSnapshot[refundState] `json:"snapshot"`
 	}{status, snapshot})

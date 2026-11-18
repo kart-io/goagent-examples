@@ -1,9 +1,10 @@
 package opscase
 
 import (
-	"encoding/json"
 	"regexp"
 	"strings"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/llm"
 )

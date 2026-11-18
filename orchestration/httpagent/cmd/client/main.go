@@ -3,7 +3,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"flag"
 	"log"
 	"net/http"
@@ -22,7 +23,7 @@ func main() {
 	if *kind == "all" {
 		kinds = []string{"invoke", "sse", "ws", "webhook", "ws-cancel"}
 	}
-	encoder := json.NewEncoder(os.Stdout)
+	encoder := jsontext.NewEncoder(os.Stdout)
 	for _, name := range kinds {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		result, err := scenarios.Run(ctx, http.DefaultClient, *base, name, *input)
@@ -30,7 +31,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("%s: %v", name, err)
 		}
-		if err = encoder.Encode(result); err != nil {
+		if err = json.MarshalEncode(encoder, result, json.Deterministic(true)); err != nil {
 			log.Fatal(err)
 		}
 	}

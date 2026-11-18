@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,7 +31,7 @@ func writeAcceptThresholds(set, dir string) ([]byte, error) {
 			return nil, err
 		}
 	}
-	b, err := json.MarshalIndent(th, "", "  ")
+	b, err := json.Marshal(th, json.Indent("  "))
 	if err != nil {
 		return nil, err
 	}

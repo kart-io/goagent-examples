@@ -5,7 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -48,7 +48,7 @@ func Run(ctx context.Context, client *http.Client, base, kind, input string) (Re
 	default:
 		return result, fmt.Errorf("unknown case %q", kind)
 	}
-	body, err := json.Marshal(payload)
+	body, err := json.Marshal(payload, json.Deterministic(true))
 	if err != nil {
 		return result, err
 	}
@@ -76,7 +76,7 @@ func Run(ctx context.Context, client *http.Client, base, kind, input string) (Re
 		RunID  string            `json:"run_id"`
 		Output *httpagent.Output `json:"output"`
 	}
-	if err = json.NewDecoder(io.LimitReader(resp.Body, 4<<20)).Decode(&envelope); err != nil {
+	if err = json.UnmarshalRead(io.LimitReader(resp.Body, 4<<20), &envelope); err != nil {
 		return result, err
 	}
 	if envelope.RunID == "" || envelope.Output == nil {

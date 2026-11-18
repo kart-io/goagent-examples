@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"math"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/google/uuid"
 	"github.com/kart-io/goagent-examples/internal/livemodel"
@@ -238,7 +239,7 @@ func main() {
 		os.Exit(1)
 	}
 	out, err := Run(context.Background(), client, *dir)
-	data, _ := json.MarshalIndent(out, "", "  ")
+	data, _ := json.Marshal(out, json.Indent("  "))
 	fmt.Println(string(data))
 	fmt.Printf("期望含税总价：%.2f 元\n", Expected)
 	if err != nil {

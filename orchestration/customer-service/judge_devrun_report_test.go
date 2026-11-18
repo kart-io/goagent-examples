@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,10 +53,10 @@ func fmtPoint(p *float64) string {
 // attemptStats 是一组尝试的技术统计。
 type attemptStats struct {
 	Attempts, Requests, Retries, Truncated, Timeout, QuoteMismatch, BoldQuotes int
-	ElapsedMS                                                      []int64
-	Prompt, Output, Reasoning, ReasoningReported, UsageMissing     int
-	Finish                                                         map[string]int
-	ResponseModels, Versions, Fingerprints                         map[string]int
+	ElapsedMS                                                                  []int64
+	Prompt, Output, Reasoning, ReasoningReported, UsageMissing                 int
+	Finish                                                                     map[string]int
+	ResponseModels, Versions, Fingerprints                                     map[string]int
 }
 
 func collectStats(recs []runRecord) attemptStats {

@@ -4,12 +4,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"sync/atomic"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/google/uuid"
 	"github.com/kart-io/goagent-examples/internal/livemodel"
@@ -198,7 +199,7 @@ func main() {
 		os.Exit(1)
 	}
 	out, err := Run(context.Background(), client, *dir, *ticket)
-	data, _ := json.MarshalIndent(out, "", "  ")
+	data, _ := json.Marshal(out, json.Indent("  "))
 	fmt.Println(string(data))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, livemodel.Redact(err.Error()))

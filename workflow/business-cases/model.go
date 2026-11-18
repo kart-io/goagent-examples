@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/interfaces"
@@ -38,7 +39,7 @@ type modelEvidence struct {
 	Model         string                 `json:"model"`
 	PromptVersion string                 `json:"prompt_version"`
 	DurationMS    int64                  `json:"duration_ms"`
-	Usage         *interfaces.TokenUsage `json:"usage,omitempty"`
+	Usage         *interfaces.TokenUsage `json:"usage,omitzero"`
 }
 
 type modelJudge struct {
@@ -179,16 +180,14 @@ func decodeDecision(scenario, text string) (modelDecision, error) {
 		Source   *string `json:"source"`
 	}
 	d := json.NewDecoder(strings.NewReader(text))
-	d.DisallowUnknownFields()
-	if err := d.Decode(&wire); err != nil {
+	if err := json.DecodeNext(d, &wire, json.Strict); err != nil {
 		return decision, fmt.Errorf("invalid model decision JSON")
 	}
 	if wire.Decision == nil || wire.Reason == nil || wire.Source == nil {
 		return decision, fmt.Errorf("model decision requires three strings")
 	}
 	decision = modelDecision{Decision: *wire.Decision, Reason: *wire.Reason, Source: *wire.Source}
-	var extra any
-	if d.Decode(&extra) != io.EOF {
+	if _, err := d.ReadValue(); err != io.EOF {
 		return decision, fmt.Errorf("model returned trailing data")
 	}
 	allowed := map[string]map[string]bool{

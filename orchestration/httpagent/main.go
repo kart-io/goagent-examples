@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"embed"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -214,7 +214,7 @@ func (*demoModel) CompleteToolsStream(ctx context.Context, r *llm.CompletionRequ
 		}
 		if toolResult == "" {
 			name := "echo_input"
-			args, _ := json.Marshal(map[string]string{"text": user})
+			args, _ := json.Marshal(map[string]string{"text": user}, json.Deterministic(true))
 			if strings.Contains(user, "慢任务") || strings.Contains(user, "slow") {
 				name = "wait_operation"
 				args = []byte(`{}`)

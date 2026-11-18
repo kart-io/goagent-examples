@@ -1,15 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
@@ -90,15 +89,13 @@ func (g *askGate) anyTimedOut() bool { g.mu.Lock(); defer g.mu.Unlock(); return 
 // askAnswer 是追问的回应：客户回复 {"answer": "..."}，超时 {"timeout": true}。
 type askAnswer struct {
 	Answer  string `json:"answer,omitempty"`
-	Timeout bool   `json:"timeout,omitempty"`
+	Timeout bool   `json:"timeout,omitzero"`
 }
 
 // validateAsk 是纯函数：格式不对时保持等待。
 func validateAsk(raw json.RawMessage) error {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
 	var a askAnswer
-	if err := dec.Decode(&a); err != nil || (a.Answer == "") == !a.Timeout {
+	if err := json.Unmarshal(raw, &a, json.Strict); err != nil || (a.Answer == "") == !a.Timeout {
 		return errors.New("追问回应应为 {answer} 或 {timeout: true}")
 	}
 	return nil
@@ -147,10 +144,8 @@ type reviewInput struct {
 
 // validateReview 是纯函数：格式错误、批准却没有审核人或以系统主体批准时保持等待。
 func validateReview(raw json.RawMessage) error {
-	dec := json.NewDecoder(bytes.NewReader(raw))
-	dec.DisallowUnknownFields()
 	var in reviewInput
-	if err := dec.Decode(&in); err != nil || (in.Reason != "" && in.Reason != "timeout") || (in.Approved && in.Reason != "") {
+	if err := json.Unmarshal(raw, &in, json.Strict); err != nil || (in.Reason != "" && in.Reason != "timeout") || (in.Approved && in.Reason != "") {
 		return errors.New("审核输入应为 {approved, note, approver} 或超时输入")
 	}
 	if in.Approved && (in.Approver == "" || in.Approver == systemActor) {
@@ -184,12 +179,10 @@ func modelJSON(text string) string {
 	return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(parts[1]), "json"))
 }
 
-// parseProposal 是对已回放模型输出的纯函数，重入时结果相同；内容严格校验，不接受未知字段或尾随内容。
+// parseProposal 是对已回放模型输出的纯函数，重入时结果相同；内容严格校验，不接受未知字段或尾随内容（v2 的 Unmarshal 拒绝尾随内容）。
 func parseProposal(text string) (proposal, bool) {
-	dec := json.NewDecoder(strings.NewReader(modelJSON(text)))
-	dec.DisallowUnknownFields()
 	var p proposal
-	if err := dec.Decode(&p); err != nil || dec.Decode(&struct{}{}) != io.EOF || (p.Action != "refund" && p.Action != "no_refund") {
+	if err := json.Unmarshal([]byte(modelJSON(text)), &p, json.Strict); err != nil || (p.Action != "refund" && p.Action != "no_refund") {
 		return proposal{}, false
 	}
 	return p, true

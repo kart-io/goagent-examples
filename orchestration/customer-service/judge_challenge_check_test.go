@@ -2,12 +2,13 @@ package main
 
 import (
 	"bufio"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/stretchr/testify/require"
 )
@@ -42,9 +43,7 @@ func readJSONL[T any](path string) ([]T, error) {
 			continue
 		}
 		var v T
-		dec := json.NewDecoder(strings.NewReader(sc.Text()))
-		dec.DisallowUnknownFields()
-		if err := dec.Decode(&v); err != nil {
+		if err := json.Unmarshal(sc.Bytes(), &v, json.Strict); err != nil {
 			return nil, fmt.Errorf("%s 第 %d 行：%w", filepath.Base(path), n, err)
 		}
 		out = append(out, v)

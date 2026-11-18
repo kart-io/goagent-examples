@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"maps"
@@ -16,6 +15,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/google/uuid"
 	"github.com/kart-io/goagent-examples/internal/livemodel"
@@ -104,9 +105,9 @@ func Guard(w Workload, action string, rule, p Plan) (problems []string) {
 // Item 是一个工作负载的最终结论：Screen/Verdict 为空表示没有有效的初筛或深评。
 type Item struct {
 	ID, Rule               string
-	RulePlan               *Plan `json:",omitempty"`
+	RulePlan               *Plan `json:",omitzero"`
 	Screen, Verdict, Final string
-	Plan                   *Plan `json:",omitempty"`
+	Plan                   *Plan `json:",omitzero"`
 	Reasons                []string
 }
 
@@ -353,7 +354,7 @@ func main() {
 		os.Exit(1)
 	}
 	out, err := Run(context.Background(), client, *dir)
-	data, _ := json.MarshalIndent(out, "", "  ")
+	data, _ := json.Marshal(out, json.Indent("  "))
 	fmt.Println(string(data))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, livemodel.Redact(err.Error()))

@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,6 +13,8 @@ import (
 	"os"
 	"os/signal"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
@@ -43,11 +44,11 @@ const usage = `用法：customer-service <message|answer|sweep|show|memory|serve
 type printer struct{ w io.Writer }
 
 func (p printer) Notify(_ context.Context, to support.User, m support.Message) error {
-	return json.NewEncoder(p.w).Encode(map[string]string{"event": "notify", "to": to.ID, "kind": string(m.Kind), "key": m.IdempotencyKey, "title": m.Title, "body": m.Body})
+	return json.Encode(p.w, map[string]string{"event": "notify", "to": to.ID, "kind": string(m.Kind), "key": m.IdempotencyKey, "title": m.Title, "body": m.Body})
 }
 
 func (p printer) Transfer(_ context.Context, key string, h support.HandoffContext) error {
-	return json.NewEncoder(p.w).Encode(map[string]any{"event": "handoff", "key": key, "context": h})
+	return json.Encode(p.w, map[string]any{"event": "handoff", "key": key, "context": h})
 }
 
 // demoDirectory 是演示组织架构：客服 agent-1 的上级为 lead-1，财务审核组为 fin-1、fin-2。
@@ -184,9 +185,7 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	return json.Encode(w, out, json.Indent("  "))
 }
 
 // serve 在 addr 上提供测试页面，直到 ctx 结束。关闭顺序固定：先停 HTTP 服务，
@@ -201,7 +200,7 @@ func serve(ctx context.Context, h *Host, addr string, w io.Writer) error {
 	errc := make(chan error, 1)
 	go func() { errc <- srv.Serve(ln) }()
 	base := "http://" + ln.Addr().String()
-	if err := json.NewEncoder(w).Encode(map[string]string{"event": "serve", "customer": base + "/customer", "desk": base + "/desk"}); err != nil {
+	if err := json.Encode(w, map[string]string{"event": "serve", "customer": base + "/customer", "desk": base + "/desk"}); err != nil {
 		_ = srv.Close()
 		ws.Close(0)
 		return err

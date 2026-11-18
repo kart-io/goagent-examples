@@ -11,7 +11,7 @@ import (
 )
 
 type replyState struct {
-	ModelReview *modelEvidence `json:"model_review,omitempty"`
+	ModelReview *modelEvidence `json:"model_review,omitzero"`
 	MessageID   string         `json:"message_id"`
 	Recipient   string         `json:"recipient"`
 	Message     string         `json:"message"`

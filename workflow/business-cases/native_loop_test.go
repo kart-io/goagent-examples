@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/core"
 	"github.com/kart-io/goagent/core/durable"
@@ -207,7 +208,7 @@ func TestNativeToolLoopProcessRecovery(t *testing.T) {
 			Messages []llm.Message     `json:"messages"`
 			Tools    []json.RawMessage `json:"tools"`
 		}
-		if json.NewDecoder(r.Body).Decode(&req) != nil {
+		if json.Decode(r.Body, &req) != nil {
 			http.Error(w, "bad request", 400)
 			return
 		}
@@ -231,7 +232,7 @@ func TestNativeToolLoopProcessRecovery(t *testing.T) {
 		if len(receipts) != 2 || reasoning != "opaque-continuation" {
 			t.Error("lost tool results or provider continuation")
 		}
-		_ = json.NewEncoder(w).Encode(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": strings.Join(receipts, " ")}, "finish_reason": "stop"}}, "usage": map[string]int{"total_tokens": 7}})
+		_ = json.Encode(w, map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": strings.Join(receipts, " ")}, "finish_reason": "stop"}}, "usage": map[string]int{"total_tokens": 7}})
 	}))
 	defer server.Close()
 	report := &nativeLoopReport{}
@@ -252,7 +253,7 @@ func TestLiveNativeToolLoop(t *testing.T) {
 	report := &nativeLoopReport{Provider: provider, Model: model, Limitations: "One synthetic native function-calling case. Real process exit after second local effect, before tool result checkpoint. External business effects are simulated. MiniMax is buffered final-only. Missing provider usage cannot be reconstructed."}
 	defer func() {
 		report.Passed = !t.Failed()
-		data, err := json.MarshalIndent(report, "", "  ")
+		data, err := json.Marshal(report, json.Indent("  "))
 		require.NoError(t, err)
 		_, err = file.Write(append(data, '\n'))
 		require.NoError(t, err)

@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 )
@@ -84,9 +85,7 @@ func execute(ctx context.Context, args []string, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	enc := json.NewEncoder(w)
-	enc.SetIndent("", "  ")
-	return enc.Encode(out)
+	return json.Encode(w, out, json.Indent("  "))
 }
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

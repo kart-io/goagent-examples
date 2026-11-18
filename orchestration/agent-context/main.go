@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 )
@@ -56,9 +57,7 @@ func main() {
 	if err != nil {
 		safe.ExecutionStatus = "failed"
 	}
-	encoder := json.NewEncoder(os.Stdout)
-	encoder.SetIndent("", "  ")
-	_ = encoder.Encode(safe)
+	_ = json.Encode(os.Stdout, safe, json.Indent("  "))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, livemodel.Redact(err.Error()))
 		os.Exit(1)

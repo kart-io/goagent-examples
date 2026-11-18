@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/workflow"
@@ -18,7 +19,7 @@ import (
 type liveObservation struct {
 	Outcome              string         `json:"outcome"`
 	Receipt              string         `json:"receipt,omitempty"`
-	Evidence             *modelEvidence `json:"model_review,omitempty"`
+	Evidence             *modelEvidence `json:"model_review,omitzero"`
 	ApprovalRequired     bool           `json:"approval_required"`
 	RepeatUnchanged      bool           `json:"repeat_unchanged"`
 	RecoveredAfterEffect bool           `json:"recovered_after_effect"`
@@ -142,13 +143,13 @@ func TestLiveBusinessCases(t *testing.T) {
 		}
 	}
 	defer func() {
-		data, err := json.MarshalIndent(map[string]any{
+		data, err := json.Marshal(map[string]any{
 			"provider": provider, "model": model, "live_model": true, "business_effects_simulated": true,
 			"prompt_version": modelPromptVersion, "timestamp": time.Now().UTC(), "maximum_upstream_requests": 6,
 			"max_output_tokens_per_request": modelMaxTokens, "timeout_seconds": int(modelTimeout.Seconds()), "automatic_retries": 0,
 			"transport": transport,
 			"results":   results, "limitations": "Six synthetic cases, one sample each. Model Complete decisions route through native graph and Dispatcher; no model function-calling protocol or real external business actions are exercised. Failed requests may have unreported usage.",
-		}, "", "  ")
+		}, json.Indent("  "))
 		require.NoError(t, err)
 		_, err = f.WriteString(redactModelError(string(data)) + "\n")
 		require.NoError(t, err)

@@ -4,12 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
 	"github.com/kart-io/goagent/core/durable"
@@ -46,7 +47,7 @@ type registration struct {
 // execution 是执行操作的结果。OrderChanged 为真表示审核期间订单事实变化，需重新申请。
 type execution struct {
 	Receipt      string `json:"receipt,omitempty"`
-	OrderChanged bool   `json:"order_changed,omitempty"`
+	OrderChanged bool   `json:"order_changed,omitzero"`
 }
 
 type reviewKeyContext struct{}

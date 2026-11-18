@@ -3,9 +3,10 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/builder/contextpolicy"
 	"github.com/kart-io/goagent/core/durable"

@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -18,6 +17,8 @@ import (
 	"strings"
 	"sync"
 	"unicode"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/tools"
@@ -116,14 +117,13 @@ func (l *Ledger) Wrap(tool interfaces.Tool) interfaces.Tool {
 		}
 		// ref 最后写入，工具结果自带的同名字段不能改掉账本编号。
 		result["ref"] = l.ref(in)
-		// 以字符串交给模型，Builder 对字符串原样传入；自行编码时同样不能把 <、>、& 转义成 \u003c 之类，模型才能原样摘录。
-		var buf bytes.Buffer
-		enc := json.NewEncoder(&buf)
-		enc.SetEscapeHTML(false)
-		if err := enc.Encode(result); err != nil {
+		// 以字符串交给模型，Builder 对字符串原样传入；不能把 <、>、& 转义成 \u003c 之类，模型才能原样摘录。
+		// map 键按序输出，render 依赖这一顺序。
+		data, err := json.Marshal(result, json.NoEscapeHTML)
+		if err != nil {
 			return nil, err
 		}
-		return &interfaces.ToolOutput{Success: true, Result: strings.TrimSpace(buf.String())}, nil
+		return &interfaces.ToolOutput{Success: true, Result: string(data)}, nil
 	})
 }
 
@@ -151,9 +151,8 @@ func (l *Ledger) OnResult(_ context.Context, r tools.DispatchResult) error {
 		return fmt.Errorf("工具 %s 的结果不是账本编码的文本", r.Name)
 	}
 	e := entry{key: r.ExecutionKey, keys: map[string]bool{}}
-	dec := json.NewDecoder(strings.NewReader(text))
-	dec.UseNumber() // 数字保留原文，2400000 不会变成 2.4e+06
-	body, err := render(dec, "", true, &e)
+	// 逐 token 读取，数字保留原文，2400000 不会变成 2.4e+06
+	body, err := render(json.NewDecoder(strings.NewReader(text)), "", true, &e)
 	if err != nil {
 		return err
 	}
@@ -194,19 +193,19 @@ func (l *Ledger) Restore(ref string, excerpts []string) {
 
 // render 按模型看到的 JSON 原样顺序展开结果（结构体按字段顺序、map 按键名排序），顶层 ref 记为引用号，不计入内容。
 func render(dec *json.Decoder, key string, top bool, e *entry) (string, error) {
-	tok, err := dec.Token()
+	tok, err := dec.ReadToken()
 	if err != nil {
 		return "", err
 	}
 	var parts []string
-	switch tok {
-	case json.Delim('{'):
-		for dec.More() {
-			k, err := dec.Token()
+	switch tok.Kind() {
+	case '{':
+		for dec.PeekKind() != '}' {
+			k, err := dec.ReadToken()
 			if err != nil {
 				return "", err
 			}
-			name := k.(string)
+			name := k.String()
 			if top && name == "ref" {
 				if e.ref, err = render(dec, name, false, &entry{keys: map[string]bool{}}); err != nil {
 					return "", err
@@ -220,8 +219,8 @@ func render(dec *json.Decoder, key string, top bool, e *entry) (string, error) {
 			e.keys[name] = true
 			parts = append(parts, name+": "+value)
 		}
-	case json.Delim('['):
-		for dec.More() {
+	case '[':
+		for dec.PeekKind() != ']' {
 			value, err := render(dec, key, false, e)
 			if err != nil {
 				return "", err
@@ -229,14 +228,11 @@ func render(dec *json.Decoder, key string, top bool, e *entry) (string, error) {
 			parts = append(parts, value)
 		}
 	default:
-		value := fmt.Sprint(tok)
-		if tok == nil {
-			value = "null"
-		}
+		value := tok.String() // 字符串为反转义后的值，数字、布尔与 null 为原文
 		e.leaves = append(e.leaves, leaf{key, value})
 		return value, nil
 	}
-	_, err = dec.Token() // 结束的 } 或 ]
+	_, err = dec.ReadToken() // 结束的 } 或 ]
 	return strings.Join(parts, " "), err
 }
 
@@ -507,26 +503,26 @@ func StrictJSON(text string, v any) error {
 	if !strings.HasPrefix(text, "{") {
 		return errors.New("输出必须是一个 JSON 对象")
 	}
+	// 允许重复键读入，由 exactKeys 以明确的字段名报告重复
 	dec := json.NewDecoder(strings.NewReader(text))
-	var raw json.RawMessage
-	if err := dec.Decode(&raw); err != nil {
+	raw, err := dec.ReadValue()
+	if err != nil {
 		return fmt.Errorf("输出不是合法 JSON 对象：%w", err)
 	}
+	raw = slices.Clone(raw)
 	if strings.TrimSpace(text[dec.InputOffset():]) != "" {
 		return errors.New("JSON 对象之后还有多余内容")
 	}
 	if err := exactKeys(raw, reflect.TypeOf(v)); err != nil {
 		return err
 	}
-	strict := json.NewDecoder(bytes.NewReader(raw))
-	strict.DisallowUnknownFields()
-	if err := strict.Decode(v); err != nil {
+	if err := json.Unmarshal(raw, v, json.Strict); err != nil {
 		return fmt.Errorf("输出不是合法 JSON 对象：%w", err)
 	}
 	return nil
 }
 
-// exactKeys 按目标类型递归检查对象字段：encoding/json 默认大小写不敏感、重复键取最后一个，这里都拒绝。
+// exactKeys 按目标类型递归检查对象字段，对重复与未知字段给出带字段名的错误。
 func exactKeys(raw json.RawMessage, t reflect.Type) error {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
@@ -546,16 +542,16 @@ func exactKeys(raw json.RawMessage, t reflect.Type) error {
 			fields[name] = f.Type
 		}
 		dec := json.NewDecoder(bytes.NewReader(raw))
-		if tok, err := dec.Token(); err != nil || tok != json.Delim('{') {
+		if tok, err := dec.ReadToken(); err != nil || tok.Kind() != '{' {
 			return nil // 类型不符交给解码报错
 		}
 		seen := map[string]bool{}
-		for dec.More() {
-			tok, err := dec.Token()
+		for dec.PeekKind() != '}' {
+			tok, err := dec.ReadToken()
 			if err != nil {
 				return err
 			}
-			key := tok.(string)
+			key := tok.String()
 			ft, ok := fields[key]
 			switch {
 			case seen[key]:
@@ -564,8 +560,8 @@ func exactKeys(raw json.RawMessage, t reflect.Type) error {
 				return fmt.Errorf("未知字段 %q", key)
 			}
 			seen[key] = true
-			var val json.RawMessage
-			if err := dec.Decode(&val); err != nil {
+			val, err := dec.ReadValue()
+			if err != nil {
 				return err
 			}
 			if err := exactKeys(val, ft); err != nil {

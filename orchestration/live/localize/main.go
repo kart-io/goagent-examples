@@ -7,7 +7,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -15,6 +14,8 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
@@ -258,7 +259,7 @@ func main() {
 		os.Exit(1)
 	}
 	out, err := Run(context.Background(), client, *dir, DefaultGlossary, Hooks{})
-	data, _ := json.MarshalIndent(out, "", "  ")
+	data, _ := json.Marshal(out, json.Indent("  "))
 	fmt.Println(string(data))
 	if missing := MissingPhrases(out.English); len(missing) > 0 {
 		fmt.Println("宿主检查：终稿缺少", missing)

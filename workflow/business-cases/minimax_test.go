@@ -3,13 +3,14 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/llm"
 	"github.com/stretchr/testify/require"
@@ -50,7 +51,7 @@ func TestMiniMaxCLIProtocolAndReplay(t *testing.T) {
 			return
 		}
 		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if err := json.Decode(r.Body, &body); err != nil {
 			http.Error(w, "invalid JSON", 400)
 			return
 		}

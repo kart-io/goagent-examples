@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"net"
 	"os"
 	"strings"
@@ -11,6 +10,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kart-io/goagent/codec/json"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,9 +22,9 @@ func cli(t *testing.T, args ...string) (map[string]any, []map[string]any, error)
 	err := execute(context.Background(), args, &out)
 	dec := json.NewDecoder(&out)
 	var docs []map[string]any
-	for dec.More() {
+	for dec.PeekKind() != 0 { // 0 表示输入结束
 		var v map[string]any
-		require.NoError(t, dec.Decode(&v))
+		require.NoError(t, json.DecodeNext(dec, &v))
 		docs = append(docs, v)
 	}
 	if len(docs) == 0 {
@@ -171,4 +172,18 @@ func TestCLIMemoryShow(t *testing.T) {
 		_, _, err := cli(t, append([]string{"memory", "-dir", dir, "-customer", customer, "-id", oldID, "-q", "邮件"}, mem...)...)
 		require.EqualError(t, err, "memory 的 -id 与 -q 只能二选一")
 	})
+}
+
+// 通知与转人工逐行输出，每行恰好一个 JSON 对象，便于按行消费（与命令结果分开）。
+func TestCLIEventsOnePerLine(t *testing.T) {
+	t.Setenv("FEISHU_APP_ID", "")
+	var out bytes.Buffer
+	err := execute(context.Background(), []string{"message", "-dir", t.TempDir(), "-now", "2026-11-05T08:00:00Z", "-id", "m1", "-customer", "c-1001", "-text", "订单 A1002 申请退款 800 元"}, &out)
+	require.NoError(t, err)
+	lines := strings.Split(out.String(), "\n")
+	for _, line := range lines[:3] {
+		var v map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &v), "每条通知独占一行：%q", line)
+		require.Equal(t, "notify", v["event"])
+	}
 }

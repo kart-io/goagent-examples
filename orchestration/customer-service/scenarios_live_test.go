@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -278,7 +278,7 @@ func TestLiveMemoryScenarios(t *testing.T) {
 	}
 	t.Log("\n" + md)
 	acct := accountGeneration(budget, sink.results)
-	if b, err := json.MarshalIndent(acct, "", "  "); err != nil || os.WriteFile(filepath.Join(out, "generation.json"), b, 0o644) != nil {
+	if b, err := json.Marshal(acct, json.Indent("  ")); err != nil || os.WriteFile(filepath.Join(out, "generation.json"), b, 0o644) != nil {
 		t.Errorf("写入 generation.json 失败")
 	}
 	if acct.Exhausted {

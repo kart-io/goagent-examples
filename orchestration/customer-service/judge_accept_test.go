@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -629,7 +629,7 @@ func runAcceptance(ctx context.Context, set, dataDir, runDir string, code map[st
 		return acceptReport{}, err
 	}
 	rep := evaluateAcceptance(in, sum, recs)
-	jb, err := json.MarshalIndent(rep, "", "  ")
+	jb, err := json.Marshal(rep, json.Indent("  "))
 	if err != nil {
 		return rep, err
 	}

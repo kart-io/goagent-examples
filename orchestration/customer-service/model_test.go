@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"fmt"
 	"strings"
 	"testing"

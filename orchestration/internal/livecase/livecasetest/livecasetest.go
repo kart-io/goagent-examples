@@ -2,12 +2,13 @@
 package livecasetest
 
 import (
-	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
 )

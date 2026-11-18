@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -180,6 +180,6 @@ func TestJudgeDevRun(t *testing.T) {
 	defer stop()
 	sum, err := runJudgePhases(ctx, dir, buildDevRunManifest(code, frozen, phases, skipped, models), phases, models, devRunPlan.Budget, true)
 	require.NoError(t, err)
-	b, _ := json.MarshalIndent(sum.Models, "", "  ")
+	b, _ := json.Marshal(sum.Models, json.Indent("  "))
 	t.Logf("开发评审状态 %s，摘要见 %s\n%.4000s", sum.Status, filepath.Join(dir, "summary.json"), b)
 }

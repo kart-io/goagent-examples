@@ -2,7 +2,6 @@ package feishu
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +9,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/stretchr/testify/require"
 
@@ -32,10 +33,12 @@ func (f *fakeOpen) handler(t *testing.T) http.Handler {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		var body map[string]any
-		_ = json.NewDecoder(r.Body).Decode(&body)
+		_ = json.Decode(r.Body, &body)
 		f.requests = append(f.requests, r)
 		f.bodies = append(f.bodies, body)
-		reply := func(v any) { require.NoError(t, json.NewEncoder(w).Encode(v)) }
+		reply := func(v any) {
+			require.NoError(t, json.Encode(w, v))
+		}
 		if r.URL.Path == "/open-apis/auth/v3/tenant_access_token/internal" {
 			f.tokens++
 			require.Equal(t, "app", body["app_id"])

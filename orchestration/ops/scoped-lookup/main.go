@@ -7,7 +7,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -16,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/google/uuid"
 	"github.com/kart-io/goagent-examples/internal/livemodel"
@@ -213,7 +214,9 @@ func (l *lookups) record(s *Lookup, t interfaces.Tool) interfaces.Tool {
 			return out, err
 		}
 		if text, ok := out.Result.(string); ok {
-			var head struct{ Ref string }
+			var head struct {
+				Ref string `json:"ref"`
+			}
 			_ = json.Unmarshal([]byte(text), &head)
 			l.mu.Lock()
 			s.Refs = append(s.Refs, head.Ref)
@@ -405,7 +408,7 @@ func main() {
 		os.Exit(1)
 	}
 	out, err := Run(context.Background(), client, *dir)
-	data, _ := json.MarshalIndent(out, "", "  ")
+	data, _ := json.Marshal(out, json.Indent("  "))
 	fmt.Println(string(data))
 	fmt.Println("期望结论：" + ExpectedDownstream + " / " + ExpectedOperation)
 	if err != nil {

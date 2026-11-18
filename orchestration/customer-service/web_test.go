@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"net/http"
 	"net/http/httptest"
 	"net/url"

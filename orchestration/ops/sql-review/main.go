@@ -8,7 +8,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -18,6 +17,8 @@ import (
 	"slices"
 	"strings"
 	"sync/atomic"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/ops/internal/opscase"
@@ -230,7 +231,7 @@ type Review struct {
 	Hash        string           `json:"hash"`
 	Checks      []StatementCheck `json:"checks"`
 	RuleVerdict string           `json:"rule_verdict"`
-	Verdict     *Verdict         `json:"verdict,omitempty"`
+	Verdict     *Verdict         `json:"verdict,omitzero"`
 	ModelError  string           `json:"model_error,omitempty"`
 	Status      string           `json:"status"`
 	Receipt     string           `json:"receipt,omitempty"`
@@ -252,9 +253,7 @@ func build(ctx context.Context, client *livemodel.Client, store durable.Store, a
 		}
 		// 这是交给模型的输入文本而非工具结果，框架对工具结果不转义的修复不覆盖这里；不转义 <、>，模型看到的 SQL 与工单原文一致。
 		var input strings.Builder
-		enc := json.NewEncoder(&input)
-		enc.SetEscapeHTML(false)
-		_ = enc.Encode(map[string]any{"ticket": r.Ticket, "rule_verdict": r.RuleVerdict, "checks": r.Checks})
+		_ = json.Encode(&input, map[string]any{"ticket": r.Ticket, "rule_verdict": r.RuleVerdict, "checks": r.Checks}, json.NoEscapeHTML)
 		// Tickets retain independent graph/durable keys, while all model calls
 		// belong to the host's batch budget and observation root.
 		modelCtx := ctx
@@ -478,7 +477,7 @@ func main() {
 	} else {
 		out, err = Run(context.Background(), client, *dir)
 	}
-	data, _ := json.MarshalIndent(out, "", "  ")
+	data, _ := json.Marshal(out, json.Indent("  "))
 	fmt.Println(string(data))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, livemodel.Redact(err.Error()))

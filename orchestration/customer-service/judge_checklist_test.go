@@ -3,13 +3,14 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"strings"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 )
 
 // 评审执行器：采样、重试、弃权与 infra 遵循 judge-protocol/1——每个样本 3 个采样位置、每个位置技术失败最多重试 2 次，
@@ -273,16 +274,11 @@ func parseChecks(out string, r judgeRubric, reply string) ([]checkAnswer, []quot
 	if strings.TrimSpace(out) == "" {
 		return nil, nil, &stageError{stage: stageEmpty, err: errors.New("评审输出为空")}
 	}
-	dec := json.NewDecoder(strings.NewReader(judgeJSON(out)))
-	dec.DisallowUnknownFields()
 	var body struct {
 		Checks []checkAnswer `json:"checks"`
 	}
-	if err := dec.Decode(&body); err != nil {
+	if err := json.Unmarshal([]byte(judgeJSON(out)), &body, json.Strict); err != nil {
 		return nil, nil, &stageError{stage: stageParse, err: err}
-	}
-	if dec.Decode(&struct{}{}) != io.EOF {
-		return nil, nil, &stageError{stage: stageParse, err: errors.New("JSON 之后还有多余内容")}
 	}
 	want := map[string]bool{}
 	for _, c := range r.Checks {

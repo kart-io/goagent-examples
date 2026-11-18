@@ -1,11 +1,11 @@
 package support
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+
+	"github.com/kart-io/goagent/codec/json"
 )
 
 // ErrNoApprover 表示解析结果为空且没有可用的兜底审核人；宿主告警运营并在下次扫描时重试。
@@ -53,9 +53,7 @@ func ParseApproverConfig(data []byte) (ApproverConfig, error) {
 	var doc struct {
 		Approvers *ApproverConfig `json:"approvers"`
 	}
-	dec := json.NewDecoder(bytes.NewReader(data))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&doc); err != nil {
+	if err := json.Unmarshal(data, &doc, json.Strict); err != nil {
 		return ApproverConfig{}, fmt.Errorf("解析审核人配置: %w", err)
 	}
 	if doc.Approvers == nil {

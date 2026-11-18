@@ -2,7 +2,8 @@
 package main
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"flag"
 	"io"
@@ -40,7 +41,7 @@ func newReceiver(output io.Writer) http.Handler {
 			return
 		}
 		mu.Lock()
-		err = json.NewEncoder(output).Encode(event)
+		err = json.MarshalEncode(jsontext.NewEncoder(output), event, json.Deterministic(true))
 		mu.Unlock()
 		if err != nil {
 			http.Error(w, "cannot record event", http.StatusInternalServerError)

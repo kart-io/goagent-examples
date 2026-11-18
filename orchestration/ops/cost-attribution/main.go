@@ -6,7 +6,6 @@ package main
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"maps"
@@ -15,6 +14,8 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/ops/internal/opscase"
@@ -438,7 +439,7 @@ func main() {
 		os.Exit(1)
 	}
 	out, err := Run(context.Background(), client, *dir)
-	data, _ := json.MarshalIndent(out, "", "  ")
+	data, _ := json.Marshal(out, json.Indent("  "))
 	fmt.Println(string(data))
 	fmt.Println("期望结论：" + ExpectedDecision)
 	if err != nil {

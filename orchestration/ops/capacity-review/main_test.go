@@ -2,12 +2,13 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/internal/livemodel/livemodeltest"
@@ -32,7 +33,9 @@ func (s *scripted) client() *livemodel.Client {
 func (s *scripted) respond(r *llm.CompletionRequest) llm.StreamChunk {
 	input := r.Messages[len(r.Messages)-1].Content
 	if strings.Contains(r.Messages[0].Content, "初筛助手") {
-		var in struct{ Workloads []Workload }
+		var in struct {
+			Workloads []Workload `json:"workloads"`
+		}
 		if err := json.Unmarshal([]byte(input), &in); err != nil {
 			panic(err)
 		}
@@ -41,7 +44,9 @@ func (s *scripted) respond(r *llm.CompletionRequest) llm.StreamChunk {
 		}
 		return llm.StreamChunk{Content: agreeScreen(in.Workloads)}
 	}
-	var in struct{ Workload Workload }
+	var in struct {
+		Workload Workload `json:"workload"`
+	}
 	if err := json.Unmarshal([]byte(input), &in); err != nil {
 		panic(err)
 	}

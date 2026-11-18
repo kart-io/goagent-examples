@@ -2,11 +2,12 @@
 package livecase
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"regexp"
 	"strings"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/interfaces"
 	"github.com/kart-io/goagent/tools"

@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/stretchr/testify/require"
 
@@ -305,10 +306,7 @@ func goldenRequest(t *testing.T, r capturedRequest) []byte {
 	var body any
 	require.NoError(t, json.Unmarshal(r.Body, &body))
 	var buf bytes.Buffer
-	enc := json.NewEncoder(&buf)
-	enc.SetEscapeHTML(false)
-	enc.SetIndent("", "  ")
-	require.NoError(t, enc.Encode(map[string]any{"method": r.Method, "path": r.Path, "query": r.Query, "headers": headers, "body": body}))
+	require.NoError(t, json.Encode(&buf, map[string]any{"method": r.Method, "path": r.Path, "query": r.Query, "headers": headers, "body": body}, json.NoEscapeHTML, json.Indent("  ")))
 	return buf.Bytes()
 }
 

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
@@ -698,7 +699,7 @@ func (h *Host) deliver(ctx context.Context) {
 type AnswerResult struct {
 	TicketID string `json:"ticket_id"`
 	Status   string `json:"status"`
-	Late     bool   `json:"late,omitempty"`
+	Late     bool   `json:"late,omitzero"`
 	Result   string `json:"result,omitempty"`
 }
 

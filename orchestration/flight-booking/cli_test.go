@@ -3,8 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"testing"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/stretchr/testify/require"
 )

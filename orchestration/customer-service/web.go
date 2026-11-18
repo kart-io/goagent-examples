@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"embed"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -64,7 +64,7 @@ var apiErrors = []struct {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
+	_ = json.Encode(w, v)
 }
 
 func writeError(w http.ResponseWriter, err error) {
@@ -79,7 +79,7 @@ func writeError(w http.ResponseWriter, err error) {
 }
 
 func decodeBody(w http.ResponseWriter, r *http.Request, v any) error {
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBodyBytes)).Decode(v); err != nil {
+	if err := json.Decode(http.MaxBytesReader(w, r.Body, maxBodyBytes), v); err != nil {
 		return badRequestError("请求体必须是不超过 64 KiB 的 JSON")
 	}
 	return nil

@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -11,6 +10,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/core/durable"
 	"github.com/kart-io/goagent/workflow"
@@ -99,15 +100,13 @@ func execute[T any](ctx context.Context, opts options, out io.Writer, store dura
 		// A supplied document replaces the default fixture completely.
 		var supplied *T
 		decoder := json.NewDecoder(f)
-		decoder.DisallowUnknownFields()
-		if err = decoder.Decode(&supplied); err != nil {
+		if err = json.DecodeNext(decoder, &supplied, json.Strict); err != nil {
 			return err
 		}
 		if supplied == nil {
 			return fmt.Errorf("input must be a JSON object")
 		}
-		var extra any
-		if err = decoder.Decode(&extra); err != io.EOF {
+		if _, err = decoder.ReadValue(); err != io.EOF {
 			return fmt.Errorf("input must contain exactly one JSON object")
 		}
 		initial = *supplied
@@ -133,7 +132,7 @@ func execute[T any](ctx context.Context, opts options, out io.Writer, store dura
 	snapshot, err := g.AsRunnable().Invoke(ctx, workflow.RunRequest[T]{RunID: opts.run, Initial: initial, ApprovalKey: opts.approval})
 	if err != nil {
 		if backend.model != nil && backend.model.last.Load() != nil {
-			if encodeErr := json.NewEncoder(out).Encode(map[string]any{"status": "needs_attention", "case": opts.scenario, "live_model": opts.live, "simulated": true,
+			if encodeErr := json.Encode(out, map[string]any{"status": "needs_attention", "case": opts.scenario, "live_model": opts.live, "simulated": true,
 				"model_review": backend.model.last.Load(), "model_calls_this_invocation": backend.model.calls.Load()}); encodeErr != nil {
 				return encodeErr
 			}
@@ -148,7 +147,7 @@ func execute[T any](ctx context.Context, opts options, out io.Writer, store dura
 	if backend.model != nil {
 		modelCalls = backend.model.calls.Load()
 	}
-	return json.NewEncoder(out).Encode(struct {
+	return json.Encode(out, struct {
 		LiveModel  bool                       `json:"live_model"`
 		ModelCalls int32                      `json:"model_calls_this_invocation"`
 		Case       string                     `json:"case"`

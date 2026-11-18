@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/json/v2"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -20,7 +20,7 @@ func TestExecutableCasesUseToolsHooksAndOutboundWebhook(t *testing.T) {
 	var notices []httpagent.RunEvent
 	callback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var e httpagent.RunEvent
-		if err := json.NewDecoder(r.Body).Decode(&e); err != nil {
+		if err := json.UnmarshalRead(r.Body, &e); err != nil {
 			http.Error(w, err.Error(), 400)
 			return
 		}

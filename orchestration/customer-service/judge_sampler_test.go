@@ -6,7 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"errors"
 	"fmt"
 	"io"

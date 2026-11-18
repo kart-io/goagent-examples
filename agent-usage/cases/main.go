@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -14,6 +13,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/agent-usage/internal/demo"
 	"github.com/kart-io/goagent/builder"
@@ -290,7 +291,7 @@ func execute(which, out string) error {
 		cancel()
 		_ = os.RemoveAll(dir)
 		results = append(results, r)
-		data, err := json.MarshalIndent(results, "", "  ")
+		data, err := json.Marshal(results, json.Indent("  "))
 		if err != nil {
 			return err
 		}

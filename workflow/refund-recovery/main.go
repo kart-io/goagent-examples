@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -12,6 +11,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/core/durable"
 	agentErrors "github.com/kart-io/goagent/errors"
@@ -102,7 +103,7 @@ func runCLI(ctx context.Context, args []string, output io.Writer, crash func()) 
 	} else if err != nil {
 		return err
 	}
-	return json.NewEncoder(output).Encode(struct {
+	return json.Encode(output, struct {
 		Status   string            `json:"status"`
 		Snapshot *durable.Snapshot `json:"snapshot"`
 	}{status, snapshot})

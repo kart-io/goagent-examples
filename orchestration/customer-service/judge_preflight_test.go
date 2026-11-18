@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -110,6 +110,6 @@ func TestJudgePreflight(t *testing.T) {
 	defer stop()
 	sum, err := runPreflight(ctx, dir, buildPreflightManifest(code, sha, models), models, items, preflightPlan.Budget)
 	require.NoError(t, err)
-	b, _ := json.MarshalIndent(sum, "", "  ")
+	b, _ := json.Marshal(sum, json.Indent("  "))
 	t.Logf("预检状态 %s，摘要见 %s\n%s", sum.Status, filepath.Join(dir, "summary.json"), b)
 }

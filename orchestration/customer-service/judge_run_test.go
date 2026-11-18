@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"errors"
 	"fmt"
 	"os"
@@ -188,7 +188,7 @@ func runJudgePhases(ctx context.Context, dir string, manifest any, phases []runP
 	if err := os.Mkdir(dir, 0o755); err != nil {
 		return runSummary{}, fmt.Errorf("运行目录必须是新目录：%w", err)
 	}
-	mb, err := json.MarshalIndent(manifest, "", "  ")
+	mb, err := json.Marshal(manifest, json.Indent("  "))
 	if err != nil {
 		return runSummary{}, err
 	}
@@ -267,7 +267,7 @@ func runJudgePhases(ctx context.Context, dir string, manifest any, phases []runP
 	}
 	end := time.Now()
 	sum.EndedAt, sum.ElapsedMS = end.Format(time.RFC3339), end.Sub(start).Milliseconds()
-	sb, err := json.MarshalIndent(sum, "", "  ")
+	sb, err := json.Marshal(sum, json.Indent("  "))
 	if err != nil {
 		return sum, err
 	}

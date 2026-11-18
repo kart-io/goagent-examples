@@ -2,14 +2,14 @@
 package main
 
 import (
-	"bytes"
 	"crypto/sha256"
 	_ "embed"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/kart-io/goagent/codec/json"
 )
 
 //go:embed fixtures/evidence.json
@@ -140,9 +140,7 @@ func clone[T any](v T) T {
 func contains(s, sub string) bool { return strings.Contains(s, sub) }
 func decodeReportDraft(args map[string]any) (ReportDraft, error) {
 	var r ReportDraft
-	dec := json.NewDecoder(bytes.NewReader(encode(args)))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&r); err != nil {
+	if err := json.Unmarshal(encode(args), &r, json.Strict); err != nil {
 		return r, fmt.Errorf("report schema: %w", err)
 	}
 	return r, nil

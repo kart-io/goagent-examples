@@ -2,10 +2,11 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/customer-service/support"
@@ -47,7 +48,7 @@ const (
 type RefundCase struct {
 	RequestID   string   `json:"request_id,omitempty"`
 	OrderID     string   `json:"order_id,omitempty"`
-	AmountCents int64    `json:"amount_cents,omitempty"`
+	AmountCents int64    `json:"amount_cents,omitzero"`
 	Status      string   `json:"status"` // no_refund、rejected、refunded、declined、timeout、order_changed
 	Receipt     string   `json:"receipt,omitempty"`
 	Reasons     []string `json:"reasons,omitempty"`
@@ -78,7 +79,7 @@ type ticketView struct {
 	Intent    string             `json:"intent,omitempty"`
 	Turns     []multiagent.Turn  `json:"turns,omitempty"`
 	Solutions []support.Solution `json:"solutions,omitempty"`
-	Refund    *RefundCase        `json:"refund,omitempty"`
+	Refund    *RefundCase        `json:"refund,omitzero"`
 }
 
 // render 是 Ticket 的纯函数：它的结果进入模型请求意图，恢复时必须相同。

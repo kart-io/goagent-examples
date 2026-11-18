@@ -3,7 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"fmt"
 	"maps"
 	"os"
@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 候选 C1 的内容指纹：rubric 与提示词模板按场景排序离线渲染，模型配置按名称序列化，两者都用 json.MarshalIndent(v, "", "  ")、末尾不加换行。
+// 候选 C1 的内容指纹：rubric 与提示词模板按场景排序离线渲染，模型配置按名称序列化，两者都用 json.Marshal(v, json.Indent("  "))、末尾不加换行。
 // 渲染结果与 review/2026-11-18-02-closeout/candidate/ 下的 rubrics-and-prompts.json、model-configs.json 逐字节相同。
 // 验收入口在第一次请求之前重新渲染并比对，不一致就不运行。
 var candidateC1 = candidateFingerprint{
@@ -51,10 +51,10 @@ func renderCandidate() (rubricsAndPrompts, modelConfigs []byte, fp candidateFing
 		r := judgeRubrics[name]
 		rs = append(rs, rendered{name, r, checklistPrompt(r, judgeInput{Question: "{question}", Expect: "{expect}", Reply: "{reply}"})})
 	}
-	if rubricsAndPrompts, err = json.MarshalIndent(rs, "", "  "); err != nil {
+	if rubricsAndPrompts, err = json.Marshal(rs, json.Indent("  ")); err != nil {
 		return nil, nil, fp, err
 	}
-	if modelConfigs, err = json.MarshalIndent(judgeModelConfigs, "", "  "); err != nil {
+	if modelConfigs, err = json.Marshal(judgeModelConfigs, json.Indent("  ")); err != nil {
 		return nil, nil, fp, err
 	}
 	fp = candidateFingerprint{
@@ -129,7 +129,7 @@ func TestCandidateFingerprint(t *testing.T) {
 	require.NoError(t, err)
 	var sorted map[string]any
 	require.NoError(t, json.Unmarshal(b, &sorted))
-	fb, err := json.MarshalIndent(sorted, "", "  ")
+	fb, err := json.Marshal(sorted, json.Indent("  "))
 	require.NoError(t, err)
 	for name, b := range map[string][]byte{"rubrics-and-prompts.json": rp, "model-configs.json": mc, "fingerprint.json": fb} {
 		require.NoError(t, writeExclusive(filepath.Join(out, name), b))

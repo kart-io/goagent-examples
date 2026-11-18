@@ -3,7 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"os"
 	"path/filepath"
 	"strings"

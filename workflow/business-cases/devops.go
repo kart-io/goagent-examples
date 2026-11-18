@@ -11,7 +11,7 @@ import (
 )
 
 type devopsState struct {
-	ModelReview    *modelEvidence `json:"model_review,omitempty"`
+	ModelReview    *modelEvidence `json:"model_review,omitzero"`
 	IncidentID     string         `json:"incident_id"`
 	Service        string         `json:"service"`
 	Healthy        bool           `json:"healthy"`

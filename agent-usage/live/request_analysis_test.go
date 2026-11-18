@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent/llm"
 	"github.com/kart-io/goagent/llm/providers"
@@ -105,7 +106,7 @@ func TestProviderRequestPromptEquivalence(t *testing.T) {
 		}
 	}
 	if out := os.Getenv("GOAGENT_USAGE_PAYLOAD_OUT"); out != "" {
-		data, err := json.MarshalIndent(captures, "", "  ")
+		data, err := json.Marshal(captures, json.Indent("  "))
 		if err != nil {
 			t.Fatal(err)
 		}

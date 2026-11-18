@@ -5,7 +5,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +12,8 @@ import (
 	"os"
 	"strconv"
 	"sync/atomic"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent-examples/orchestration/internal/livecase"
@@ -149,7 +150,7 @@ type ReplayOptions struct {
 type ReplayResult struct {
 	TurnResult
 	Boundaries []replay.Result
-	Diverged   *replay.Result `json:",omitempty"`
+	Diverged   *replay.Result `json:",omitzero"`
 }
 
 // Replay 用当前代码重放日志中第 opts.Turn 个已结束的轮次，只读原日志。
@@ -259,7 +260,7 @@ func main() {
 		}
 		out, err = Replay(context.Background(), client, *dir, opts)
 	}
-	data, _ := json.MarshalIndent(out, "", "  ")
+	data, _ := json.Marshal(out, json.Indent("  "))
 	fmt.Println(string(data))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, livemodel.Redact(err.Error()))

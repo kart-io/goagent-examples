@@ -6,12 +6,13 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/internal/livemodel"
 	"github.com/kart-io/goagent/interfaces"
@@ -53,7 +54,7 @@ type Confirmation struct {
 	Digest     string     `json:"digest"`
 	ExpiresAt  time.Time  `json:"expires_at"`
 	ApprovedBy string     `json:"approved_by,omitempty"`
-	ApprovedAt *time.Time `json:"approved_at,omitempty"`
+	ApprovedAt *time.Time `json:"approved_at,omitzero"`
 }
 type EffectCounts struct {
 	Holds    int `json:"holds"`
@@ -72,9 +73,9 @@ type Result struct {
 	NextAction      string                `json:"next_action"`
 	Message         string                `json:"message,omitempty"`
 	Offers          []Quote               `json:"offers,omitempty"`
-	FinalQuote      *Quote                `json:"final_quote,omitempty"`
+	FinalQuote      *Quote                `json:"final_quote,omitzero"`
 	HoldID          string                `json:"hold_id,omitempty"`
-	Confirmation    *Confirmation         `json:"confirmation,omitempty"`
+	Confirmation    *Confirmation         `json:"confirmation,omitzero"`
 	Payment         string                `json:"payment,omitempty"`
 	Ticket          string                `json:"ticket,omitempty"`
 	Refund          string                `json:"refund,omitempty"`
@@ -146,12 +147,10 @@ func randomToken() (string, error) {
 }
 func strictJSON(data string, dst any) error {
 	d := json.NewDecoder(strings.NewReader(data))
-	d.DisallowUnknownFields()
-	if err := d.Decode(dst); err != nil {
+	if err := json.DecodeNext(d, dst, json.Strict); err != nil {
 		return fmt.Errorf("invalid structured input")
 	}
-	var extra any
-	if d.Decode(&extra) != io.EOF {
+	if _, err := d.ReadValue(); err != io.EOF {
 		return fmt.Errorf("expected one JSON object")
 	}
 	return nil

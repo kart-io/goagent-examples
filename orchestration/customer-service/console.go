@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"errors"
 	"os"
 	"strings"

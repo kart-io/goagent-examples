@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -187,7 +187,7 @@ func (f acceptFixture) write(t *testing.T, set string, mutate func(dir string)) 
 	files := map[string][]byte{spec.Data: []byte(strings.Join(lines, "\n") + "\n"), acceptPlanFile: []byte("# 方案\n")}
 	items, err := loadLabels(strings.NewReader(string(files[spec.Data])), spec.Format)
 	require.NoError(t, err)
-	th, err := json.MarshalIndent(thresholdsFor(set, items), "", "  ")
+	th, err := json.Marshal(thresholdsFor(set, items), json.Indent("  "))
 	require.NoError(t, err)
 	files[acceptThresholdsFile] = th
 	if spec.Pairs != "" {

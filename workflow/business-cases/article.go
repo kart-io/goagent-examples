@@ -12,7 +12,7 @@ import (
 )
 
 type articleState struct {
-	ModelReview *modelEvidence `json:"model_review,omitempty"`
+	ModelReview *modelEvidence `json:"model_review,omitzero"`
 	ArticleID   string         `json:"article_id"`
 	Title       string         `json:"title"`
 	Body        string         `json:"body"`

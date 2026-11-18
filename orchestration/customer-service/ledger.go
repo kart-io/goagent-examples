@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -11,6 +10,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	_ "github.com/mattn/go-sqlite3"
 

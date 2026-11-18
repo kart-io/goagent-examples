@@ -1,7 +1,7 @@
 package main
 
 import (
-	"encoding/json"
+	"github.com/kart-io/goagent/codec/json"
 	"errors"
 	"fmt"
 	"os"
@@ -105,7 +105,7 @@ func TestJudgeQuoteReplay(t *testing.T) {
 	for k, n := range counts {
 		table = append(table, map[string]any{"model": k.Model, "old": k.Old, "new": k.New, "quote_method": k.Method, "attempts": n})
 	}
-	sum, err := json.MarshalIndent(map[string]any{
+	sum, err := json.Marshal(map[string]any{
 		"created_at":     time.Now().Format(time.RFC3339),
 		"purpose":        "只回放输出校验，不重算票、不改判样本、不发模型请求；新版结果另行通过开发回归记录",
 		"source_dir":     src,
@@ -113,7 +113,7 @@ func TestJudgeQuoteReplay(t *testing.T) {
 		"versions":       map[string]string{"executor": judgeExecutorVersion, "record": judgeRecordVersion, "schema": judgeSchemaVersion},
 		"code":           codeState(t),
 		"counts":         table,
-	}, "", "  ")
+	}, json.Indent("  "))
 	require.NoError(t, err)
 	require.NoError(t, writeExclusive(filepath.Join(dst, "summary.json"), sum))
 	t.Logf("%s", sum)

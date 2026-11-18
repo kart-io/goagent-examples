@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +12,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/kart-io/goagent/codec/json"
 
 	"github.com/kart-io/goagent-examples/agent-usage/internal/demo"
 	"github.com/kart-io/goagent/builder"
@@ -190,7 +191,7 @@ func validate(r result) error {
 type report struct {
 	Provider           string
 	Model              string
-	RequestedReasoning *usage.ReasoningConfig `json:",omitempty"`
+	RequestedReasoning *usage.ReasoningConfig `json:",omitzero"`
 	Results            []result
 }
 
@@ -261,7 +262,7 @@ func execute(provider, modelName, scenario, out string, configs ...usage.Reasoni
 		one := runScenario(ctx, c, s)
 		cancel()
 		r.Results = append(r.Results, one)
-		data, marshalErr := json.MarshalIndent(r, "", "  ")
+		data, marshalErr := json.Marshal(r, json.Indent("  "))
 		if marshalErr != nil {
 			return marshalErr
 		}
