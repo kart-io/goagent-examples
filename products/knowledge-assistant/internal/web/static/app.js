@@ -26,7 +26,11 @@ async function api(method, path, body) {
   });
   if (res.status === 204) return null;
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error?.message ?? `HTTP ${res.status}`);
+  if (!res.ok) {
+    const err = new Error(data?.error?.message ?? `HTTP ${res.status}`);
+    err.status = res.status;
+    throw err;
+  }
   return data;
 }
 
@@ -56,24 +60,34 @@ function render(task) {
   }
 }
 
+// 记住正在跟踪的任务，刷新页面后接着跟踪；按用户分开存。
+const taskKey = () => `ka-task:${user()}`;
+
+async function follow(task) {
+  localStorage.setItem(taskKey(), task.id);
+  status("执行中");
+  while (!terminal.has(task.state)) {
+    render(task);
+    if (task.state === "waiting_approval") await loadApprovals();
+    await sleep(1000);
+    task = await api("GET", `/v1/tasks/${task.id}`);
+  }
+  render(task);
+  localStorage.removeItem(taskKey());
+  status("已完成");
+  // 审批可能在别的页面或实例上处理，任务结束后同步一次列表。
+  await Promise.all([loadApprovals(), loadMemories()]);
+}
+
 async function ask(e) {
   e.preventDefault();
   $("send").disabled = true;
   try {
     status("提交中");
     const session_id = await ensureSession();
-    let task = await api("POST", "/v1/tasks", { session_id, input: $("input").value });
+    const task = await api("POST", "/v1/tasks", { session_id, input: $("input").value });
     $("answer").textContent = "思考中…";
-    status("执行中");
-    while (!terminal.has(task.state)) {
-      render(task);
-      if (task.state === "waiting_approval") await loadApprovals();
-      await sleep(1000);
-      task = await api("GET", `/v1/tasks/${task.id}`);
-    }
-    render(task);
-    status("已完成");
-    await loadMemories();
+    await follow(task);
   } catch (err) {
     status(err.message);
   } finally {
@@ -117,11 +131,17 @@ function fill(id, nodes, empty) {
 }
 
 async function decide(ap, decision) {
-  await api("POST", `/v1/approvals/${ap.id}/decision`, {
-    expected_revision: ap.revision,
-    decision,
-    reason: decision === "approve" ? "页面批准" : "页面驳回",
-  });
+  try {
+    await api("POST", `/v1/approvals/${ap.id}/decision`, {
+      expected_revision: ap.revision,
+      decision,
+      reason: decision === "approve" ? "页面批准" : "页面驳回",
+    });
+  } catch (err) {
+    if (err.status !== 409) throw err;
+    await loadApprovals();
+    throw new Error("该审批已在别处处理，列表已刷新");
+  }
   await loadApprovals();
 }
 
@@ -158,8 +178,27 @@ async function refresh() {
   try {
     await Promise.all([loadApprovals(), loadMemories()]);
     status("就绪");
+    const id = localStorage.getItem(taskKey());
+    if (id) await resume(id);
   } catch (err) {
     status(err.message);
+  }
+}
+
+async function resume(id) {
+  let task;
+  try {
+    task = await api("GET", `/v1/tasks/${id}`);
+  } catch (err) {
+    if (err.status !== 404) throw err;
+    localStorage.removeItem(taskKey());
+    return;
+  }
+  $("send").disabled = true;
+  try {
+    await follow(task);
+  } finally {
+    $("send").disabled = false;
   }
 }
 

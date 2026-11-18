@@ -3,8 +3,6 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -84,7 +82,7 @@ func newModel(c config.Config) (llm.ToolStreamClient, error) {
 	return chat.FromEnv()
 }
 
-// ingest 的幂等键由语料内容和嵌入模型共同决定：语料未变时重复执行不重写，换嵌入模型则必须重建。
+// ingest 以 docs.ContentKey 为幂等键：语料未变时重复执行不重写，换嵌入模型则必须重建。
 func ingest(ctx context.Context, c config.Config, _ []string) error {
 	e, err := newEmbedder(ctx, c)
 	if err != nil {
@@ -104,12 +102,7 @@ func ingest(ctx context.Context, c config.Config, _ []string) error {
 		return err
 	}
 	defer func() { _ = idx.Close() }()
-	h := sha256.New()
-	fmt.Fprintf(h, "%s\x00", embed.ModelID(e))
-	for _, ch := range chunks {
-		fmt.Fprintf(h, "%s\x00%s\x00%s\x00", ch.ID, ch.Source, ch.Text)
-	}
-	name, err := idx.Rebuild(ctx, "ingest-"+hex.EncodeToString(h.Sum(nil)), chunks)
+	name, err := idx.Rebuild(ctx, docs.ContentKey(embed.ModelID(e), chunks), chunks)
 	if err != nil {
 		return err
 	}
@@ -215,8 +208,8 @@ func serve(ctx context.Context, c config.Config, _ []string) (runErr error) {
 	}
 	// 只有真实模型才能抽取记忆；script 模式下 Stores 未配置 Model，改跑 RunMaintenance：
 	// 框架要求不跑记忆 Worker 的部署必须运行它，否则 Purge 中断后的旧作用域、Forget 残留的向量与删除标记都无人清理。
-	// 两个实例都跑：Maintain 各步幂等、不持 Worker 锁（与 live 下两个实例都跑 Memory.Run 对称），
-	// 也不必跟着 management 的 Worker 槽位做人工故障转移。
+	// 两个实例都跑：Maintain 不取锁、各步幂等，并发执行无害；live 下两个实例也都跑 Memory.Run，但由框架的
+	// memory/worker 锁互斥。两者都不必跟着 management 的 Worker 槽位做人工故障转移。
 	running++
 	memoryLoop := "extract"
 	if c.Model == "live" {

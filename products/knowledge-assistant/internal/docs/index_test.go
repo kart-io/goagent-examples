@@ -18,6 +18,8 @@ import (
 	agentErrors "github.com/kart-io/goagent/errors"
 	"github.com/kart-io/goagent/interfaces"
 
+	"github.com/kart-io/goagent-contrib/retrieval"
+
 	"github.com/kart-io/goagent-examples/products/knowledge-assistant/internal/embed"
 )
 
@@ -410,9 +412,13 @@ func TestConcurrentRebuildsSerialized(t *testing.T) {
 }
 
 // 锁被另一方持有时 Rebuild 必须等待，释放后才继续：证明串行化来自锁，而不是两次调用碰巧错开。
+// 等待期间不得在数据库里排队占连接（排队的重建再多也不占满连接池）。
 func TestRebuildWaitsForLock(t *testing.T) {
 	e := newEnv(t)
 	ctx := context.Background()
+	old := lockPoll
+	lockPoll = 50 * time.Millisecond
+	t.Cleanup(func() { lockPoll = old })
 	tx, err := e.pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("Begin: %v", err)
@@ -428,26 +434,18 @@ func TestRebuildWaitsForLock(t *testing.T) {
 		_, err := e.idx.Rebuild(ctx, "k1", chunks)
 		done <- err
 	}()
-	// 以 pg_locks 中出现未授予的同号 advisory 锁为准，确认 Rebuild 正在等这把锁，而不是碰巧还没跑完。
-	deadline := time.Now().Add(30 * time.Second)
-	for {
-		var waiting int
-		if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM pg_locks
-			WHERE locktype = 'advisory' AND classid = 0 AND objid = $1 AND objsubid = 1 AND NOT granted`, rebuildLock).Scan(&waiting); err != nil {
-			t.Fatalf("查询 pg_locks: %v", err)
-		}
-		if waiting > 0 {
-			break
-		}
-		select {
-		case err := <-done:
-			t.Fatalf("锁被占用时 Rebuild 不应完成: %v", err)
-		default:
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("30 秒内没有看到 Rebuild 等待重建锁")
-		}
-		time.Sleep(20 * time.Millisecond)
+	select {
+	case err := <-done:
+		t.Fatalf("锁被占用时 Rebuild 不应完成: %v", err)
+	case <-time.After(10 * lockPoll):
+	}
+	var waiting int
+	if err := e.pool.QueryRow(ctx, `SELECT count(*) FROM pg_locks
+		WHERE locktype = 'advisory' AND classid = 0 AND objid = $1 AND objsubid = 1 AND NOT granted`, rebuildLock).Scan(&waiting); err != nil {
+		t.Fatalf("查询 pg_locks: %v", err)
+	}
+	if waiting != 0 {
+		t.Fatalf("等锁时不应在数据库里阻塞占连接，实际有 %d 个等待者", waiting)
 	}
 	if got := e.collections(t); len(got) != 0 {
 		t.Fatalf("等锁期间不应写集合，实际有 %v", got)
@@ -465,5 +463,89 @@ func TestRebuildWaitsForLock(t *testing.T) {
 	}
 	if _, err := e.idx.Current(ctx); err != nil {
 		t.Errorf("Current: %v", err)
+	}
+}
+
+// gateEmbedder 在首次嵌入时停住，让测试在重建持锁写入期间动手。
+type gateEmbedder struct {
+	retrieval.Embedder
+	once             sync.Once
+	entered, release chan struct{}
+}
+
+func (g *gateEmbedder) wait() {
+	g.once.Do(func() { close(g.entered) })
+	<-g.release
+}
+
+func (g *gateEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
+	g.wait()
+	return g.Embedder.Embed(ctx, text)
+}
+
+func (g *gateEmbedder) EmbedBatch(ctx context.Context, texts []string) ([][]float32, error) {
+	g.wait()
+	return g.Embedder.EmbedBatch(ctx, texts)
+}
+
+// 持锁连接在写入途中断开（锁随之释放）时，重建必须放弃切换 alias，否则会与拿到锁的另一个重建同时切换。
+func TestRebuildAbortsWhenLockLost(t *testing.T) {
+	e := newEnv(t)
+	ctx := context.Background()
+	gate := &gateEmbedder{Embedder: embed.NewHash(3072), entered: make(chan struct{}), release: make(chan struct{})}
+	idx, err := NewIndex(ctx, e.addr, e.alias, gate, e.pool)
+	if err != nil {
+		t.Fatalf("NewIndex: %v", err)
+	}
+	t.Cleanup(func() { _ = idx.Close() })
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := idx.Rebuild(ctx, "k1", mustCollect(t))
+		done <- err
+	}()
+	select {
+	case <-gate.entered:
+	case err := <-done:
+		t.Fatalf("Rebuild 未进入写入就返回: %v", err)
+	}
+	var killed int
+	if err := e.pool.QueryRow(ctx, `SELECT count(pg_terminate_backend(pid)) FROM pg_locks
+		WHERE locktype = 'advisory' AND classid = 0 AND objid = $1 AND objsubid = 1 AND granted`, rebuildLock).Scan(&killed); err != nil {
+		t.Fatalf("断开持锁连接: %v", err)
+	}
+	if killed != 1 {
+		t.Fatalf("断开了 %d 个持锁连接，期望 1", killed)
+	}
+	close(gate.release)
+	if err := <-done; err == nil {
+		t.Fatal("失锁后 Rebuild 应返回错误")
+	}
+	if cur, err := e.idx.Current(ctx); !agentErrors.IsCode(err, agentErrors.CodeNotFound) {
+		t.Fatalf("失锁后不应切换 alias，Current = %q, %v", cur, err)
+	}
+}
+
+func TestContentKey(t *testing.T) {
+	base := []Chunk{{ID: "a", Source: "repo:x.md", Text: "正文"}}
+	key := ContentKey("hash-v1@3072", base)
+	tests := []struct {
+		name   string
+		model  string
+		chunks []Chunk
+		same   bool
+	}{
+		{"相同输入", "hash-v1@3072", []Chunk{{ID: "a", Source: "repo:x.md", Text: "正文"}}, true},
+		{"换嵌入模型", "gemini@3072", base, false},
+		{"正文变化", "hash-v1@3072", []Chunk{{ID: "a", Source: "repo:x.md", Text: "正文2"}}, false},
+		{"来源变化", "hash-v1@3072", []Chunk{{ID: "a", Source: "repo:y.md", Text: "正文"}}, false},
+		{"字段边界移动", "hash-v1@3072", []Chunk{{ID: "a", Source: "repo:x.md正", Text: "文"}}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ContentKey(tt.model, tt.chunks) == key; got != tt.same {
+				t.Errorf("与基准键相同 = %v，期望 %v", got, tt.same)
+			}
+		})
 	}
 }
