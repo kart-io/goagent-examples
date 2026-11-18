@@ -259,7 +259,7 @@ func buildDevRunReport(sum runSummary, recs []runRecord, items map[string]refIte
 		}
 		for _, model := range models {
 			if res, ok := results[k][model]; ok && res.Final != it.Ref {
-				fmt.Fprintf(&b, "%d. %s 判 %s\n", n+1, model, res.Final)
+				fmt.Fprintf(&b, "%d. %s / %s：%s 判 %s（参考 %s）\n", n+1, k.ds, k.id, model, res.Final, it.Ref)
 				n++
 			}
 		}
@@ -361,7 +361,7 @@ func TestBuildDevRunReport(t *testing.T) {
 		name, title string
 		has, lacks  []string
 	}{
-		{"不一致案例含两模型漏判与弃权，不含一致样本", "## 5.", []string{"validation / miss", "validation / split", "引文-miss"}, []string{"validation / same", "unc"}},
+		{"不一致案例含两模型漏判与弃权，不含一致样本", "## 5.", []string{"validation / miss：a 判 对（参考 错）", "validation / miss", "validation / split", "引文-miss"}, []string{"validation / same", "unc"}},
 		{"模型分歧只列判定不同的样本", "## 6.", []string{"validation / split"}, []string{"validation / miss", "validation / same"}},
 		{"uncertain 单列且不进入语义指标", "## 3.", []string{"unc / a"}, []string{"split"}},
 		{"Validation 指标分母只含参考可评样本", "### validation / a", []string{"N = 3", "TP=0", "FN=1", "TN=2"}, nil},
