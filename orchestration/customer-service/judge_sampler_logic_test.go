@@ -102,6 +102,9 @@ type providerFixture struct {
 	stop, truncated, filtered string
 	maxTokens                 func(body map[string]any) any
 	responseModel             string
+	modelVersion, fingerprint string
+	// usageOnly 下发一段可解析的最终内容和一个 usage 块，usage 原样写入，用于核对字段是否报告。
+	usageOnly func(usage map[string]any) http.HandlerFunc
 }
 
 var providerFixtures = []providerFixture{
@@ -132,7 +135,13 @@ var providerFixtures = []providerFixture{
 		},
 		stop: "stop", truncated: "length", filtered: "content_filter",
 		maxTokens:     func(b map[string]any) any { return b["max_tokens"] },
-		responseModel: "deepseek-flash",
+		responseModel: "deepseek-flash", modelVersion: auditUnavailable, fingerprint: "fp_test",
+		usageOnly: func(usage map[string]any) http.HandlerFunc {
+			return func(w http.ResponseWriter, _ *http.Request) {
+				writeSSE(w, mustJSON(map[string]any{"id": "ds-u", "model": "deepseek-flash", "choices": []any{map[string]any{"delta": map[string]any{"content": forgetPassJSON}, "finish_reason": "stop"}}}),
+					mustJSON(map[string]any{"id": "ds-u", "choices": []any{}, "usage": usage}), "[DONE]")
+			}
+		},
 	},
 	{
 		name: "gemini", cfg: judgeModelConfigs["gemini"],
@@ -169,7 +178,13 @@ var providerFixtures = []providerFixture{
 		},
 		stop: "STOP", truncated: "MAX_TOKENS", filtered: "SAFETY",
 		maxTokens:     func(b map[string]any) any { return b["generationConfig"].(map[string]any)["maxOutputTokens"] },
-		responseModel: auditUnavailable,
+		responseModel: auditUnavailable, modelVersion: "gemini-3.5-flash-lite-001", fingerprint: auditUnavailable,
+		usageOnly: func(usage map[string]any) http.HandlerFunc {
+			return func(w http.ResponseWriter, _ *http.Request) {
+				writeSSE(w, mustJSON(map[string]any{"candidates": []any{map[string]any{"content": map[string]any{"role": "model", "parts": []any{map[string]any{"text": forgetPassJSON}}}, "finishReason": "STOP"}}}),
+					mustJSON(map[string]any{"usageMetadata": usage}))
+			}
+		},
 	},
 }
 
@@ -313,11 +328,52 @@ func TestJudgeSamplerContentReasoningSplit(t *testing.T) {
 			require.Equal(t, "先想想："+forgetFailJSON, a.Reasoning)
 			require.Equal(t, p.cfg.Model, a.Audit.RequestModel)
 			require.Equal(t, p.responseModel, a.Audit.ResponseModel)
-			require.NotEqual(t, auditUnavailable, a.Audit.ModelVersion)
+			require.Equal(t, p.modelVersion, a.Audit.ModelVersion)
+			require.Equal(t, p.fingerprint, a.Audit.SystemFingerprint)
 			require.NotEqual(t, auditUnavailable, a.Audit.ResponseID)
 			require.Equal(t, p.stop, a.Audit.FinishReason)
 			require.NotNil(t, a.Audit.Usage)
-			require.Equal(t, judgeUsage{Prompt: 900, Output: a.Audit.Usage.Output, Reasoning: 250, Total: 1200}, *a.Audit.Usage)
+			require.Equal(t, judgeUsage{Prompt: 900, Output: a.Audit.Usage.Output, Reasoning: 250, Total: 1200, ReasoningReported: true}, *a.Audit.Usage)
+		})
+	}
+}
+
+// 思考 token 是否报告以原始响应为准：缺失字段记为未报告，服务端明确给出的 0 记为已报告。
+func TestJudgeSamplerReasoningReported(t *testing.T) {
+	item := sentinelForgetItem(t)
+	byName := map[string]providerFixture{}
+	for _, p := range providerFixtures {
+		byName[p.name] = p
+	}
+	tests := []struct {
+		name, provider string
+		usage          map[string]any
+		want           judgeUsage
+	}{
+		{"deepseek 报告思考 token", "deepseek", map[string]any{"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18, "completion_tokens_details": map[string]any{"reasoning_tokens": 5}},
+			judgeUsage{Prompt: 10, Output: 8, Total: 18, Reasoning: 5, ReasoningReported: true}},
+		{"deepseek 明确报告 0", "deepseek", map[string]any{"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18, "completion_tokens_details": map[string]any{"reasoning_tokens": 0}},
+			judgeUsage{Prompt: 10, Output: 8, Total: 18, ReasoningReported: true}},
+		{"deepseek 没有明细", "deepseek", map[string]any{"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18},
+			judgeUsage{Prompt: 10, Output: 8, Total: 18}},
+		{"gemini 报告思考 token", "gemini", map[string]any{"promptTokenCount": 10, "candidatesTokenCount": 8, "thoughtsTokenCount": 5, "totalTokenCount": 23},
+			judgeUsage{Prompt: 10, Output: 8, Total: 23, Reasoning: 5, ReasoningReported: true}},
+		{"gemini 明确报告 0", "gemini", map[string]any{"promptTokenCount": 10, "candidatesTokenCount": 8, "thoughtsTokenCount": 0, "totalTokenCount": 18},
+			judgeUsage{Prompt: 10, Output: 8, Total: 18, ReasoningReported: true}},
+		{"gemini 字段缺失", "gemini", map[string]any{"promptTokenCount": 10, "candidatesTokenCount": 8, "totalTokenCount": 18},
+			judgeUsage{Prompt: 10, Output: 8, Total: 18}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			p := byName[tt.provider]
+			f := newFakeLLM(t, p.usageOnly(tt.usage))
+			res, err := judgeItem(context.Background(), p.model(t, f, 0), judgeRubrics["forget"], item)
+			require.NoError(t, err)
+			require.Equal(t, refCorrect, res.Final)
+			for _, a := range res.Attempts {
+				require.NotNil(t, a.Audit.Usage)
+				require.Equal(t, tt.want, *a.Audit.Usage)
+			}
 		})
 	}
 }

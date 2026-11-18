@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -67,6 +68,52 @@ const auditUnavailable = "不可得"
 
 type requestCounterKey struct{}
 
+type usageProbeKey struct{}
+
+// usageProbe 保存一次尝试的原始响应体：genai SDK 把缺失的 thoughtsTokenCount 解码成 0，只能从原始流判断服务端是否报告。
+type usageProbe struct {
+	mu  sync.Mutex
+	buf []byte
+}
+
+const usageProbeLimit = 4 << 20
+
+type probeBody struct {
+	io.ReadCloser
+	p *usageProbe
+}
+
+func (b probeBody) Read(p []byte) (int, error) {
+	n, err := b.ReadCloser.Read(p)
+	b.p.mu.Lock()
+	if len(b.p.buf)+n <= usageProbeLimit {
+		b.p.buf = append(b.p.buf, p[:n]...)
+	}
+	b.p.mu.Unlock()
+	return n, err
+}
+
+// reported 返回原始流里最后一个 usageMetadata 是否带了指定字段；与 SDK 一样以最后一个为准。
+func (p *usageProbe) reported(field string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	var last map[string]json.RawMessage
+	for _, line := range strings.Split(string(p.buf), "\n") {
+		data, ok := strings.CutPrefix(strings.TrimSpace(line), "data:")
+		if !ok {
+			continue
+		}
+		var ev struct {
+			UsageMetadata map[string]json.RawMessage `json:"usageMetadata"`
+		}
+		if json.Unmarshal([]byte(strings.TrimSpace(data)), &ev) == nil && ev.UsageMetadata != nil {
+			last = ev.UsageMetadata
+		}
+	}
+	_, ok := last[field]
+	return ok
+}
+
 // countingTransport 按 context 统计每次尝试实际发出的 HTTP 请求，用来核对审计记录与 SDK 是否偷偷重试。
 type countingTransport struct{ next http.RoundTripper }
 
@@ -74,7 +121,11 @@ func (t countingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	if n, ok := r.Context().Value(requestCounterKey{}).(*atomic.Int32); ok {
 		n.Add(1)
 	}
-	return t.next.RoundTrip(r)
+	resp, err := t.next.RoundTrip(r)
+	if p, ok := r.Context().Value(usageProbeKey{}).(*usageProbe); ok && err == nil {
+		resp.Body = probeBody{ReadCloser: resp.Body, p: p}
+	}
+	return resp, err
 }
 
 // newJudgeModel 组装评审模型。HTTP 客户端不设整体超时，超时只由每次尝试的 context 控制，以免截断长 SSE。
@@ -135,7 +186,7 @@ func redact(s, apiKey string) string {
 }
 
 func newAudit(model string) judgeAudit {
-	return judgeAudit{RequestModel: model, ResponseModel: auditUnavailable, ModelVersion: auditUnavailable, ResponseID: auditUnavailable, FinishReason: auditUnavailable}
+	return judgeAudit{RequestModel: model, ResponseModel: auditUnavailable, ModelVersion: auditUnavailable, SystemFingerprint: auditUnavailable, ResponseID: auditUnavailable, FinishReason: auditUnavailable}
 }
 
 // --- DeepSeek：OpenAI 兼容 Chat Completions 流式接口 ---
@@ -176,7 +227,7 @@ type deepSeekChunk struct {
 		CompletionTokens        int `json:"completion_tokens"`
 		TotalTokens             int `json:"total_tokens"`
 		CompletionTokensDetails *struct {
-			ReasoningTokens int `json:"reasoning_tokens"`
+			ReasoningTokens *int `json:"reasoning_tokens"`
 		} `json:"completion_tokens_details"`
 	} `json:"usage"`
 	Error *struct {
@@ -242,7 +293,7 @@ func deepSeekSampler(cfg judgeModelConfig, baseURL, apiKey string, client *http.
 				raw.Audit.ResponseModel = ch.Model
 			}
 			if ch.SystemFingerprint != "" {
-				raw.Audit.ModelVersion = ch.SystemFingerprint
+				raw.Audit.SystemFingerprint = ch.SystemFingerprint
 			}
 			if ch.ID != "" {
 				raw.Audit.ResponseID = ch.ID
@@ -256,8 +307,8 @@ func deepSeekSampler(cfg judgeModelConfig, baseURL, apiKey string, client *http.
 			}
 			if u := ch.Usage; u != nil {
 				raw.Audit.Usage = &judgeUsage{Prompt: u.PromptTokens, Output: u.CompletionTokens, Total: u.TotalTokens}
-				if u.CompletionTokensDetails != nil {
-					raw.Audit.Usage.Reasoning = u.CompletionTokensDetails.ReasoningTokens
+				if d := u.CompletionTokensDetails; d != nil && d.ReasoningTokens != nil {
+					raw.Audit.Usage.Reasoning, raw.Audit.Usage.ReasoningReported = *d.ReasoningTokens, true
 				}
 			}
 		}
@@ -306,6 +357,8 @@ func geminiSampler(cfg judgeModelConfig, baseURL, apiKey string, client *http.Cl
 	}
 	return func(ctx context.Context, prompt string) (judgeRaw, error) {
 		raw := judgeRaw{Audit: newAudit(cfg.Model)}
+		probe := &usageProbe{}
+		ctx = context.WithValue(ctx, usageProbeKey{}, probe)
 		var content, reasoning strings.Builder
 		finish := ""
 		for resp, err := range gc.Models.GenerateContentStream(ctx, cfg.Model, genai.Text(prompt), gcfg) {
@@ -348,6 +401,9 @@ func geminiSampler(cfg judgeModelConfig, baseURL, apiKey string, client *http.Cl
 		raw.Content, raw.Reasoning = content.String(), reasoning.String()
 		if finish != "" {
 			raw.Audit.FinishReason = finish
+		}
+		if raw.Audit.Usage != nil {
+			raw.Audit.Usage.ReasoningReported = probe.reported("thoughtsTokenCount")
 		}
 		if err := ctx.Err(); err != nil {
 			return raw, err

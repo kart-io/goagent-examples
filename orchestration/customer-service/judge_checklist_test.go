@@ -30,7 +30,9 @@ const (
 
 	judgePromptVersion   = "checklist-prompt/2"
 	judgeSchemaVersion   = "checks-schema/2"
-	judgeExecutorVersion = "judge-executor/3"
+	judgeExecutorVersion = "judge-executor/4"
+	// judgeRecordVersion 是结果元数据（尝试记录、审计字段）的格式版本；预检 2026-11-18-01 用的是没有标注版本的 judge-record/1。
+	judgeRecordVersion = "judge-record/2"
 )
 
 // judgeInput 是新评审唯一能看到的输入。参考标签、标注理由与证据、旧评审结果、根因等只留在 refItem 里供统计与审计。
@@ -332,14 +334,15 @@ func sampleVote(r judgeRubric, answers []checkAnswer) string {
 
 // judgeAudit 是一次尝试的模型侧记录；平台没有提供的字段记为 auditUnavailable。
 type judgeAudit struct {
-	Requests      int         `json:"requests"`              // 本次尝试实际发出的 HTTP 请求数，应恒为 1
-	HTTPStatus    int         `json:"http_status,omitempty"` // 非 200 响应的状态码；0 表示没有收到错误状态
-	RequestModel  string      `json:"request_model"`
-	ResponseModel string      `json:"response_model"`
-	ModelVersion  string      `json:"model_version"`
-	ResponseID    string      `json:"response_id"`
-	FinishReason  string      `json:"finish_reason"`
-	Usage         *judgeUsage `json:"usage,omitempty"`
+	Requests          int         `json:"requests"`              // 本次尝试实际发出的 HTTP 请求数，应恒为 1
+	HTTPStatus        int         `json:"http_status,omitempty"` // 非 200 响应的状态码；0 表示没有收到错误状态
+	RequestModel      string      `json:"request_model"`
+	ResponseModel     string      `json:"response_model"`
+	ModelVersion      string      `json:"model_version"`      // 服务端提供的模型版本（Gemini modelVersion）；DeepSeek 没有，记为不可得
+	SystemFingerprint string      `json:"system_fingerprint"` // DeepSeek 的 system_fingerprint；Gemini 没有，记为不可得
+	ResponseID        string      `json:"response_id"`
+	FinishReason      string      `json:"finish_reason"`
+	Usage             *judgeUsage `json:"usage,omitempty"`
 }
 
 type judgeUsage struct {
@@ -347,6 +350,8 @@ type judgeUsage struct {
 	Output    int `json:"output_tokens"`
 	Reasoning int `json:"reasoning_tokens"`
 	Total     int `json:"total_tokens"`
+	// ReasoningReported 表示原始响应里是否带了思考 token 字段；为假时 Reasoning 的 0 是缺省值，应视为「未报告」。
+	ReasoningReported bool `json:"reasoning_tokens_reported"`
 }
 
 // judgeRaw 是一次采样的结果：Content 是最终答复（只从它解析评审结果），Reasoning 是思考内容，只存档。
