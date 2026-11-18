@@ -58,6 +58,18 @@ func validLacks(word string) stateCheck {
 	}
 }
 
+// validStale 要求没有只提旧值、不提新值的有效记录。新记录写「由 old 改为 current」是正常的，只有仍声称 old 的记录才算残留。
+func validStale(old, current string) stateCheck {
+	return func(s scenarioState) string {
+		if slices.ContainsFunc(s.valid, func(r memory.Record) bool {
+			return strings.Contains(r.Content, old) && !strings.Contains(r.Content, current)
+		}) {
+			return "有效记录中仍有只含“" + old + "”、不含“" + current + "”的"
+		}
+		return ""
+	}
+}
+
 func pinnedHas(word string) stateCheck {
 	return func(s scenarioState) string {
 		if anyContains(s.pinned, word) {
@@ -137,7 +149,7 @@ var liveScenarios = []liveScenario{
 		prior:    []string{"我的收货地址在北京朝阳", "我已经搬到上海浦东了，收货地址改成上海浦东"},
 		question: "我的包裹会寄到哪？",
 		expect:   "寄到上海浦东",
-		checks:   []stateCheck{validLacks("朝阳"), validHas("浦东")}},
+		checks:   []stateCheck{validStale("朝阳", "浦东"), validHas("浦东")}},
 	{name: "temporal", kind: judgeTemporal,
 		prior:    []string{"我的耳机老是断连", "我的充电器用的时候发烫"},
 		question: "我最早反馈的是什么问题？",
@@ -299,7 +311,8 @@ func runScenario(t *testing.T, sc liveScenario, repeat int, dir, pg, qd string, 
 	}
 	e := newHostEnvAt(t, dir, func(c *HostConfig) {
 		c.Client, c.LockTimeout = client, 10*time.Minute
-		c.Memory = &MemoryConfig{PGURL: pg, QdrantAddr: qd, Live: true}
+		c.Memory = &MemoryConfig{PGURL: pg, QdrantAddr: qd, Live: true,
+			Model: &memoryTrace{Client: client, path: filepath.Join(dir, "memory-llm.jsonl")}}
 	})
 	ctx := context.Background()
 	q, qctx := newCustomer()
@@ -520,6 +533,33 @@ func TestSupersedeChain(t *testing.T) {
 				require.Empty(t, note)
 			} else {
 				require.Contains(t, note, tt.violation)
+			}
+		})
+	}
+}
+
+func TestValidStale(t *testing.T) {
+	check := validStale("朝阳", "浦东")
+	cases := []struct {
+		name    string
+		valid   []string
+		failure bool
+	}{
+		{"新记录提到原地址", []string{"用户已搬迁，收货地址变更为上海浦东（原地址北京朝阳已不再使用）"}, false},
+		{"只有新地址", []string{"用户收货地址为上海浦东"}, false},
+		{"旧记录仍有效", []string{"用户收货地址为北京朝阳", "用户收货地址为上海浦东"}, true},
+		{"没有记录", nil, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var s scenarioState
+			for _, c := range tc.valid {
+				s.valid = append(s.valid, memory.Record{Content: c})
+			}
+			if tc.failure {
+				require.Contains(t, check(s), "朝阳")
+			} else {
+				require.Empty(t, check(s))
 			}
 		})
 	}

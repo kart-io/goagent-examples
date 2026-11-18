@@ -33,6 +33,7 @@ const (
 type MemoryConfig struct {
 	PGURL, QdrantAddr string
 	Live              bool
+	Model             llm.Client // 抽取与整理用的模型，nil 时用宿主的模型
 }
 
 // memoryStores 持有长期记忆及其底层连接。

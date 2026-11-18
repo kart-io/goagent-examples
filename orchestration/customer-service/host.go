@@ -17,6 +17,7 @@ import (
 	"github.com/kart-io/goagent/core/budget"
 	"github.com/kart-io/goagent/core/durable"
 	agentErrors "github.com/kart-io/goagent/errors"
+	"github.com/kart-io/goagent/llm"
 	"github.com/kart-io/goagent/memory"
 	"github.com/kart-io/goagent/workflow"
 )
@@ -149,7 +150,11 @@ func OpenHost(ctx context.Context, cfg HostConfig) (*Host, error) {
 	}
 	var mem *memoryStores
 	if cfg.Memory != nil {
-		if mem, err = openMemory(ctx, *cfg.Memory, cfg.Client); err != nil {
+		var model llm.Client = cfg.Client
+		if cfg.Memory.Model != nil {
+			model = cfg.Memory.Model
+		}
+		if mem, err = openMemory(ctx, *cfg.Memory, model); err != nil {
 			return fail(err)
 		}
 	}
