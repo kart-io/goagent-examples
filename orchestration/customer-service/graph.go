@@ -187,7 +187,8 @@ const (
 )
 
 // generalMemoryRule 只在记忆开启时追加到通用成员提示词。
-const generalMemoryRule = "\n客户明确要求记住某件事时，调用 memory_save 并把 pinned 设为 true。"
+const generalMemoryRule = "\n客户明确要求记住某件事时，调用 memory_save 并把 pinned 设为 true。" +
+	"答复依赖客户以前提供的信息时，按长期记忆直接作答并说出记录的内容；记忆中没有相关记录（包括客户已要求删除）时，明确告诉客户没有记录，不要让客户自行去账户中查看。"
 
 // memberMemory 是成员接入长期记忆的选项；tools 为真时模型可调用 memory_save 等工具。
 type memberMemory struct {
