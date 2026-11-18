@@ -199,7 +199,7 @@ func TestParseChecks(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseChecks(tt.out, testRubric, forgetItem(refCorrect).In.Reply)
+			got, _, err := parseChecks(tt.out, testRubric, forgetItem(refCorrect).In.Reply)
 			if tt.stage == "" {
 				require.NoError(t, err)
 				require.Len(t, got, 2)
@@ -523,7 +523,7 @@ func TestRubricDevCases(t *testing.T) {
 				require.True(t, ok, c.ID)
 				body.Checks = append(body.Checks, checkAnswer{ID: c.ID, Answer: a[0], Quote: a[1]})
 			}
-			got, err := parseChecks(mustJSON(body), r, dc.reply)
+			got, _, err := parseChecks(mustJSON(body), r, dc.reply)
 			require.NoError(t, err, "预期答案的 quote 都是答复原文")
 			require.Equal(t, dc.vote, sampleVote(r, got))
 		})

@@ -195,7 +195,7 @@ func TestPreflightManifest(t *testing.T) {
 
 	require.Equal(t, []string{"calib-forget-01", "calib-update-04", "calib-premise-10", "calib-temporal-03", "calib-recall-02"}, man.ItemOrder)
 	require.Equal(t, map[string]string{"protocol": "judge-protocol/1", "rubric": "rubric/3", "prompt": judgePromptVersion,
-		"schema": judgeSchemaVersion, "executor": "judge-executor/4", "record": "judge-record/2"}, man.Versions)
+		"schema": judgeSchemaVersion, "executor": "judge-executor/5", "record": "judge-record/3"}, man.Versions)
 	require.Equal(t, 30, man.Plan["planned_positions_total"])
 	require.Equal(t, 30, man.Plan["expected_http_requests_no_retry"])
 	require.Equal(t, 90, man.Plan["max_http_attempts_total"])
@@ -313,7 +313,7 @@ func TestDevRunManifest(t *testing.T) {
 	}
 	require.Equal(t, "1h30m0s", man.Plan["global_wall_clock_budget"])
 	require.Equal(t, map[string]string{"protocol": "judge-protocol/1", "rubric": "rubric/3", "prompt": "checklist-prompt/2",
-		"schema": "checks-schema/2", "executor": "judge-executor/4", "record": "judge-record/2"}, man.Versions)
+		"schema": "checks-schema/2", "executor": "judge-executor/5", "record": "judge-record/3"}, man.Versions)
 	for _, m := range man.Models {
 		require.Equal(t, 1206, m.MaxHTTPAttempt)
 		require.Equal(t, judgeModelConfigs[m.Name].hash(), m.ConfigHash)

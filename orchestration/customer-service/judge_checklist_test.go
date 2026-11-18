@@ -30,9 +30,10 @@ const (
 
 	judgePromptVersion   = "checklist-prompt/2"
 	judgeSchemaVersion   = "checks-schema/2"
-	judgeExecutorVersion = "judge-executor/4"
-	// judgeRecordVersion 是结果元数据（尝试记录、审计字段）的格式版本；预检 2026-11-18-01 用的是没有标注版本的 judge-record/1。
-	judgeRecordVersion = "judge-record/2"
+	judgeExecutorVersion = "judge-executor/5"
+	// judgeRecordVersion 是结果元数据（尝试记录、审计字段）的格式版本；预检 2026-11-18-01 用的是没有标注版本的 judge-record/1，
+	// 开发评审 2026-11-18-01 用 judge-record/2；judge-record/3 起每次合法尝试附 quote_matches。
+	judgeRecordVersion = "judge-record/3"
 )
 
 // judgeInput 是新评审唯一能看到的输入。参考标签、标注理由与证据、旧评审结果、根因等只留在 refItem 里供统计与审计。
@@ -267,10 +268,10 @@ func judgeJSON(out string) string {
 }
 
 // parseChecks 严格校验评审输出：单个 JSON 对象、无未知字段、无尾随内容，检查项 ID 与 rubric 一一对应，答案只能是是/否/无法判定，
-// 非空 quote 必须逐字出现在待评答复中。只校验检查项 ID，从不要求模型回显样本 ID。
-func parseChecks(out string, r judgeRubric, reply string) ([]checkAnswer, error) {
+// 非空 quote 必须是待评答复原文（见 matchQuote），返回每条非空 quote 的匹配依据。只校验检查项 ID，从不要求模型回显样本 ID。
+func parseChecks(out string, r judgeRubric, reply string) ([]checkAnswer, []quoteMatch, error) {
 	if strings.TrimSpace(out) == "" {
-		return nil, &stageError{stage: stageEmpty, err: errors.New("评审输出为空")}
+		return nil, nil, &stageError{stage: stageEmpty, err: errors.New("评审输出为空")}
 	}
 	dec := json.NewDecoder(strings.NewReader(judgeJSON(out)))
 	dec.DisallowUnknownFields()
@@ -278,35 +279,42 @@ func parseChecks(out string, r judgeRubric, reply string) ([]checkAnswer, error)
 		Checks []checkAnswer `json:"checks"`
 	}
 	if err := dec.Decode(&body); err != nil {
-		return nil, &stageError{stage: stageParse, err: err}
+		return nil, nil, &stageError{stage: stageParse, err: err}
 	}
 	if dec.Decode(&struct{}{}) != io.EOF {
-		return nil, &stageError{stage: stageParse, err: errors.New("JSON 之后还有多余内容")}
+		return nil, nil, &stageError{stage: stageParse, err: errors.New("JSON 之后还有多余内容")}
 	}
 	want := map[string]bool{}
 	for _, c := range r.Checks {
 		want[c.ID] = true
 	}
 	got := map[string]bool{}
+	var matches []quoteMatch
 	for _, a := range body.Checks {
 		switch {
 		case !want[a.ID]:
-			return nil, &stageError{stage: stageValidate, err: fmt.Errorf("未知检查项 %q", a.ID)}
+			return nil, nil, &stageError{stage: stageValidate, err: fmt.Errorf("未知检查项 %q", a.ID)}
 		case got[a.ID]:
-			return nil, &stageError{stage: stageValidate, err: fmt.Errorf("重复检查项 %q", a.ID)}
+			return nil, nil, &stageError{stage: stageValidate, err: fmt.Errorf("重复检查项 %q", a.ID)}
 		case !checkAnswers[a.Answer]:
-			return nil, &stageError{stage: stageValidate, err: fmt.Errorf("检查项 %s 的答案 %q 非法", a.ID, a.Answer)}
-		case strings.TrimSpace(a.Quote) != "" && !strings.Contains(reply, strings.TrimSpace(a.Quote)):
-			return nil, &stageError{stage: stageValidate, cause: causeQuote, err: fmt.Errorf("检查项 %s 的 quote 不是答复原文", a.ID)}
+			return nil, nil, &stageError{stage: stageValidate, err: fmt.Errorf("检查项 %s 的答案 %q 非法", a.ID, a.Answer)}
+		}
+		if q := strings.TrimSpace(a.Quote); q != "" {
+			m, ok := matchQuote(reply, q)
+			if !ok {
+				return nil, nil, &stageError{stage: stageValidate, cause: causeQuote, err: fmt.Errorf("检查项 %s 的 quote 不是答复原文", a.ID)}
+			}
+			m.ID = a.ID
+			matches = append(matches, m)
 		}
 		got[a.ID] = true
 	}
 	for _, c := range r.Checks {
 		if !got[c.ID] {
-			return nil, &stageError{stage: stageValidate, err: fmt.Errorf("缺少检查项 %q", c.ID)}
+			return nil, nil, &stageError{stage: stageValidate, err: fmt.Errorf("缺少检查项 %q", c.ID)}
 		}
 	}
-	return body.Checks, nil
+	return body.Checks, matches, nil
 }
 
 // sampleVote 按 rubric 把一次采样的检查项答案合成一票：任一项明确不满足（答案既非 Want 也非无法判定）即为错；
@@ -380,6 +388,7 @@ type judgeAttempt struct {
 	Cause     string        `json:"cause,omitempty"`
 	Error     string        `json:"error,omitempty"`
 	Answers   []checkAnswer `json:"answers,omitempty"`
+	Quotes    []quoteMatch  `json:"quote_matches,omitempty"` // 每条非空 quote 的匹配方式与对应原文区间
 	Audit     judgeAudit    `json:"audit"`
 	ElapsedMS int64         `json:"elapsed_ms"` // 本次尝试从发起到结束的墙钟耗时
 }
@@ -421,7 +430,7 @@ func runAttempt(ctx context.Context, m judgeModel, r judgeRubric, prompt, reply 
 	var se *stageError
 	switch {
 	case err == nil:
-		a.Answers, err = parseChecks(raw.Content, r, reply)
+		a.Answers, a.Quotes, err = parseChecks(raw.Content, r, reply)
 	case ctx.Err() == nil && errors.Is(actx.Err(), context.DeadlineExceeded):
 		err = &stageError{stage: stageCall, cause: causeTimeout, err: err}
 	case !errors.As(err, &se):
@@ -429,7 +438,7 @@ func runAttempt(ctx context.Context, m judgeModel, r judgeRubric, prompt, reply 
 	}
 	if err != nil {
 		errors.As(err, &se)
-		a.Stage, a.Cause, a.Error, a.Answers = se.stage, se.cause, err.Error(), nil
+		a.Stage, a.Cause, a.Error, a.Answers, a.Quotes = se.stage, se.cause, err.Error(), nil, nil
 	}
 	return a
 }
