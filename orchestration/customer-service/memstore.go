@@ -29,6 +29,10 @@ const (
 	hashDims          = 256
 )
 
+// memoryInstructions 补充客服场景的抽取要求：通用抽取提示让模型略过琐碎信息，单次咨询常被判为不值得记，
+// 客户之后问「我之前反馈过什么」时就查不到。
+const memoryInstructions = "这是客服工单。客户在本轮反馈的每个问题（故障、咨询主题）都要记成一条 episode，写明问题与处理结果，即使问题已解决。"
+
 // MemoryConfig 是长期记忆的存储与嵌入配置；Live 为真时用 Gemini 嵌入，否则用离线哈希嵌入。
 type MemoryConfig struct {
 	PGURL, QdrantAddr string
@@ -123,7 +127,7 @@ func openMemory(ctx context.Context, c MemoryConfig, model llm.Client) (_ *memor
 	}
 	mem, err := memory.New(memory.Config{
 		Durable: journal, Index: index, Embedder: embedder, EmbedModel: embedModel,
-		Model: model, Sessions: sessions,
+		Model: model, Sessions: sessions, Instructions: memoryInstructions,
 	})
 	if err != nil {
 		return nil, err
