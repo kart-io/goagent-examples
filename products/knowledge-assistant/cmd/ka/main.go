@@ -144,6 +144,8 @@ func open(ctx context.Context, c config.Config, confirm func(context.Context, st
 		HistoryReader:        a.stores.Manage,
 		Authorizer:           mg.TenantAuthorizer{},
 		ConfirmWorkerStopped: confirm,
+		// goagent 不再替宿主选限额，显式沿用原先的分页、接纳、大小与保留期。
+		Limits: mg.DefaultLimits(),
 		Factories: map[string]mg.Factory{assistant.RunnerKind: assistant.Factory(assistant.Deps{
 			Stores: a.stores, Model: model, Index: a.index, CorpusDir: c.CorpusDir, Embedder: e,
 		})},
