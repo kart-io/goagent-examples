@@ -27,7 +27,7 @@ type Gemini struct {
 // NewGemini 读取 GEMINI_API_KEY、GEMINI_EMBEDDING_MODEL（默认 gemini-embedding-001），
 // 并嵌入一次探测文本以确定维度。parallel 是 EmbedBatch 的并发上限。
 func NewGemini(ctx context.Context, parallel int) (*Gemini, error) {
-	p, err := providers.NewGeminiWithOptions()
+	p, err := providers.NewGeminiWithOptions(llm.WithTimeout(60 * time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("创建 Gemini 提供方失败: %w", err)
 	}
