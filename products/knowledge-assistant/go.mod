@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/kart-io/goagent v0.54.1
+	github.com/kart-io/goagent v0.60.0
 	github.com/kart-io/goagent-contrib/cache/redis v0.1.0
 	github.com/kart-io/goagent-contrib/document v0.3.1
 	github.com/kart-io/goagent-contrib/durable/pgstore v0.5.1-0.20261116130024-396d3eca4884

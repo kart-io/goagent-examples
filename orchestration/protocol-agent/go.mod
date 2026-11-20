@@ -7,7 +7,7 @@ toolchain go1.27.3
 require (
 	github.com/a2aproject/a2a-go/v2 v2.7.0
 	github.com/google/uuid v1.6.0
-	github.com/kart-io/goagent v0.53.0
+	github.com/kart-io/goagent v0.60.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/stretchr/testify v1.12.1
 )
