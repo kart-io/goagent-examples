@@ -49,15 +49,20 @@ func Dispatch(ts []interfaces.Tool, cfg tools.DispatchConfig) ([]interfaces.Tool
 	return out, nil
 }
 
-// Tool 用普通函数构造工具；fn 返回 *tools.ArgumentError 时交还模型改正。
+// readOnlyTool 声明可与其他只读工具同轮并发执行；Dispatcher 只转述内层工具的声明。
+type readOnlyTool struct{ *tools.BaseTool }
+
+func (readOnlyTool) SupportsConcurrentCalls() bool { return true }
+
+// Tool 用普通函数构造只读数据工具，可同轮并发执行；fn 返回 *tools.ArgumentError 时交还模型改正。
 func Tool(name, description, schema string, fn func(context.Context, map[string]any) (any, error)) interfaces.Tool {
-	return tools.NewBaseTool(name, description, schema, func(ctx context.Context, in *interfaces.ToolInput) (*interfaces.ToolOutput, error) {
+	return readOnlyTool{tools.NewBaseTool(name, description, schema, func(ctx context.Context, in *interfaces.ToolInput) (*interfaces.ToolOutput, error) {
 		result, err := fn(ctx, in.Args)
 		if err != nil {
 			return nil, err
 		}
 		return &interfaces.ToolOutput{Success: true, Result: result}, nil
-	})
+	})}
 }
 
 // Enum 把取值列表写成 JSON Schema 的 enum 数组。
@@ -97,12 +102,12 @@ type Ledger struct {
 
 func NewLedger() *Ledger { return &Ledger{names: map[string]bool{}, entries: map[string]entry{}} }
 
-// Wrap 在 tool 的结果里加入 ref 字段。结果不是对象时包成 {"ref","data"}。
+// Wrap 在 tool 的结果里加入 ref 字段。结果不是对象时包成 {"ref","data"}。tool 声明可并发时包装同样声明。
 func (l *Ledger) Wrap(tool interfaces.Tool) interfaces.Tool {
 	l.mu.Lock()
 	l.names[tool.Name()] = true
 	l.mu.Unlock()
-	return tools.NewBaseTool(tool.Name(), tool.Description(), tool.ArgsSchema(), func(ctx context.Context, in *interfaces.ToolInput) (*interfaces.ToolOutput, error) {
+	wrapped := tools.NewBaseTool(tool.Name(), tool.Description(), tool.ArgsSchema(), func(ctx context.Context, in *interfaces.ToolInput) (*interfaces.ToolOutput, error) {
 		out, err := tool.Invoke(ctx, in)
 		if err != nil || out == nil || !out.Success {
 			return out, err
@@ -125,6 +130,10 @@ func (l *Ledger) Wrap(tool interfaces.Tool) interfaces.Tool {
 		}
 		return &interfaces.ToolOutput{Success: true, Result: string(data)}, nil
 	})
+	if c, ok := tool.(interfaces.ConcurrentCallTool); ok && c.SupportsConcurrentCalls() {
+		return readOnlyTool{wrapped}
+	}
+	return wrapped
 }
 
 func (l *Ledger) ref(in *interfaces.ToolInput) string {

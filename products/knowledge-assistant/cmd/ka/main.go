@@ -144,6 +144,9 @@ func open(ctx context.Context, c config.Config, confirm func(context.Context, st
 		HistoryReader:        a.stores.Manage,
 		Authorizer:           mg.TenantAuthorizer{},
 		ConfirmWorkerStopped: confirm,
+		// goagent 不再替宿主选限额，显式沿用原先的分页、接纳、大小与保留期，以及原先固定的任务预算。
+		Limits:            mg.DefaultLimits(),
+		DefaultTaskBudget: mg.TaskBudget{MaxModelRequests: 100, MaxToolCalls: 1000, MaxAgentCalls: 1000, Timeout: 24 * time.Hour},
 		Factories: map[string]mg.Factory{assistant.RunnerKind: assistant.Factory(assistant.Deps{
 			Stores: a.stores, Model: model, Index: a.index, CorpusDir: c.CorpusDir, Embedder: e,
 		})},

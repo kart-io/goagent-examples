@@ -101,10 +101,15 @@ func validateAsk(raw json.RawMessage) error {
 	return nil
 }
 
+// concurrentAsk 声明追问可与同轮其他调用并发执行：askGate 保证只有一个追问进入等待，其余立即返回。
+type concurrentAsk struct{ *tools.FunctionTool }
+
+func (concurrentAsk) SupportsConcurrentCalls() bool { return true }
+
 // askTool 是可中断工具：调用 durable.AwaitInput 暂停，续跑时整体重新执行。只允许一次尝试，
 // 崩溃留下的 pending 无法自动恢复，由宿主按运行失败转人工。
 func askTool(gate *askGate) (interfaces.Tool, error) {
-	return tools.NewFunctionToolBuilder(askInterrupt).WithDescription("向客户追问一个问题并等待回答").
+	tool, err := tools.NewFunctionToolBuilder(askInterrupt).WithDescription("向客户追问一个问题并等待回答").
 		WithArgsSchema(`{"type":"object","properties":{"question":{"type":"string"}},"required":["question"],"additionalProperties":false}`).
 		WithInterruptible("ask-customer-v1").
 		WithFunction(func(ctx context.Context, args map[string]any) (any, error) {
@@ -130,6 +135,10 @@ func askTool(gate *askGate) (interfaces.Tool, error) {
 			}
 			return "客户回复：" + a.Answer, nil
 		}).Build()
+	if err != nil {
+		return nil, err
+	}
+	return concurrentAsk{tool}, nil
 }
 
 // reviewInput 是审核回应；approver 由宿主认证后填入，reason 为 timeout 表示等待超时按拒绝处理。

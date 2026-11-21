@@ -9,6 +9,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -141,7 +142,7 @@ func newEmbedder(ctx context.Context, live bool) (llm.EmbeddingClient, string, e
 	if !live {
 		return hashEmbedder{dims: hashDims}, fmt.Sprintf("hash/%d", hashDims), nil
 	}
-	p, err := providers.NewGeminiWithOptions()
+	p, err := providers.NewGeminiWithOptions(llm.WithTimeout(60 * time.Second))
 	if err != nil {
 		return nil, "", fmt.Errorf("创建 Gemini 提供方失败: %w", err)
 	}

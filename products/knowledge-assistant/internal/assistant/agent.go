@@ -3,6 +3,7 @@ package assistant
 import (
 	"context"
 	"encoding/json"
+	"time"
 
 	"github.com/kart-io/goagent/builder"
 	"github.com/kart-io/goagent/interfaces"
@@ -86,18 +87,20 @@ func (d Deps) buildAgent(ctx context.Context, _ mg.Version, r mg.Resources, ap t
 		return tools.PreDecision{Kind: tools.PreAllow}, nil
 	}
 	dispatcher, err := tools.NewDispatcher(registry, tools.DispatchConfig{
-		Pipeline: &tools.Pipeline{Pre: []tools.PreHook{approvalHook}, Approver: ap},
+		MaxConcurrency: 4, Timeout: 30 * time.Second,
+		Pipeline: &tools.Pipeline{Pre: []tools.PreHook{approvalHook}, Approver: ap, ApprovalTimeout: 10 * time.Minute},
 	})
 	if err != nil {
 		return nil, nil, err
 	}
 	return builder.NewSimpleBuilder(d.Model).
 		WithSystemPrompt(systemPrompt).
-		WithRetriever(retriever, builder.RetrievalConfig{MaxDocuments: 4}).
+		WithRetriever(retriever, builder.RetrievalConfig{MaxDocuments: 4, MaxContextRunes: 12000}).
 		WithLongTermMemory(d.Stores.Memory).
 		WithModelCache(d.Stores.Cache).
 		WithTools(dispatcher.Tools()...).
-		WithMaxIterations(6), nil, nil
+		WithMaxIterations(6).
+		WithTimeout(5 * time.Minute), nil, nil
 }
 
 // EnsureAgent 为 a 的租户注册并发布知识助手；固定幂等键让重复调用返回同一 Agent，幂等记录按租户隔离。

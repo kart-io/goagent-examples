@@ -273,7 +273,8 @@ func (l *lookups) delegateTool() (interfaces.Tool, error) {
 	}, tools.RunnableToolConfig[lookupInput, Report]{
 		Name: "delegate_lookup", Description: "派出一个只看单一方向（metrics/logs/traces）的子调查，返回摘要与核对过的证据", Version: "v1",
 		ModelInvoking: true, MaxDepth: 1, CleanupTimeout: 10 * time.Second, Timeout: 5 * livemodel.RequestTimeout,
-		ArgsSchema: `{"type":"object","properties":{"focus":{"type":"string","enum":["metrics","logs","traces"]},"question":{"type":"string","minLength":1}},"required":["focus","question"],"additionalProperties":false}`,
+		ConcurrentCalls: true, // 子调查只调用只读数据工具，同一轮的多个子调查可并发
+		ArgsSchema:      `{"type":"object","properties":{"focus":{"type":"string","enum":["metrics","logs","traces"]},"question":{"type":"string","minLength":1}},"required":["focus","question"],"additionalProperties":false}`,
 		Decode: func(a map[string]any) (lookupInput, error) {
 			return lookupInput{Focus: a["focus"].(string), Question: a["question"].(string)}, nil
 		},
