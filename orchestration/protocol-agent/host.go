@@ -62,7 +62,7 @@ func startApplication(ctx context.Context, address, token string, models ...*mod
 		}
 	}()
 	sessions := session.NewMemoryStore()
-	svc, err := mg.New(mg.Config{Store: newDemoStore(), Sessions: sessions, HistoryReader: historyReader{sessions}, Authorizer: mg.TenantAuthorizer{}, Factories: map[string]mg.Factory{"review": reviewFactory(model)}})
+	svc, err := mg.New(mg.Config{Store: newDemoStore(), Sessions: sessions, HistoryReader: historyReader{sessions}, Authorizer: mg.TenantAuthorizer{}, Factories: map[string]mg.Factory{"review": reviewFactory(model)}, DefaultTaskBudget: mg.TaskBudget{MaxModelRequests: 100, MaxToolCalls: 1000, MaxAgentCalls: 1000, Timeout: 24 * time.Hour}})
 	if err != nil {
 		return nil, err
 	}
