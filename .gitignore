@@ -6,3 +6,6 @@ go.work.sum
 *.out
 coverage.*
 .env
+
+# gstack 浏览器测试生成的截图报告
+.gstack/
