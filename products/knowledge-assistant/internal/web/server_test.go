@@ -129,7 +129,8 @@ func newServer(t *testing.T, worker bool) *httptest.Server {
 		Factories: map[string]mg.Factory{assistant.RunnerKind: assistant.Factory(assistant.Deps{
 			Stores: st, Model: model, Index: idx, CorpusDir: corpus, Embedder: e,
 		})},
-		Report: func(stage string, err error) { t.Logf("管理诊断：%s %v", stage, err) },
+		Report:            func(stage string, err error) { t.Logf("管理诊断：%s %v", stage, err) },
+		DefaultTaskBudget: mg.TaskBudget{MaxModelRequests: 100, MaxToolCalls: 1000, MaxAgentCalls: 1000, Timeout: 24 * time.Hour},
 	})
 	if err != nil {
 		t.Fatalf("mg.New: %v", err)
