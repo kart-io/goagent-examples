@@ -7,7 +7,7 @@ toolchain go1.27.3
 require (
 	github.com/a2aproject/a2a-go/v2 v2.7.0
 	github.com/google/uuid v1.6.0
-	github.com/kart-io/goagent v0.60.0
+	github.com/kart-io/goagent v0.60.1
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/stretchr/testify v1.12.1
 )
@@ -67,6 +67,3 @@ require (
 	google.golang.org/grpc v1.85.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )
-
-// 协议适配尚在本地工作树，联调使用同级核心仓库。
-replace github.com/kart-io/goagent => ../../../goagent
