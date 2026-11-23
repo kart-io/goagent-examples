@@ -7,7 +7,7 @@ require (
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.10.0
-	github.com/kart-io/goagent v0.60.0
+	github.com/kart-io/goagent v0.60.1
 	github.com/kart-io/goagent-contrib/acp v0.3.1-0.20261109034914-3831bc788521
 	github.com/kart-io/goagent-contrib/durable/pgstore v0.6.0
 	github.com/kart-io/goagent-contrib/memory/qdrant v0.1.0
